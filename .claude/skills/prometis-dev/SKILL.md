@@ -261,6 +261,25 @@ Elle alimente les colonnes **adjugé** et **commandé** du budget CFC.
 La note exposée est une *note de prix*, nommée comme telle dans l'API et à l'écran. Ajouter
 références et délais suppose d'étendre `schema.prisma` — décision produit, pas contournement.
 
+## 4 octies. Factures et écarts (Lot 5)
+
+- **`cfcSuggereId` n'est jamais `cfcNodeId`.** La lecture automatique *propose* ; seule la
+  validation humaine impute. Une facture n'entre dans la colonne « facturé » que validée.
+- **Le contrôle `facturé cumulé ≤ commandé` est bloquant** et chiffre le dépassement. Il peut
+  être forcé (un avenant arrive parfois après la facture) — le forçage part dans `AuditLog`.
+- **Tout est hors taxe, y compris le payé.** Les règlements sont encaissés en TTC : on les ramène
+  à leur part HT avant de les afficher à côté du facturé. Sans ça, une facture soldée montrerait
+  8,1 % de « payé » en trop.
+- **Le rapprochement doit toujours donner un motif lisible.** Un comptable qui ne comprend pas la
+  proposition la revérifiera à la main, ce qui annule le gain. Et sans indice suffisant, on ne
+  propose **rien** plutôt que n'importe quoi.
+- **L'OCR n'est pas implémenté et c'est délibéré.** `extraction.ts` part d'un texte déjà extrait ;
+  le passage PDF → texte attend le choix d'un service compatible nLPD. Ne pas « brancher » un
+  fournisseur sans arbitrage.
+- **Circuit de validation** : assuré par les rôles + statuts, tracé transition par transition dans
+  `AuditLog`. `Facture.validePar` ne porte qu'un validateur — un registre de plusieurs
+  approbateurs exigerait d'étendre le schéma.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,
