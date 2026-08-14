@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../lib/session';
 import { AppHeader, type Me } from './components/app-header';
@@ -121,7 +122,9 @@ export default async function Home() {
                 const acces = niveauParOperation.get(o.id);
                 return (
                   <tr key={o.id}>
-                    <td>{o.nom}</td>
+                    <td>
+                      <Link href={`/operations/${o.id}`}>{o.nom}</Link>
+                    </td>
                     <td>
                       {o.commune ?? '—'}
                       {o.canton ? ` (${o.canton})` : ''}

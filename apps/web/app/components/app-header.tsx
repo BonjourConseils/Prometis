@@ -22,6 +22,10 @@ export interface Me {
 
 export function AppHeader({ me, actif }: { me: Me; actif: string }) {
   const estAdmin = me.membership?.role === 'OWNER' || me.membership?.role === 'ADMIN';
+  // Un menu n'est affiché que si le module existe pour cette société. Ce
+  // n'est pas la sécurité — l'API refuse de toute façon — mais un promoteur
+  // et une entreprise générale ne doivent pas voir la même application.
+  const moduleActif = (m: string) => me.societe?.modulesActifs.includes(m) ?? false;
 
   return (
     <header className="app-header">
@@ -37,6 +41,11 @@ export function AppHeader({ me, actif }: { me: Me; actif: string }) {
         <Link href="/" className={actif === 'operations' ? 'actif' : ''}>
           Opérations
         </Link>
+        {moduleActif('ACTEURS') && (
+          <Link href="/acteurs" className={actif === 'acteurs' ? 'actif' : ''}>
+            Acteurs
+          </Link>
+        )}
         {estAdmin && (
           <Link href="/droits-acces" className={actif === 'droits' ? 'actif' : ''}>
             Droits d&apos;accès

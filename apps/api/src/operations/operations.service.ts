@@ -1,6 +1,28 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { ModeRealisation, OperationStatut, Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { AccessService } from '../auth/access.service';
+import { AuditService } from '../audit/audit.service';
+import { RequestContext } from '../context/request-context';
+
+export interface DonneesOperation {
+  nom: string;
+  description?: string | null;
+  commune?: string | null;
+  canton?: string | null;
+  parcelle?: string | null;
+  statut?: OperationStatut;
+  dateDebut?: Date | null;
+  dateLivraisonPrevue?: Date | null;
+  prixTerrain?: Prisma.Decimal | null;
+  fraisNotaireTerrain?: Prisma.Decimal | null;
+  droitsMutation?: Prisma.Decimal | null;
+  terrainAvecBatiment?: boolean;
+  modeRealisation?: ModeRealisation | null;
+  notaireActeurId?: number | null;
+  maitreOuvrageActeurId?: number | null;
+  commercialisationActive?: boolean;
+}
 
 export interface OperationListItem {
   id: number;
@@ -17,7 +39,61 @@ export class OperationsService {
   constructor(
     private readonly db: TenantPrismaService,
     private readonly access: AccessService,
+    private readonly audit: AuditService,
   ) {}
+
+  /**
+   * Crée une opération et **donne d'office MANAGE à son créateur**.
+   *
+   * Sans cela, un chef de projet créerait une opération qu'il ne verrait pas :
+   * la liste est filtrée par `OperationAccess`, et un administrateur devrait
+   * lui rouvrir la porte. Le créateur d'une promotion la pilote.
+   */
+  async creer(donnees: DonneesOperation) {
+    const societeId = RequestContext.requireSocieteId();
+    const membershipId = RequestContext.requireWorkspace().membershipId;
+
+    return this.db.run(async (tx) => {
+      const operation = await tx.operation.create({ data: { societeId, ...donnees } });
+
+      await tx.operationAccess.create({
+        data: {
+          operationId: operation.id,
+          membershipId,
+          accessLevel: 'MANAGE',
+          modules: [],
+          grantedById: membershipId,
+        },
+      });
+
+      await this.audit.enregistrer(tx, {
+        action: 'operation.creee',
+        entite: 'Operation',
+        entiteId: operation.id,
+        donnees: { nom: operation.nom, commune: operation.commune },
+      });
+
+      return operation;
+    });
+  }
+
+  async modifier(operationId: number, donnees: Partial<DonneesOperation>) {
+    return this.db.run(async (tx) => {
+      const { count } = await tx.operation.updateMany({
+        where: { id: operationId },
+        data: donnees,
+      });
+      if (count === 0) throw new NotFoundException(`Opération ${operationId} introuvable.`);
+
+      await this.audit.enregistrer(tx, {
+        action: 'operation.modifiee',
+        entite: 'Operation',
+        entiteId: operationId,
+        donnees: { champs: Object.keys(donnees) },
+      });
+      return tx.operation.findUniqueOrThrow({ where: { id: operationId } });
+    });
+  }
 
   /**
    * Opérations visibles par le membership courant.
@@ -83,32 +159,5 @@ export class OperationsService {
 
     if (!operation) throw new NotFoundException(`Opération ${operationId} introuvable.`);
     return operation;
-  }
-
-  /** Acteurs rattachés à l'opération. Le module ACTEURS est exigé par le guard. */
-  async acteurs(operationId: number) {
-    return this.db.run((tx) =>
-      tx.operationActeur.findMany({
-        where: { operationId },
-        select: {
-          id: true,
-          role: true,
-          estMandataireGeneral: true,
-          suitLeProjet: true,
-          montantMandat: true,
-          acteur: {
-            select: {
-              id: true,
-              type: true,
-              societeNom: true,
-              nom: true,
-              prenom: true,
-              email: true,
-            },
-          },
-        },
-        orderBy: { ordre: 'asc' },
-      }),
-    );
   }
 }

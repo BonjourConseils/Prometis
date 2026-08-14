@@ -7,6 +7,8 @@ import { AccesModule } from './acces/acces.module';
 import { SocieteModule } from './societe/societe.module';
 import { HealthModule } from './health/health.module';
 import { OperationsModule } from './operations/operations.module';
+import { FoncierModule } from './foncier/foncier.module';
+import { ActeursModule } from './acteurs/acteurs.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
@@ -14,6 +16,8 @@ import { SocieteController } from './societe/societe.controller';
 import { OperationsController } from './operations/operations.controller';
 import { AuditController } from './audit/audit.controller';
 import { MailController } from './mail/mail.controller';
+import { FoncierController } from './foncier/foncier.controller';
+import { ActeursController, OperationActeursController } from './acteurs/acteurs.controller';
 
 @Module({
   imports: [
@@ -24,7 +28,12 @@ import { MailController } from './mail/mail.controller';
     AccesModule,
     SocieteModule,
     HealthModule,
+    // Les contrôleurs imbriqués sous `/operations/:operationId` sont
+    // enregistrés APRÈS `OperationsModule` : Nest apparie dans l'ordre, et
+    // `/operations/:operationId` ne doit pas capter `/operations/1/parcelles`.
     OperationsModule,
+    FoncierModule,
+    ActeursModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -47,6 +56,9 @@ export class AppModule implements NestModule {
         AuthController,
         SocieteController,
         OperationsController,
+        FoncierController,
+        ActeursController,
+        OperationActeursController,
         AccesController,
         AuditController,
         MailController,
