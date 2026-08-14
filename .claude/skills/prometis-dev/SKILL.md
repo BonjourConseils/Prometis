@@ -110,9 +110,9 @@ agent : c'est voulu, ne pas contourner le garde-fou — demander à l'humain.
   bibliothèque de validation.
 - **`prisma migrate dev` a besoin de `CREATEDB`** sur le rôle propriétaire (shadow database).
   `bootstrap-db.sh` le donne. La production utilise `migrate deploy`, qui n'en a pas besoin.
-- **Le tenant est un en-tête `x-societe-id` en Lot 0.** Échafaudage assumé pour rendre
-  l'isolation testable avant l'auth. Le Lot 1 le remplace par la revendication du JWT vérifiée
-  contre le `Membership` — un en-tête non authentifié ne doit jamais choisir le tenant en prod.
+- **L'en-tête `x-societe-id` n'existe plus.** C'était l'échafaudage du Lot 0, pour rendre
+  l'isolation testable avant l'authentification ; le Lot 1 l'a remplacé par le jeton portant
+  l'espace de travail. Toute doc ou tout script qui y fait encore référence est périmé.
 - **`prisma migrate dev` peut rester bloqué** après avoir appliqué une migration écrite à la
   main (il attend une entrée sur un terminal non interactif). La migration *est* appliquée —
   vérifier `_prisma_migrations` avant de relancer. Pour des migrations SQL écrites à la main,
