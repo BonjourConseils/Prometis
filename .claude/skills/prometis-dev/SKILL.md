@@ -189,6 +189,35 @@ SOUMISSIONS/CONTRATS/DOCUMENTS).
 - **MFA** : *impossible sans modifier le schéma*. Aucun champ ne stocke un secret TOTP ni des
   codes de secours. Ne pas l'improviser : c'est une décision de modèle de données.
 
+## 4 quinquies. Écritures sur des enfants (Lot 2 et suivants)
+
+La RLS garantit qu'une ligne appartient au bon **tenant**, pas à la bonne
+**opération**. Sans contrôle explicite, un membre ayant accès à l'opération A pourrait modifier
+un lot de l'opération B de la même société : le guard `@RequireOperationAccess` serait contourné.
+
+**Règle** : toute route qui écrit sur un enfant est imbriquée sous
+`/operations/:operationId/…`, et le service remonte la chaîne jusqu'à cet `operationId`
+(`bienDeLOperation`, `lotDeLOperation`, `parkingDeLOperation` dans `FoncierService`). Une route
+`/lots/:id` isolée n'aurait rien à quoi rattacher le contrôle.
+
+Correspondance modules ↔ routes, à respecter pour toute nouvelle route :
+
+| Domaine | `AppModule` (société) | `AccessModule` (accès par opération) |
+|---|---|---|
+| parcelles, biens, PPE, fiche opération | `FONCIER` | `FONCIER` |
+| lots, parkings | `LOTS` | `VENTES` |
+| bilan promoteur | `BILAN_PROMOTEUR` | `VENTES` |
+| annuaire et équipe projet | `ACTEURS` | `ACTEURS` |
+
+Le bilan promoteur vit dans `apps/api/src/operations/bilan.ts` — fonction **pure**, tout en
+`Decimal`, testée sans base. C'est le chiffre que le promoteur confrontera à ses propres tableaux :
+il ne se calcule pas dans un contrôleur.
+
+**Tests qui écrivent** : ils doivent effacer ce qu'ils créent. Les autres suites supposent la base
+dans l'état du seed ; un fichier qui laisse ses données derrière lui ne casse pas le sien, il casse
+les suivants — et le diagnostic part dans la mauvaise direction. Voir l'`afterAll` de
+`tests/foncier-acteurs.spec.ts`.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,
