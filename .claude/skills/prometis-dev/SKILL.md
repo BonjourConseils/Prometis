@@ -218,6 +218,29 @@ dans l'état du seed ; un fichier qui laisse ses données derrière lui ne casse
 les suivants — et le diagnostic part dans la mauvaise direction. Voir l'`afterAll` de
 `tests/foncier-acteurs.spec.ts`.
 
+## 4 sexies. Budget CFC et fil rouge (Lot 3)
+
+L'arbre CFC est la colonne vertébrale : c'est sur lui que se lit
+`Budgété → Adjugé → Commandé → Facturé → Payé`. `apps/api/src/budget/cfc-arbre.ts` contient les
+**fonctions pures** d'agrégation et de ventilation — elles ne se calculent pas dans un contrôleur.
+
+- **Propre vs total** : chaque nœud expose ce qui lui est directement rattaché *et* le total
+  descendants compris. Ne jamais n'exposer que l'un des deux : un promoteur doit pouvoir savoir
+  si un montant vient du poste ou de ses sous-postes.
+- **Tout est hors taxe**, comme `LigneBudget.montant`. La TVA est portée à part (`tvaPct`).
+  Comparer un budget HT à une `Facture.montantTTC` afficherait un dépassement de 8,1 % fictif —
+  utiliser `montantHT`.
+- **« Initial »** = la première version de budget créée (le schéma ne porte pas de drapeau) ;
+  **« révisé »** = la version courante ou celle demandée.
+- **Une seule `BudgetVersion.isCourant`** par opération : invariant tenu par `BudgetService`, pas
+  par le schéma. Deux budgets courants et le bilan promoteur compte deux fois les mêmes postes.
+- **Arrondis de ventilation** : le résidu est absorbé par le dernier lot pour que la somme
+  retombe exactement sur le montant ventilé. Reproduire ce motif pour toute répartition
+  (millièmes PPE, appels de fonds).
+- **Suppression d'un poste CFC** refusée s'il porte quoi que ce soit, en nommant ce qui bloque.
+- **La trame importable n'est pas le catalogue CRB**, qui est sous licence. C'est la structure
+  publique des groupes et sous-groupes, à adapter par opération.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,

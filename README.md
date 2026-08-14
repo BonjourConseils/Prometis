@@ -4,8 +4,8 @@ SaaS multi-tenant de gestion de promotions immobilières — Suisse romande.
 Du foncier au budget CFC, aux soumissions et adjudications (SIA 118), aux factures lues par
 OCR/IA, jusqu'aux appels de fonds envoyés aux acquéreurs.
 
-**Lots 0, 1 et 2 livrés** : fondations multi-tenant, identité et accès, puis opérations,
-foncier et bilan promoteur. Voir [BACKLOG.md](BACKLOG.md) pour la suite.
+**Lots 0 à 3 livrés** : fondations multi-tenant, identité et accès, opérations et bilan
+promoteur, puis budget CFC. Voir [BACKLOG.md](BACKLOG.md) pour la suite.
 
 ## Démarrer
 
