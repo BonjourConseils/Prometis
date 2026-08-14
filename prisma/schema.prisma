@@ -1,0 +1,1349 @@
+// =====================================================================
+//  SaaS de gestion de promotions immobilières — Modèle de données
+//  Cible : Suisse romande · Multi-tenant · PostgreSQL + Prisma
+//  Aligné sur les conventions Kolabimo (@map snake_case, @@map pluriel)
+//  pour faciliter la passerelle entre les deux SaaS.
+//
+//  Multi-tenant : chaque table « métier » porte un `societeId`. L'isolation
+//  est assurée en base par la Row-Level Security PostgreSQL (policy sur
+//  societe_id = current_setting('app.societe_id')). Voir plan §7.2.
+//
+//  Convention monétaire : Decimal(12,2) en CHF. Pourcentages en Decimal.
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Rôle APPLICATIF (prometis_app) : soumis aux policies RLS.
+  url       = env("DATABASE_URL")
+  // Rôle PROPRIÉTAIRE (prometis) : utilisé par `prisma migrate` et le seed,
+  // qui doivent créer les tables et poser les policies. L'application, elle,
+  // ne se connecte jamais avec ce rôle.
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// =====================================================================
+//  1. TENANT — SOCIÉTÉ, UTILISATEURS, ACTIONNAIRES
+// =====================================================================
+
+enum UtilisateurRole {
+  OWNER // propriétaire du compte (le promoteur)
+  ADMIN
+  CHEF_PROJET
+  ECONOMISTE // économiste de la construction
+  COMPTABILITE
+  COMMERCIAL
+  LECTURE_SEULE
+  EXTERNE // notaire, banque, EG, architecte : accès restreint
+}
+
+/// Niveau d'accès accordé à un utilisateur SUR UNE OPÉRATION donnée
+/// (aligné sur Kolabimo : READ_ONLY / OPERATE / MANAGE).
+enum OperationAccessLevel {
+  READ_ONLY // consultation
+  OPERATE // saisie (ex. une EG/architecte qui saisit les soumissions)
+  MANAGE // gestion complète de l'opération
+}
+
+/// Modules de l'app, pour restreindre finement un accès externe.
+/// Vide = tous les modules permis par le niveau d'accès.
+enum AccessModule {
+  FONCIER
+  BUDGET_CFC
+  SOUMISSIONS
+  CONTRATS
+  FACTURES
+  VENTES
+  APPELS_FONDS
+  DOCUMENTS
+  SEANCES
+  ACTEURS
+}
+
+/// Profil de l'organisation cliente : détermine les modules activés par défaut.
+enum SocieteProfil {
+  PROMOTEUR
+  ENTREPRISE_GENERALE
+  ARCHITECTE
+  BUREAU_TECHNIQUE
+  REGIE
+  AUTRE
+}
+
+/// Modules activables par société (édition). Un promoteur active tout ; une
+/// entreprise générale ou un architecte n'active que la gestion de chantier.
+enum AppModule {
+  FONCIER
+  BUDGET_CFC
+  SOUMISSIONS
+  ADJUDICATIONS
+  CONTRATS
+  FACTURES
+  SUIVI_CHANTIER
+  ECARTS
+  SEANCES
+  GED
+  ACTEURS
+  // Surcouche commercialisation (promoteur uniquement)
+  LOTS
+  ACQUEREURS
+  BILAN_PROMOTEUR
+  ECHEANCIER
+  APPELS_FONDS
+  TRESORERIE
+  COURTAGE
+}
+
+/// Le tenant : l'organisation cliente (promoteur, EG, architecte…). Racine de l'isolation des données.
+model Societe {
+  id             Int           @id @default(autoincrement())
+  raisonSociale  String        @map("raison_sociale")
+  formeJuridique String?       @map("forme_juridique") // SA, Sàrl…
+  ide            String?       @map("ide") // n° IDE (CHE-…)
+  numeroTva      String?       @map("numero_tva")
+  adresse        String?
+  codePostal     String?       @map("code_postal")
+  localite       String?
+  canton         String? // VD, GE, VS…
+  pays           String        @default("CH")
+  email          String?
+  telephone      String?
+  logoUrl        String?       @map("logo_url")
+  iban           String? // pour QR-factures émises
+  profil         SocieteProfil @default(PROMOTEUR)
+  modulesActifs  AppModule[]   @map("modules_actifs")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  memberships  Membership[]
+  actionnaires Actionnaire[]
+  operations   Operation[]
+  acteurs      Acteur[]
+  entreprises  Entreprise[]
+  acquereurs   Acquereur[]
+  factures     Facture[]
+  documents    Document[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+
+  @@map("societes")
+}
+
+/// Identité de connexion (login). Une personne = un compte, qui peut être membre
+/// de PLUSIEURS sociétés (espaces de travail) — ex. un collaborateur d'EG travaillant
+/// pour deux promoteurs, avec un seul login et un sélecteur d'espace.
+model Compte {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  prenom       String?
+  nom          String?
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  memberships Membership[]
+
+  @@map("comptes")
+}
+
+/// Appartenance d'un compte à une société (espace de travail), avec son rôle.
+/// L'isolation reste par société : un compte n'accède à une société que via son
+/// membership (et ses OperationAccess). Un membre externe (EG, architecte, notaire)
+/// est rattaché à sa société-acteur.
+model Membership {
+  id        Int             @id @default(autoincrement())
+  compteId  Int             @map("compte_id")
+  societeId Int             @map("societe_id")
+  role      UtilisateurRole @default(LECTURE_SEULE)
+  fonction  String? // intitulé de poste (employé)
+  acteurId  Int?            @map("acteur_id")
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  compte            Compte            @relation(fields: [compteId], references: [id], onDelete: Cascade)
+  societe           Societe           @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  acteur            Acteur?           @relation(fields: [acteurId], references: [id])
+  operationAccesses OperationAccess[]
+
+  @@unique([compteId, societeId])
+  @@index([societeId])
+  @@map("memberships")
+}
+
+/// Actionnaires de la société (répartition du capital).
+model Actionnaire {
+  id        Int      @id @default(autoincrement())
+  societeId Int      @map("societe_id")
+  nom       String
+  partPct   Decimal? @map("part_pct") @db.Decimal(5, 2) // % du capital
+  fonction  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId])
+  @@map("actionnaires")
+}
+
+/// Clé API par société pour la passerelle (Kolabimo, n8n, CRM…).
+model ApiKey {
+  id         Int       @id @default(autoincrement())
+  societeId  Int       @map("societe_id")
+  key        String    @unique
+  label      String?
+  isActive   Boolean   @default(true) @map("is_active")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+// =====================================================================
+//  2. OPÉRATION, FONCIER, BIENS, LOTS, PARKINGS
+// =====================================================================
+
+enum OperationStatut {
+  MONTAGE
+  EN_PREPARATION
+  EN_CHANTIER
+  EN_COMMERCIALISATION
+  LIVRAISON
+  CLOTUREE
+}
+
+enum BienNature {
+  LOTISSEMENT
+  VILLA
+  IMMEUBLE
+  CHALET
+}
+
+enum LotStatut {
+  DISPONIBLE
+  RESERVE
+  EN_ATTENTE_NOTAIRE
+  VENDU
+}
+
+/// Types de parc — ALIGNÉ sur Kolabimo (ParkingType).
+enum ParkingType {
+  EXTERIEURE
+  INTERIEURE
+  COUVERTE
+  BOX
+  AUTRE
+}
+
+/// Type d'acteur intervenant sur la promotion — aligné sur Kolabimo (ActeurProjetType),
+/// enrichi (ingénieur / pilote). Ce sont des sociétés (bureaux, études, EG…).
+enum ActeurType {
+  NOTAIRE
+  GEOMETRE
+  INGENIEUR
+  ARCHITECTE
+  BUREAU_TECHNIQUE
+  ENTREPRISE_GENERALE
+  COURTIER
+  MAITRE_OUVRAGE
+  PILOTE
+  AUTRE
+}
+
+/// Mode de réalisation de l'opération : qui « se charge de tout ».
+enum ModeRealisation {
+  ENTREPRISE_GENERALE // une EG pilote l'ensemble
+  MANDAT_ARCHITECTE // l'architecte mandataire pilote l'ensemble
+  CORPS_DETAT_SEPARES // le promoteur adjuge lot par lot
+}
+
+/// La promotion / le projet. Mappé à une promotion Kolabimo via kolabimoPromotionId.
+model Operation {
+  id                  Int             @id @default(autoincrement())
+  societeId           Int             @map("societe_id")
+  nom                 String
+  description         String?
+  commune             String?
+  canton              String?
+  parcelle            String?
+  statut              OperationStatut @default(MONTAGE)
+  dateDebut           DateTime?       @map("date_debut")
+  dateLivraisonPrevue DateTime?       @map("date_livraison_prevue")
+
+  // Foncier (CFC 0) — synthèse ; le détail chiffré vit dans les lignes de budget.
+  prixTerrain         Decimal? @map("prix_terrain") @db.Decimal(12, 2)
+  fraisNotaireTerrain Decimal? @map("frais_notaire_terrain") @db.Decimal(12, 2)
+  droitsMutation      Decimal? @map("droits_mutation") @db.Decimal(12, 2)
+  terrainAvecBatiment Boolean  @default(false) @map("terrain_avec_batiment")
+
+  // Mode de réalisation : EG « clé en main », mandat d'architecte, ou corps d'état séparés.
+  modeRealisation         ModeRealisation? @map("mode_realisation")
+  // Notaire de la promotion (surchargé par lot au besoin, cf. Reservation.notaireActeurId).
+  notaireActeurId         Int?             @map("notaire_acteur_id")
+  // Maître d'ouvrage (le promoteur) comme CONTACT — utile quand l'opération est
+  // possédée dans l'app par une EG ou un architecte (promoteur absent de l'app).
+  maitreOuvrageActeurId   Int?             @map("maitre_ouvrage_acteur_id")
+  // Surcouche commercialisation (lots, acquéreurs, appels de fonds) active ?
+  // Faux pour un chantier piloté par une EG / un architecte sans promoteur.
+  commercialisationActive Boolean          @default(true) @map("commercialisation_active")
+
+  // Passerelle Kolabimo
+  kolabimoPromotionId Int? @map("kolabimo_promotion_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  societe             Societe           @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  notaireActeur       Acteur?           @relation("OperationNotaire", fields: [notaireActeurId], references: [id])
+  maitreOuvrageActeur Acteur?           @relation("OperationMaitreOuvrage", fields: [maitreOuvrageActeurId], references: [id])
+  biens               Bien[]
+  operationActeurs    OperationActeur[]
+  cfcNodes            CfcNode[]
+  budgetVersions      BudgetVersion[]
+  soumissions         Soumission[]
+  contrats            Contrat[]
+  factures            Facture[]
+  reservations        Reservation[]
+  echeancierEtapes    EcheancierEtape[]
+  documents           Document[]
+  seances             Seance[]
+  parcelles           Parcelle[]
+  ppes                Ppe[]
+  mandatsCourtage     MandatCourtage[]
+  operationAccesses   OperationAccess[]
+
+  @@index([societeId])
+  @@index([kolabimoPromotionId])
+  @@map("operations")
+}
+
+/// Annuaire des acteurs (sociétés) réutilisables sur plusieurs opérations :
+/// notaires, géomètres, ingénieurs, architectes, entreprises générales, etc.
+/// Équivalent de l'`Acteur` de Kolabimo.
+model Acteur {
+  id         Int        @id @default(autoincrement())
+  societeId  Int        @map("societe_id")
+  type       ActeurType @default(NOTAIRE)
+  typeLibre  String?    @map("type_libre")
+  societeNom String?    @map("societe_nom") // raison sociale de l'acteur
+  nom        String?
+  prenom     String?
+  adresse    String?
+  codePostal String?    @map("code_postal")
+  localite   String?
+  email      String?
+  telephone  String?
+  ide        String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  societe                 Societe           @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  operationActeurs        OperationActeur[]
+  operationsNotaire       Operation[]       @relation("OperationNotaire")
+  operationsMaitreOuvrage Operation[]       @relation("OperationMaitreOuvrage")
+  reservationsNotaire     Reservation[]     @relation("ReservationNotaire")
+  documents               Document[]
+  mandatsCourtage         MandatCourtage[]  @relation("CourtierMandat")
+  memberships             Membership[]
+
+  @@index([societeId, type])
+  @@map("acteurs")
+}
+
+/// Rattachement d'un acteur à une opération, avec son rôle sur le projet.
+/// `estMandataireGeneral` = l'EG ou l'architecte qui « se charge de tout ».
+/// `suitLeProjet` = acteur retenu/actif (vs simplement consulté).
+model OperationActeur {
+  id                   Int        @id @default(autoincrement())
+  operationId          Int        @map("operation_id")
+  acteurId             Int        @map("acteur_id")
+  role                 ActeurType
+  roleLibre            String?    @map("role_libre")
+  estMandataireGeneral Boolean    @default(false) @map("est_mandataire_general")
+  suitLeProjet         Boolean    @default(true) @map("suit_le_projet")
+  // Montant contractuel/honoraires de l'acteur (mandat), s'il y a lieu.
+  montantMandat        Decimal?   @map("montant_mandat") @db.Decimal(12, 2)
+  ordre                Int        @default(0)
+  createdAt            DateTime   @default(now()) @map("created_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  acteur    Acteur    @relation(fields: [acteurId], references: [id])
+
+  @@unique([operationId, acteurId, role])
+  @@index([operationId])
+  @@map("operation_acteurs")
+}
+
+/// Un bien de l'opération : lotissement, villa, immeuble ou chalet.
+model Bien {
+  id          Int        @id @default(autoincrement())
+  operationId Int        @map("operation_id")
+  nature      BienNature @default(IMMEUBLE)
+  nom         String
+  nbEtages    Int?       @map("nb_etages")
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  lots      Lot[]
+
+  @@index([operationId])
+  @@map("biens")
+}
+
+/// Unité vendable (appartement PPE, villa, chalet). Mappé à un appartement Kolabimo.
+model Lot {
+  id           Int       @id @default(autoincrement())
+  bienId       Int       @map("bien_id")
+  reference    String
+  etage        Int?
+  nombrePieces Decimal?  @map("nombre_pieces") @db.Decimal(3, 1)
+  surfaceM2    Decimal?  @map("surface_m2") @db.Decimal(7, 2)
+  quotePartPPE Decimal?  @map("quote_part_ppe") @db.Decimal(6, 3) // millièmes PPE
+  prixVente    Decimal?  @map("prix_vente") @db.Decimal(12, 2)
+  statut       LotStatut @default(DISPONIBLE)
+
+  // Passerelle Kolabimo
+  kolabimoAppartementId Int? @map("kolabimo_appartement_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  bien               Bien                @relation(fields: [bienId], references: [id], onDelete: Cascade)
+  parkings           Parking[]
+  reservations       Reservation[]
+  documents          Document[]
+  mandatCourtageLots MandatCourtageLot[]
+
+  @@index([bienId])
+  @@index([kolabimoAppartementId])
+  @@map("lots")
+}
+
+/// Place de parc rattachée à un lot. Entre dans le prix total acte du lot
+/// (prix total acte = prixVente du lot + Σ prix des parkings).
+model Parking {
+  id                Int         @id @default(autoincrement())
+  lotId             Int         @map("lot_id")
+  reference         String?
+  type              ParkingType @default(EXTERIEURE)
+  prix              Decimal?    @db.Decimal(12, 2)
+  ordre             Int         @default(0)
+  kolabimoParkingId Int?        @map("kolabimo_parking_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  lot Lot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@index([lotId])
+  @@map("parkings")
+}
+
+// =====================================================================
+//  3. CFC & BUDGET
+// =====================================================================
+
+/// Nœud de l'arborescence CFC de l'opération (arbre à N niveaux, adjacency list).
+/// Ex. 2 → 27 → 271 → 271.0. Agrège budgété / adjugé / commandé / facturé.
+model CfcNode {
+  id          Int      @id @default(autoincrement())
+  operationId Int      @map("operation_id")
+  parentId    Int?     @map("parent_id")
+  code        String // "2", "27", "271", "271.0"
+  libelle     String
+  niveau      Int // profondeur (1 = groupe principal)
+  ordre       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  parent    CfcNode?  @relation("CfcHierarchie", fields: [parentId], references: [id])
+  enfants   CfcNode[] @relation("CfcHierarchie")
+
+  lignesBudget LigneBudget[]
+  soumissions  Soumission[]
+  contrats     Contrat[]
+  factures     Facture[]
+  avenants     Avenant[]
+
+  @@unique([operationId, code])
+  @@index([operationId])
+  @@index([parentId])
+  @@map("cfc_nodes")
+}
+
+enum BudgetVersionStatut {
+  BROUILLON
+  VALIDE
+  ARCHIVE
+}
+
+/// Version de budget d'une opération (initial, puis révisions). Une seule « courante ».
+model BudgetVersion {
+  id          Int                 @id @default(autoincrement())
+  operationId Int                 @map("operation_id")
+  libelle     String // "Budget initial", "Révision 1"…
+  statut      BudgetVersionStatut @default(BROUILLON)
+  isCourant   Boolean             @default(false) @map("is_courant")
+  commentaire String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  operation Operation     @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  lignes    LigneBudget[]
+
+  @@index([operationId])
+  @@map("budget_versions")
+}
+
+/// Ligne de budget rattachée à un poste CFC (dans une version de budget).
+model LigneBudget {
+  id              Int      @id @default(autoincrement())
+  budgetVersionId Int      @map("budget_version_id")
+  cfcNodeId       Int      @map("cfc_node_id")
+  designation     String?
+  quantite        Decimal? @db.Decimal(12, 3)
+  prixUnitaire    Decimal? @map("prix_unitaire") @db.Decimal(12, 2)
+  montant         Decimal  @db.Decimal(12, 2)
+  tvaPct          Decimal? @default(8.10) @map("tva_pct") @db.Decimal(4, 2)
+  estReserve      Boolean  @default(false) @map("est_reserve") // provision / imprévus
+  note            String?
+
+  budgetVersion BudgetVersion @relation(fields: [budgetVersionId], references: [id], onDelete: Cascade)
+  cfcNode       CfcNode       @relation(fields: [cfcNodeId], references: [id])
+
+  @@index([budgetVersionId])
+  @@index([cfcNodeId])
+  @@map("lignes_budget")
+}
+
+// =====================================================================
+//  4. ENTREPRISES, SOUMISSIONS, ADJUDICATIONS, CONTRATS
+// =====================================================================
+
+/// Répertoire des entreprises (soumissionnaires / adjudicataires) et intervenants.
+model Entreprise {
+  id          Int      @id @default(autoincrement())
+  societeId   Int      @map("societe_id")
+  nom         String
+  corpsMetier String?  @map("corps_metier") // peinture, gros œuvre, sanitaire…
+  contactNom  String?  @map("contact_nom")
+  email       String?
+  telephone   String?
+  ide         String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  societe     Societe                @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  invitations SoumissionInvitation[]
+  offres      Offre[]
+  contrats    Contrat[]
+  factures    Facture[]
+
+  @@index([societeId])
+  @@map("entreprises")
+}
+
+enum SoumissionStatut {
+  BROUILLON
+  ENVOYEE
+  OUVERTE
+  EN_COMPARAISON
+  ADJUGEE
+  INFRUCTUEUSE
+  ANNULEE
+}
+
+/// Appel d'offres pour un poste CFC / corps de métier.
+model Soumission {
+  id          Int              @id @default(autoincrement())
+  operationId Int              @map("operation_id")
+  cfcNodeId   Int?             @map("cfc_node_id")
+  intitule    String
+  corpsMetier String?          @map("corps_metier")
+  statut      SoumissionStatut @default(BROUILLON)
+  dateEnvoi   DateTime?        @map("date_envoi")
+  dateLimite  DateTime?        @map("date_limite")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  operation    Operation              @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  cfcNode      CfcNode?               @relation(fields: [cfcNodeId], references: [id])
+  invitations  SoumissionInvitation[]
+  offres       Offre[]
+  adjudication Adjudication?
+  documents    Document[]
+
+  @@index([operationId])
+  @@map("soumissions")
+}
+
+/// À qui la soumission a été envoyée, et si l'entreprise a répondu.
+model SoumissionInvitation {
+  id           Int       @id @default(autoincrement())
+  soumissionId Int       @map("soumission_id")
+  entrepriseId Int       @map("entreprise_id")
+  dateEnvoi    DateTime? @map("date_envoi")
+  aRepondu     Boolean   @default(false) @map("a_repondu")
+
+  soumission Soumission @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  entreprise Entreprise @relation(fields: [entrepriseId], references: [id])
+
+  @@unique([soumissionId, entrepriseId])
+  @@map("soumission_invitations")
+}
+
+enum OffreStatut {
+  ATTENDUE
+  RECUE
+  RELANCE
+  RETENUE
+  ECARTEE
+}
+
+/// Offre (prix) reçue d'une entreprise pour une soumission.
+model Offre {
+  id            Int         @id @default(autoincrement())
+  soumissionId  Int         @map("soumission_id")
+  entrepriseId  Int         @map("entreprise_id")
+  montant       Decimal?    @db.Decimal(12, 2)
+  remisePct     Decimal?    @map("remise_pct") @db.Decimal(4, 2)
+  statut        OffreStatut @default(ATTENDUE)
+  dateReception DateTime?   @map("date_reception")
+  note          String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  soumission   Soumission    @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  entreprise   Entreprise    @relation(fields: [entrepriseId], references: [id])
+  adjudication Adjudication?
+
+  @@index([soumissionId])
+  @@map("offres")
+}
+
+/// Décision d'adjudication : l'offre retenue pour une soumission.
+model Adjudication {
+  id            Int      @id @default(autoincrement())
+  soumissionId  Int      @unique @map("soumission_id")
+  offreId       Int      @unique @map("offre_id")
+  montantAdjuge Decimal  @map("montant_adjuge") @db.Decimal(12, 2)
+  dateDecision  DateTime @default(now()) @map("date_decision")
+  decidePar     Int?     @map("decide_par") // utilisateurId
+  commentaire   String?
+
+  soumission Soumission @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  offre      Offre      @relation(fields: [offreId], references: [id])
+  contrat    Contrat?
+
+  @@map("adjudications")
+}
+
+enum ContratStatut {
+  BROUILLON
+  SIGNE
+  EN_COURS
+  RECEPTION
+  SOLDE
+  RESILIE
+}
+
+/// Contrat d'entreprise (référence norme SIA 118).
+model Contrat {
+  id                 Int           @id @default(autoincrement())
+  operationId        Int           @map("operation_id")
+  entrepriseId       Int           @map("entreprise_id")
+  cfcNodeId          Int?          @map("cfc_node_id")
+  adjudicationId     Int?          @unique @map("adjudication_id")
+  reference          String?
+  montant            Decimal       @db.Decimal(12, 2)
+  retenueGarantiePct Decimal?      @map("retenue_garantie_pct") @db.Decimal(4, 2)
+  statut             ContratStatut @default(BROUILLON)
+  dateSignature      DateTime?     @map("date_signature")
+  dateReception      DateTime?     @map("date_reception") // réception de l'ouvrage
+  finGarantie        DateTime?     @map("fin_garantie") // délai de garantie (2 ans)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  operation    Operation     @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  entreprise   Entreprise    @relation(fields: [entrepriseId], references: [id])
+  cfcNode      CfcNode?      @relation(fields: [cfcNodeId], references: [id])
+  adjudication Adjudication? @relation(fields: [adjudicationId], references: [id])
+  avenants     Avenant[]
+  factures     Facture[]
+  documents    Document[]
+
+  @@index([operationId])
+  @@index([entrepriseId])
+  @@map("contrats")
+}
+
+/// Avenant (travaux en plus / en moins) rattaché à un contrat et à un CFC.
+model Avenant {
+  id          Int      @id @default(autoincrement())
+  contratId   Int      @map("contrat_id")
+  cfcNodeId   Int?     @map("cfc_node_id")
+  reference   String?
+  montant     Decimal  @db.Decimal(12, 2) // signé : + ou −
+  motif       String?
+  dateAvenant DateTime @default(now()) @map("date_avenant")
+
+  contrat Contrat  @relation(fields: [contratId], references: [id], onDelete: Cascade)
+  cfcNode CfcNode? @relation(fields: [cfcNodeId], references: [id])
+
+  @@index([contratId])
+  @@map("avenants")
+}
+
+// =====================================================================
+//  5. FACTURES (avec lecture OCR/IA) & PAIEMENTS FOURNISSEURS
+// =====================================================================
+
+enum FactureType {
+  SITUATION // état d'avancement
+  ACOMPTE
+  SOLDE
+  AVOIR
+}
+
+enum FactureStatut {
+  RECUE
+  EN_LECTURE // OCR/IA en cours
+  A_VALIDER
+  VALIDEE
+  PAYEE
+  LITIGE
+  REJETEE
+}
+
+enum OcrStatut {
+  EN_ATTENTE
+  TRAITEE
+  ECHOUEE
+}
+
+/// Facture d'un corps de métier. Lue automatiquement (OCR/IA) puis classée au CFC.
+model Facture {
+  id           Int           @id @default(autoincrement())
+  societeId    Int           @map("societe_id")
+  operationId  Int           @map("operation_id")
+  contratId    Int?          @map("contrat_id")
+  entrepriseId Int?          @map("entreprise_id")
+  cfcNodeId    Int?          @map("cfc_node_id") // CFC validé
+  type         FactureType   @default(SITUATION)
+  statut       FactureStatut @default(RECUE)
+
+  numero      String?
+  dateFacture DateTime? @map("date_facture")
+  montantHT   Decimal?  @map("montant_ht") @db.Decimal(12, 2)
+  tvaPct      Decimal?  @map("tva_pct") @db.Decimal(4, 2)
+  montantTTC  Decimal?  @map("montant_ttc") @db.Decimal(12, 2)
+
+  // Lecture automatique (OCR/IA)
+  fichierUrl   String?   @map("fichier_url")
+  ocrStatut    OcrStatut @default(EN_ATTENTE) @map("ocr_statut")
+  ocrTexte     String?   @map("ocr_texte")
+  cfcSuggereId Int?      @map("cfc_suggere_id") // CFC proposé par l'IA
+  ocrConfiance Decimal?  @map("ocr_confiance") @db.Decimal(5, 2)
+
+  // Validation humaine
+  validePar      Int?      @map("valide_par")
+  dateValidation DateTime? @map("date_validation")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  societe    Societe               @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  operation  Operation             @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  contrat    Contrat?              @relation(fields: [contratId], references: [id])
+  entreprise Entreprise?           @relation(fields: [entrepriseId], references: [id])
+  cfcNode    CfcNode?              @relation(fields: [cfcNodeId], references: [id])
+  paiements  PaiementFournisseur[]
+  documents  Document[]
+
+  @@index([operationId])
+  @@index([cfcNodeId])
+  @@index([statut])
+  @@map("factures")
+}
+
+/// Paiement effectué à une entreprise (rapprochement ISO 20022 pain/camt).
+model PaiementFournisseur {
+  id         Int      @id @default(autoincrement())
+  factureId  Int      @map("facture_id")
+  montant    Decimal  @db.Decimal(12, 2)
+  dateValeur DateTime @map("date_valeur")
+  moyen      String? // virement, QR…
+  reference  String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  facture Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+  @@map("paiements_fournisseurs")
+}
+
+// =====================================================================
+//  6. VENTES : ACQUÉREURS, RÉSERVATIONS, ÉCHÉANCIER, APPELS DE FONDS
+// =====================================================================
+
+enum ReservationStatut {
+  OPTION
+  RESERVE
+  FONDS_VERSES
+  VENDU
+  EXPIREE
+  ANNULEE
+}
+
+/// Acheteur d'un ou plusieurs lots. Mappé au client d'une réservation Kolabimo.
+model Acquereur {
+  id                Int      @id @default(autoincrement())
+  societeId         Int      @map("societe_id")
+  nom               String?
+  prenom            String?
+  email             String?
+  telephone         String?
+  adresse           String?
+  kolabimoClientRef String?  @map("kolabimo_client_ref")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  societe      Societe       @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+
+  @@index([societeId])
+  @@map("acquereurs")
+}
+
+/// Réservation d'un lot par un acquéreur. Miroir d'une réservation Kolabimo
+/// (idempotence via externalId, comme côté Kolabimo).
+model Reservation {
+  id          Int               @id @default(autoincrement())
+  operationId Int               @map("operation_id")
+  lotId       Int               @map("lot_id")
+  acquereurId Int               @map("acquereur_id")
+  statut      ReservationStatut @default(OPTION)
+
+  // Prix total acte figé au moment de la vente (prix lot + Σ parkings).
+  prixTotalActe     Decimal?  @map("prix_total_acte") @db.Decimal(12, 2)
+  dateReservation   DateTime  @default(now()) @map("date_reservation")
+  dateSignatureActe DateTime? @map("date_signature_acte")
+
+  // Notaire du lot — peut différer du notaire de la promotion (comme dans Kolabimo).
+  notaireActeurId Int? @map("notaire_acteur_id")
+
+  // Passerelle Kolabimo
+  externalId            String? @unique @map("external_id")
+  kolabimoReservationId Int?    @map("kolabimo_reservation_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  operation           Operation            @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  lot                 Lot                  @relation(fields: [lotId], references: [id])
+  acquereur           Acquereur            @relation(fields: [acquereurId], references: [id])
+  notaireActeur       Acteur?              @relation("ReservationNotaire", fields: [notaireActeurId], references: [id])
+  appelsDeFonds       AppelDeFonds[]
+  documents           Document[]
+  commissionsCourtage CommissionCourtage[]
+
+  @@index([operationId])
+  @@index([lotId])
+  @@map("reservations")
+}
+
+/// Statut aligné sur Kolabimo (EcheancierEtapeStatut).
+enum EcheancierEtapeStatut {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// Jalon de paiement de l'opération. MAÎTRE dans ce SaaS (décision de fin d'étape),
+/// synchronisé vers Kolabimo. Σ des pourcentages = 100 %.
+/// Passer une étape à COMPLETED (avec dateCompletion) déclenche les appels de fonds.
+model EcheancierEtape {
+  id              Int                   @id @default(autoincrement())
+  operationId     Int                   @map("operation_id")
+  ordre           Int
+  libelle         String
+  description     String?
+  // % du prix appelé À CETTE ÉTAPE (surcouche promoteur). Null = simple jalon de
+  // chantier (suivi des étapes par une EG / un architecte, sans appel de fonds).
+  pourcentage     Decimal?              @db.Decimal(5, 2)
+  statut          EcheancierEtapeStatut @default(NOT_STARTED)
+  dateCompletion  DateTime?             @map("date_completion") // fin RÉELLE (déclencheur)
+  datePrevue      DateTime?             @map("date_prevue") // fin estimée (projection)
+  // Traçabilité de la synchro vers Kolabimo
+  kolabimoEtapeId Int?                  @map("kolabimo_etape_id")
+  syncedAt        DateTime?             @map("synced_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  operation     Operation      @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  appelsDeFonds AppelDeFonds[]
+
+  @@unique([operationId, ordre])
+  @@index([operationId])
+  @@map("echeancier_etapes")
+}
+
+enum AppelDeFondsStatut {
+  BROUILLON
+  EMIS
+  ENVOYE
+  PARTIELLEMENT_PAYE
+  PAYE
+  EN_RETARD
+  ANNULE
+}
+
+/// Appel de fonds envoyé à un acquéreur pour une étape.
+/// montant = pourcentage de l'étape × prix total acte du lot.
+/// Unicité (reservationId, etapeId) : idempotence de la génération automatique.
+model AppelDeFonds {
+  id            Int                @id @default(autoincrement())
+  reservationId Int                @map("reservation_id")
+  etapeId       Int                @map("etape_id")
+  numero        String?
+  pourcentage   Decimal            @db.Decimal(5, 2)
+  montant       Decimal            @db.Decimal(12, 2)
+  statut        AppelDeFondsStatut @default(BROUILLON)
+  dateEmission  DateTime?          @map("date_emission")
+  dateEnvoi     DateTime?          @map("date_envoi")
+  dateEcheance  DateTime?          @map("date_echeance")
+  fichierUrl    String?            @map("fichier_url") // PDF de l'appel de fonds
+  qrReference   String?            @map("qr_reference") // référence QR-facture suisse
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  reservation   Reservation     @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  etape         EcheancierEtape @relation(fields: [etapeId], references: [id])
+  encaissements Encaissement[]
+
+  @@unique([reservationId, etapeId])
+  @@index([reservationId])
+  @@index([statut])
+  @@map("appels_de_fonds")
+}
+
+/// Encaissement reçu d'un acquéreur (rapprochement ISO 20022 camt.053/054).
+model Encaissement {
+  id               Int       @id @default(autoincrement())
+  appelDeFondsId   Int       @map("appel_de_fonds_id")
+  montant          Decimal   @db.Decimal(12, 2)
+  dateValeur       DateTime  @map("date_valeur")
+  reference        String? // référence QR rapprochée
+  source           String? // "camt.054", "saisie", "notaire"…
+  // Validation de l'arrivée des fonds (ex. par le notaire ayant un accès APPELS_FONDS).
+  confirmeParId    Int?      @map("confirme_par_id")
+  dateConfirmation DateTime? @map("date_confirmation")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  appelDeFonds AppelDeFonds @relation(fields: [appelDeFondsId], references: [id], onDelete: Cascade)
+
+  @@index([appelDeFondsId])
+  @@map("encaissements")
+}
+
+// =====================================================================
+//  7. PASSERELLE / INTÉGRATION & AUDIT
+// =====================================================================
+
+enum WebhookEventStatut {
+  RECU
+  TRAITE
+  IGNORE
+  ERREUR
+}
+
+/// Journal des événements entrants (webhooks Kolabimo, ex. echeancier.etape_completed).
+/// dedupeKey garantit l'idempotence du traitement.
+model WebhookEvent {
+  id          Int                @id @default(autoincrement())
+  source      String             @default("kolabimo")
+  evenement   String // "echeancier.etape_completed"…
+  dedupeKey   String             @unique @map("dedupe_key")
+  payload     Json
+  statut      WebhookEventStatut @default(RECU)
+  erreur      String?
+  receivedAt  DateTime           @default(now()) @map("received_at")
+  processedAt DateTime?          @map("processed_at")
+
+  @@index([evenement, statut])
+  @@map("webhook_events")
+}
+
+/// Piste d'audit des actions sensibles (adjudication, validation facture,
+/// émission d'appel de fonds, changement de budget…).
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  societeId     Int      @map("societe_id")
+  utilisateurId Int?     @map("utilisateur_id")
+  action        String // "facture.validee", "etape.completed"…
+  entite        String // "Facture", "AppelDeFonds"…
+  entiteId      Int?     @map("entite_id")
+  donnees       Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId, createdAt])
+  @@map("audit_logs")
+}
+
+// =====================================================================
+//  8. GED — DOCUMENTS DE LA PROMOTION
+//     Mandats, contrats, factures, actes de vente, plans/projets, permis,
+//     garanties, PV, assurances, financement… rattachables à l'opération et,
+//     plus finement, à un lot, un contrat, une facture, une réservation, un acteur.
+// =====================================================================
+
+enum DocumentCategorie {
+  MANDAT
+  CONTRAT
+  DEVIS
+  SOUMISSION
+  FACTURE
+  ACTE_VENTE
+  RESERVATION
+  PLAN
+  PROJET
+  PERMIS
+  AUTORISATION
+  EXTRAIT_RF
+  PPE_ACTE_CONSTITUTIF
+  PPE_REGLEMENT
+  PPE_PLAN
+  MANDAT_COURTAGE
+  GARANTIE
+  PV_RECEPTION
+  PV_SEANCE
+  NOTE
+  PHOTO_CHANTIER
+  ASSURANCE
+  FINANCEMENT
+  ADMINISTRATIF
+  AUTRE
+}
+
+model Document {
+  id          Int               @id @default(autoincrement())
+  societeId   Int               @map("societe_id")
+  categorie   DocumentCategorie @default(AUTRE)
+  titre       String
+  description String?
+
+  // Fichier
+  fileName String @map("file_name")
+  filePath String @map("file_path") // clé object storage (S3/CH)
+  mimeType String @map("mime_type")
+  fileSize Int    @map("file_size")
+
+  // Versionnage
+  version          Int     @default(1)
+  isCourant        Boolean @default(true) @map("is_courant")
+  parentDocumentId Int?    @map("parent_document_id")
+
+  // Partage externe (notaire, banque, acquéreur…)
+  visibiliteExterne Boolean @default(false) @map("visibilite_externe")
+
+  uploadedById Int?     @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Rattachements optionnels (l'opération est le contexte le plus fréquent)
+  operationId      Int? @map("operation_id")
+  lotId            Int? @map("lot_id")
+  soumissionId     Int? @map("soumission_id")
+  contratId        Int? @map("contrat_id")
+  factureId        Int? @map("facture_id")
+  reservationId    Int? @map("reservation_id")
+  acteurId         Int? @map("acteur_id")
+  seanceId         Int? @map("seance_id")
+  parcelleId       Int? @map("parcelle_id")
+  ppeId            Int? @map("ppe_id")
+  mandatCourtageId Int? @map("mandat_courtage_id")
+
+  societe        Societe         @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  operation      Operation?      @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  lot            Lot?            @relation(fields: [lotId], references: [id])
+  soumission     Soumission?     @relation(fields: [soumissionId], references: [id])
+  contrat        Contrat?        @relation(fields: [contratId], references: [id])
+  facture        Facture?        @relation(fields: [factureId], references: [id])
+  reservation    Reservation?    @relation(fields: [reservationId], references: [id])
+  acteur         Acteur?         @relation(fields: [acteurId], references: [id])
+  seance         Seance?         @relation(fields: [seanceId], references: [id])
+  parcelle       Parcelle?       @relation(fields: [parcelleId], references: [id])
+  ppe            Ppe?            @relation(fields: [ppeId], references: [id])
+  mandatCourtage MandatCourtage? @relation(fields: [mandatCourtageId], references: [id])
+  parent         Document?       @relation("DocumentVersions", fields: [parentDocumentId], references: [id])
+  versions       Document[]      @relation("DocumentVersions")
+
+  @@index([societeId])
+  @@index([operationId, categorie])
+  @@map("documents")
+}
+
+// =====================================================================
+//  9. SÉANCES, PRISE DE NOTES & PV
+//     Différents types de séances (chantier, adjudication, COPIL, client…),
+//     avec prise de notes et génération de PV. Le PV et les notes sont
+//     stockés comme Documents (categorie PV_SEANCE / NOTE) rattachés à la séance.
+// =====================================================================
+
+enum SeanceType {
+  CHANTIER
+  ADJUDICATION
+  COPIL // comité de pilotage
+  PROMOTEUR // interne promoteur
+  TECHNIQUE // architecte / ingénieurs
+  CLIENT_ACQUEREUR
+  NOTAIRE
+  AUTRE
+}
+
+enum SeanceStatut {
+  PLANIFIEE
+  TENUE
+  ANNULEE
+}
+
+/// Une séance/réunion rattachée à une opération.
+model Seance {
+  id          Int          @id @default(autoincrement())
+  societeId   Int          @map("societe_id")
+  operationId Int          @map("operation_id")
+  type        SeanceType   @default(CHANTIER)
+  titre       String
+  statut      SeanceStatut @default(PLANIFIEE)
+  date        DateTime?
+  lieu        String?
+  ordreDuJour String?      @map("ordre_du_jour")
+  notes       String? // prise de notes libre
+  numero      String? // n° de séance (ex. "Chantier #12")
+  createdById Int?         @map("created_by_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  operation    Operation           @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  participants SeanceParticipant[]
+  points       SeancePoint[]
+  documents    Document[] // PV généré, pièces jointes
+
+  @@index([operationId, date])
+  @@map("seances")
+}
+
+/// Participant à une séance : utilisateur interne, acteur (notaire, architecte…),
+/// ou personne libre. Avec présence.
+model SeanceParticipant {
+  id           Int     @id @default(autoincrement())
+  seanceId     Int     @map("seance_id")
+  membershipId Int?    @map("membership_id")
+  acteurId     Int?    @map("acteur_id")
+  nom          String? // si participant hors annuaire
+  organisation String?
+  email        String?
+  present      Boolean @default(true)
+
+  seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+
+  @@index([seanceId])
+  @@map("seance_participants")
+}
+
+enum SeancePointStatut {
+  OUVERT
+  EN_COURS
+  CLOS
+}
+
+/// Point de l'ordre du jour / décision / action d'une séance (base du PV).
+model SeancePoint {
+  id          Int               @id @default(autoincrement())
+  seanceId    Int               @map("seance_id")
+  ordre       Int               @default(0)
+  titre       String
+  contenu     String? // note / décision
+  responsable String? // qui doit agir
+  echeance    DateTime?
+  statut      SeancePointStatut @default(OUVERT)
+  cfcNodeId   Int?              @map("cfc_node_id") // rattachement CFC éventuel
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+
+  @@index([seanceId])
+  @@map("seance_points")
+}
+
+// =====================================================================
+//  10. PARCELLES & REGISTRE FONCIER
+// =====================================================================
+
+/// Parcelle cadastrale de l'opération. Porte ses documents (extraits du
+/// registre foncier, plans cadastraux…). Une opération peut couvrir plusieurs parcelles.
+model Parcelle {
+  id              Int      @id @default(autoincrement())
+  operationId     Int      @map("operation_id")
+  numero          String // n° de parcelle
+  egrid           String? // identifiant fédéral E-GRID
+  commune         String?
+  surfaceM2       Decimal? @map("surface_m2") @db.Decimal(12, 2)
+  affectationZone String?  @map("affectation_zone") // zone d'affectation
+  registreFoncier String?  @map("registre_foncier") // référence RF
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  operation Operation  @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([operationId])
+  @@map("parcelles")
+}
+
+// =====================================================================
+//  11. CONSTITUTION DE PPE (propriété par étages)
+// =====================================================================
+
+/// Constitution de la PPE : acte constitutif, règlement d'administration,
+/// plans de répartition. Les quotes-parts des lots (Lot.quotePartPPE) s'y rapportent.
+model Ppe {
+  id                  Int       @id @default(autoincrement())
+  operationId         Int       @map("operation_id")
+  bienId              Int?      @map("bien_id") // immeuble concerné, si applicable
+  numero              String?
+  dateActeConstitutif DateTime? @map("date_acte_constitutif")
+  notaireActeurId     Int?      @map("notaire_acteur_id")
+  totalMillemes       Int       @default(1000) @map("total_millemes")
+  note                String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  operation Operation  @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([operationId])
+  @@map("ppes")
+}
+
+// =====================================================================
+//  12. COURTIERS & MANDATS DE COURTAGE
+// =====================================================================
+
+enum CommissionType {
+  POURCENTAGE
+  FORFAIT
+}
+
+enum CourtagePerimetre {
+  TOUTE_OPERATION
+  LOTS_SELECTIONNES
+}
+
+enum MandatStatut {
+  BROUILLON
+  SIGNE
+  ACTIF
+  TERMINE
+  RESILIE
+}
+
+enum CommissionStatut {
+  DUE
+  FACTUREE
+  PAYEE
+  ANNULEE
+}
+
+/// Mandat de courtage signé avec un courtier (un Acteur de type COURTIER).
+/// Définit la commission (%, ou forfait) et le périmètre (toute l'opération ou lots choisis).
+model MandatCourtage {
+  id                Int               @id @default(autoincrement())
+  operationId       Int               @map("operation_id")
+  courtierActeurId  Int               @map("courtier_acteur_id")
+  commissionType    CommissionType    @default(POURCENTAGE) @map("commission_type")
+  commissionPct     Decimal?          @map("commission_pct") @db.Decimal(5, 2)
+  commissionForfait Decimal?          @map("commission_forfait") @db.Decimal(12, 2)
+  assietteTtc       Boolean           @default(false) @map("assiette_ttc") // commission sur prix TTC ?
+  perimetre         CourtagePerimetre @default(TOUTE_OPERATION)
+  exclusif          Boolean           @default(false)
+  dateSignature     DateTime?         @map("date_signature")
+  statut            MandatStatut      @default(BROUILLON)
+  notes             String?
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  operation   Operation            @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  courtier    Acteur               @relation("CourtierMandat", fields: [courtierActeurId], references: [id])
+  lots        MandatCourtageLot[]
+  commissions CommissionCourtage[]
+  documents   Document[] // le contrat de courtage signé
+
+  @@index([operationId])
+  @@index([courtierActeurId])
+  @@map("mandats_courtage")
+}
+
+/// Lots couverts par un mandat, quand le périmètre = LOTS_SELECTIONNES.
+model MandatCourtageLot {
+  id               Int @id @default(autoincrement())
+  mandatCourtageId Int @map("mandat_courtage_id")
+  lotId            Int @map("lot_id")
+
+  mandatCourtage MandatCourtage @relation(fields: [mandatCourtageId], references: [id], onDelete: Cascade)
+  lot            Lot            @relation(fields: [lotId], references: [id])
+
+  @@unique([mandatCourtageId, lotId])
+  @@map("mandat_courtage_lots")
+}
+
+/// Commission due à un courtier sur une vente (réservation) donnée.
+model CommissionCourtage {
+  id               Int              @id @default(autoincrement())
+  mandatCourtageId Int              @map("mandat_courtage_id")
+  reservationId    Int              @map("reservation_id")
+  montant          Decimal          @db.Decimal(12, 2)
+  statut           CommissionStatut @default(DUE)
+  dateDue          DateTime?        @map("date_due")
+  note             String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  mandatCourtage MandatCourtage @relation(fields: [mandatCourtageId], references: [id], onDelete: Cascade)
+  reservation    Reservation    @relation(fields: [reservationId], references: [id])
+
+  @@index([mandatCourtageId])
+  @@index([reservationId])
+  @@map("commissions_courtage")
+}
+
+// =====================================================================
+//  13. ACCÈS PAR OPÉRATION & DROITS (RBAC scopé)
+//     Permet de donner à une EG ou à un architecte mandaté un accès à UNE
+//     opération, avec un niveau (lecture / saisie / gestion) et, au besoin,
+//     une restriction par module (ex. SOUMISSIONS uniquement).
+//     La matrice fine rôle → action est appliquée côté application.
+// =====================================================================
+
+model OperationAccess {
+  id           Int                  @id @default(autoincrement())
+  operationId  Int                  @map("operation_id")
+  membershipId Int                  @map("membership_id")
+  accessLevel  OperationAccessLevel @default(READ_ONLY) @map("access_level")
+  modules      AccessModule[] // vide = selon le niveau
+  grantedById  Int?                 @map("granted_by_id")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  operation  Operation  @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([operationId, membershipId])
+  @@index([operationId])
+  @@map("operation_accesses")
+}
