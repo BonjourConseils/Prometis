@@ -241,6 +241,26 @@ L'arbre CFC est la colonne vertébrale : c'est sur lui que se lit
 - **La trame importable n'est pas le catalogue CRB**, qui est sous licence. C'est la structure
   publique des groupes et sous-groupes, à adapter par opération.
 
+## 4 septies. Soumissions, adjudications, contrats (Lot 4)
+
+La chaîne : `Soumission` (sur un `CfcNode`) → `Offre` → `Adjudication` → `Contrat` → `Avenant`.
+Elle alimente les colonnes **adjugé** et **commandé** du budget CFC.
+
+- **Toujours comparer au net après remise.** `montant × (100 − remisePct) / 100`. Une offre plus
+  chère au brut peut être moins-disante au net — classer au brut ferait signer avec le mauvais
+  soumissionnaire. C'est aussi le net qui devient `montantAdjuge`, puis `Contrat.montant`.
+- **Le contrat reprend tout de l'adjudication** : montant, entreprise, poste CFC. Rien n'est
+  ressaisi, sinon le lien adjugé → commandé se rompt.
+- **Adjuger est une action sensible** (DoD) : auditée, et elle bascule tous les statuts dans la
+  même transaction — soumission `ADJUGEE`, offre `RETENUE`, autres `ECARTEE`.
+- **Avenant = montant signé.** Un travail en moins est négatif et diminue le commandé.
+- **Réception → fin de garantie** calculée à +2 ans (SIA 118), pas saisie.
+- Une offre `ECARTEE` ou sans prix reste affichée avec son motif, mais sort du classement.
+
+**Notation multicritère : non implémentée, et c'est un choix.** `Offre` n'a aucun champ de score.
+La note exposée est une *note de prix*, nommée comme telle dans l'API et à l'écran. Ajouter
+références et délais suppose d'étendre `schema.prisma` — décision produit, pas contournement.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,
