@@ -108,6 +108,7 @@ export default async function FicheOperation({
           {operation._count.biens} biens · {operation._count.parcelles} parcelles ·{' '}
           {operation._count.cfcNodes} postes CFC ·{' '}
           <Link href={`/operations/${operation.id}/budget`}>Budget CFC</Link> ·{' '}
+          <Link href={`/operations/${operation.id}/soumissions`}>Soumissions</Link> ·{' '}
           <Link href={`/operations/${operation.id}/registre-ppe`}>Registre PPE</Link>
         </p>
       </section>

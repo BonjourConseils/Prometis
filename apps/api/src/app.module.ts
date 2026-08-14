@@ -10,6 +10,7 @@ import { OperationsModule } from './operations/operations.module';
 import { FoncierModule } from './foncier/foncier.module';
 import { ActeursModule } from './acteurs/acteurs.module';
 import { BudgetModule } from './budget/budget.module';
+import { SoumissionsModule } from './soumissions/soumissions.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
@@ -20,6 +21,7 @@ import { MailController } from './mail/mail.controller';
 import { FoncierController } from './foncier/foncier.controller';
 import { ActeursController, OperationActeursController } from './acteurs/acteurs.controller';
 import { BudgetController } from './budget/budget.controller';
+import { EntreprisesController, SoumissionsController } from './soumissions/soumissions.controller';
 
 @Module({
   imports: [
@@ -37,6 +39,7 @@ import { BudgetController } from './budget/budget.controller';
     FoncierModule,
     ActeursModule,
     BudgetModule,
+    SoumissionsModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -63,6 +66,8 @@ export class AppModule implements NestModule {
         ActeursController,
         OperationActeursController,
         BudgetController,
+        EntreprisesController,
+        SoumissionsController,
         AccesController,
         AuditController,
         MailController,

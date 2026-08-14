@@ -645,6 +645,191 @@ async function seedProbat(): Promise<void> {
     });
   }
 
+  // --- Entreprises, soumissions et adjudication -----------------------
+  // Deux soumissions volontairement à des stades différents : l'une adjugée
+  // avec son contrat — elle alimente les colonnes « adjugé » et « commandé »
+  // du budget CFC — l'autre encore en comparaison, pour que l'écran de
+  // comparaison des offres ait une vraie décision à présenter.
+  const entreprises = await Promise.all(
+    [
+      {
+        nom: 'Plâtrerie Dubois SA',
+        corpsMetier: 'Plâtrerie',
+        contactNom: 'Michel Dubois',
+        email: 'contact@platrerie-dubois.ch',
+        localite: 'Renens',
+      },
+      {
+        nom: 'Peinture Sanchez Sàrl',
+        corpsMetier: 'Plâtrerie',
+        contactNom: 'Ana Sanchez',
+        email: 'info@sanchez-peinture.ch',
+      },
+      {
+        nom: 'Atelier Blanc SA',
+        corpsMetier: 'Plâtrerie',
+        contactNom: 'Yves Blanc',
+        email: 'devis@atelier-blanc.ch',
+      },
+      {
+        nom: 'Rossier Électricité SA',
+        corpsMetier: 'Électricité',
+        contactNom: 'Pierre Rossier',
+        email: 'p.rossier@rossier-elec.ch',
+      },
+      {
+        nom: 'Currat Installations SA',
+        corpsMetier: 'Électricité',
+        contactNom: 'Léa Currat',
+        email: 'offres@currat.ch',
+      },
+      {
+        nom: 'Elektro Vaud SA',
+        corpsMetier: 'Électricité',
+        contactNom: 'Hans Meier',
+        email: 'kontakt@elektro-vaud.ch',
+      },
+    ].map(({ localite: _localite, ...data }) =>
+      prisma.entreprise.create({ data: { societeId: societe.id, ...data } }),
+    ),
+  );
+  const parNom = (nom: string) => entreprises.find((e) => e.nom === nom)!;
+
+  // Soumission 1 — adjugée, avec contrat. Le prototype référence
+  // « Contrat SIA 118 · Plâtrerie Dubois » : c'est celle-ci.
+  const soumissionPlatrerie = await prisma.soumission.create({
+    data: {
+      operationId: operation.id,
+      cfcNodeId: cfc.get('271.0')!,
+      intitule: 'Plâtrerie et peinture — immeubles A et B',
+      corpsMetier: 'Plâtrerie',
+      statut: 'ADJUGEE',
+      dateEnvoi: new Date('2026-05-04'),
+      dateLimite: new Date('2026-06-02'),
+    },
+  });
+
+  const offresPlatrerie = await Promise.all(
+    [
+      {
+        entreprise: 'Plâtrerie Dubois SA',
+        montant: '372500',
+        remise: null,
+        statut: 'RETENUE' as const,
+        reception: '2026-05-28',
+      },
+      {
+        entreprise: 'Peinture Sanchez Sàrl',
+        montant: '398000',
+        remise: null,
+        statut: 'ECARTEE' as const,
+        reception: '2026-05-30',
+      },
+      {
+        entreprise: 'Atelier Blanc SA',
+        montant: '415000',
+        remise: null,
+        statut: 'ECARTEE' as const,
+        reception: '2026-06-01',
+      },
+    ].map((o) =>
+      prisma.offre.create({
+        data: {
+          soumissionId: soumissionPlatrerie.id,
+          entrepriseId: parNom(o.entreprise).id,
+          montant: chf(o.montant),
+          remisePct: o.remise ? chf(o.remise) : null,
+          statut: o.statut,
+          dateReception: new Date(o.reception),
+        },
+      }),
+    ),
+  );
+
+  for (const offre of offresPlatrerie) {
+    await prisma.soumissionInvitation.create({
+      data: {
+        soumissionId: soumissionPlatrerie.id,
+        entrepriseId: offre.entrepriseId,
+        dateEnvoi: new Date('2026-05-04'),
+        aRepondu: true,
+      },
+    });
+  }
+
+  const adjudicationPlatrerie = await prisma.adjudication.create({
+    data: {
+      soumissionId: soumissionPlatrerie.id,
+      offreId: offresPlatrerie[0]!.id,
+      montantAdjuge: chf('372500'),
+      dateDecision: new Date('2026-06-10'),
+      commentaire: 'Moins-disant, références solides sur des PPE comparables.',
+    },
+  });
+
+  await prisma.contrat.create({
+    data: {
+      operationId: operation.id,
+      entrepriseId: parNom('Plâtrerie Dubois SA').id,
+      cfcNodeId: cfc.get('271.0')!,
+      adjudicationId: adjudicationPlatrerie.id,
+      reference: 'C-2026-014',
+      montant: chf('372500'),
+      retenueGarantiePct: chf('10.00'),
+      statut: 'EN_COURS',
+      dateSignature: new Date('2026-06-18'),
+    },
+  });
+
+  // Soumission 2 — en comparaison. Currat est plus cher au brut mais
+  // moins-disant net grâce à sa remise : c'est ce que l'écran doit montrer.
+  const soumissionElec = await prisma.soumission.create({
+    data: {
+      operationId: operation.id,
+      cfcNodeId: cfc.get('232.1')!,
+      intitule: 'Installations à courant fort',
+      corpsMetier: 'Électricité',
+      statut: 'EN_COMPARAISON',
+      dateEnvoi: new Date('2026-06-15'),
+      dateLimite: new Date('2026-07-20'),
+    },
+  });
+
+  for (const o of [
+    {
+      entreprise: 'Rossier Électricité SA',
+      montant: '498000',
+      remise: null,
+      reception: '2026-07-14',
+    },
+    {
+      entreprise: 'Currat Installations SA',
+      montant: '505000',
+      remise: '2.00',
+      reception: '2026-07-17',
+    },
+    { entreprise: 'Elektro Vaud SA', montant: '551900', remise: null, reception: '2026-07-18' },
+  ]) {
+    await prisma.soumissionInvitation.create({
+      data: {
+        soumissionId: soumissionElec.id,
+        entrepriseId: parNom(o.entreprise).id,
+        dateEnvoi: new Date('2026-06-15'),
+        aRepondu: true,
+      },
+    });
+    await prisma.offre.create({
+      data: {
+        soumissionId: soumissionElec.id,
+        entrepriseId: parNom(o.entreprise).id,
+        montant: chf(o.montant),
+        remisePct: o.remise ? chf(o.remise) : null,
+        statut: 'RECUE',
+        dateReception: new Date(o.reception),
+      },
+    });
+  }
+
   // --- Échéancier des appels de fonds ---------------------------------
   // Σ des pourcentages non nuls = 100 %. La dernière étape est un jalon de
   // suivi de chantier SANS pourcentage : elle ne génère aucun appel de fonds.
@@ -933,6 +1118,9 @@ async function seedProbat(): Promise<void> {
     `   opération « ${operation.nom} » · ${tousLots.length} lots · ${cfc.size} postes CFC`,
   );
   console.log(`   lot A02 : prix total acte ${prixTotalActeA02.toFixed(2)} CHF`);
+  console.log(
+    `   ${entreprises.length} entreprises · 2 soumissions (1 adjugée à 372 500, 1 en comparaison)`,
+  );
 }
 
 // =====================================================================

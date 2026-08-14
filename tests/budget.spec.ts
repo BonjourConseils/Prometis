@@ -106,9 +106,10 @@ describe('DoD — totaux agrégés sur l’arborescence', () => {
     }>(`/operations/${operationSeed}/budget`, { token: christophe });
 
     expect(res.body.total.reserves).toBe('450000');
-    // Aucun contrat pour l'instant : tout le budget reste à engager.
-    expect(res.body.total.commande).toBe('0');
-    expect(res.body.total.resteAEngager).toBe('12180000');
+    // Le seed contient un contrat de plâtrerie à 372 500 : c'est la part du
+    // budget déjà engagée, et elle sort du reste à engager.
+    expect(res.body.total.commande).toBe('372500');
+    expect(res.body.total.resteAEngager).toBe('11807500');
   });
 
   it('le total du budget CFC égale les coûts du bilan promoteur', async () => {
