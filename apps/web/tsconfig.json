@@ -14,5 +14,17 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // Des copies « fichier 2.ts » apparaissent dans `.next/types` sur les
+    // postes où un outil de synchronisation duplique les fichiers. Elles
+    // redéclarent les mêmes types et cassent le typecheck alors que le code
+    // du projet est sain. On les ignore explicitement plutôt que de nettoyer
+    // `.next` à la main à chaque fois.
+    //
+    // TypeScript n'accepte que `*`, `**` et `?` dans ces globs — pas les
+    // classes de caractères. `?` suffit : le suffixe est un chiffre unique.
+    "**/* ?.ts",
+    "**/* ?.tsx"
+  ]
 }
