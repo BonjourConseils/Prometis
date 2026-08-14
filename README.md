@@ -22,19 +22,24 @@ npm test                  # prouve l'isolation entre tenants
 npm run dev               # api :3001 · web :3000
 ```
 
-Vérification rapide :
+Puis ouvrir [localhost:3000](http://localhost:3000). Trois comptes de démonstration, mot de passe
+commun `Prometis!2026` :
+
+| Compte | Ce qu'il montre |
+|---|---|
+| `christophe@probat.ch` | propriétaire : toutes les opérations, les droits d'accès, l'audit |
+| `julie@probat.ch` | cheffe de projet : une seule opération, confiée explicitement |
+| `m.girard@constructa.ch` | **deux sociétés** : propriétaire chez Constructa, externe scopé chez Probat |
+
+Vérification en ligne de commande :
 
 ```bash
 curl -s http://localhost:3001/health
 ```
 
-```bash
-curl -s -H 'x-societe-id: 1' http://localhost:3001/operations
-```
-
-Le même appel avec `x-societe-id: 2` renvoie une autre opération, et rien de celle du tenant 1.
-Sans en-tête, l'API répond 400 ; avec un tenant inexistant, une liste vide — jamais les données
-d'autrui.
+L'API refuse tout accès aux données métier sans jeton portant un espace de travail. Un compte
+membre de deux sociétés obtient deux jetons distincts, et chacun ne donne accès qu'à sa société —
+c'est ce que prouve `npm test`.
 
 ## Structure
 
@@ -42,7 +47,7 @@ d'autrui.
 prisma/            schema.prisma (source de vérité) · migrations/ · seed.ts
 apps/api/          NestJS — contexte tenant, règles métier
 apps/web/          Next.js (App Router) — les 14 écrans
-tests/             isolation RLS et verrous de cohérence du prototype
+tests/             isolation RLS, identité et accès, bilan, cohérence prototype
 scripts/           bootstrap-db.sh
 .claude/skills/    guide de développement pour Claude Code
 ```
@@ -89,7 +94,7 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3001/mail/configurati
 | `npm run db:migrate:deploy` | migrations en production |
 | `npm run db:seed` | données de démonstration, 2 tenants |
 | `npm run db:reset` | remise à zéro complète |
-| `npm test` | isolation RLS + cohérence prototype |
+| `npm test` | tout : isolation RLS, identité et accès, bilan, cohérence prototype |
 | `npm run test:rls` | isolation seule |
 | `npm run lint` · `npm run format` | qualité |
 | `npm run typecheck` · `npm run build` | typage et build |
