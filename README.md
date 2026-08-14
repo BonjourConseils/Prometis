@@ -4,8 +4,10 @@ SaaS multi-tenant de gestion de promotions immobilières — Suisse romande.
 Du foncier au budget CFC, aux soumissions et adjudications (SIA 118), aux factures lues par
 OCR/IA, jusqu'aux appels de fonds envoyés aux acquéreurs.
 
-**Lots 0 à 5 livrés** — le fil rouge financier est complet : `Budgété → Adjugé → Commandé →
-Facturé → Payé` se lit poste CFC par poste CFC. Voir [BACKLOG.md](BACKLOG.md) pour la suite.
+**Lots 0 à 6 livrés** — le fil rouge financier est complet (`Budgété → Adjugé → Commandé →
+Facturé → Payé`, poste CFC par poste CFC) et le moteur d'appels de fonds tourne. Prochain :
+passerelle Kolabimo. État détaillé et sujets en attente d'arbitrage :
+`.claude/skills/prometis-dev/references/roadmap.md`.
 
 ## Démarrer
 

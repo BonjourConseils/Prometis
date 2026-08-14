@@ -8,6 +8,31 @@ description: Guide opérationnel pour développer Prometis (SaaS multi-tenant de
 `CLAUDE.md` donne le **quoi** (métier, sources de vérité). Ce skill donne le **comment** :
 conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dépôt.
 
+## 0. Où en est le projet — à lire en premier
+
+**Lots 0 à 6 livrés** (14 août 2026) · **289 tests verts** · dépôt
+https://github.com/BonjourConseils/Prometis
+
+Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
+poste CFC par poste CFC. Le moteur d'appels de fonds tourne, idempotent, avec référence QR suisse
+et envoi e-mail redirigé.
+
+**Prochain : Lot 7 — passerelle Kolabimo** (voir `references/kolabimo-gateway.md`), puis Lot 8
+(GED, séances & PV, courtage, trésorerie).
+
+`references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
+avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
+circuit multi-approbateurs. Aucun n'est un oubli : chacun attend un arbitrage, et le code est
+écrit pour l'accueillir. Ne pas en « débloquer » un en contournant le schéma.
+
+Pour reprendre après une remise à zéro de la conversation :
+
+```bash
+npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm test
+```
+
+Puis `npm run dev` et se connecter avec `christophe@probat.ch` / `Prometis!2026`.
+
 ## 1. Sources de vérité — ordre de préséance
 
 1. `prisma/schema.prisma` — 40 tables, 30 enums. **Ne pas modifier le modèle** sans décision explicite.
@@ -279,6 +304,29 @@ références et délais suppose d'étendre `schema.prisma` — décision produit
 - **Circuit de validation** : assuré par les rôles + statuts, tracé transition par transition dans
   `AuditLog`. `Facture.validePar` ne porte qu'un validateur — un registre de plusieurs
   approbateurs exigerait d'étendre le schéma.
+
+## 4 nonies. Ventes et appels de fonds (Lot 6)
+
+Le moteur vit dans `AppelsDeFondsService.declencherEtape()`. Trois propriétés à ne jamais casser :
+
+1. **Idempotence.** Unicité `(reservationId, etapeId)` en base, et référence QR **déterministe**
+   construite depuis cette même clé. Rejouer un déclenchement ne crée rien — indispensable quand
+   le Lot 7 rejouera des webhooks Kolabimo.
+2. **Un jalon sans `pourcentage` n'appelle rien** — c'est un suivi de chantier.
+3. **Les e-mails partent APRÈS le commit.** Envoyer dans la transaction expédierait des appels
+   pour des lignes qu'un échec annulerait. Un échec d'envoi, lui, n'annule pas l'appel.
+
+- **`OPTION` n'est pas un engagement** : seuls `RESERVE`, `FONDS_VERSES`, `VENDU` reçoivent un
+  appel (`STATUTS_ENGAGES` dans `calculs.ts`).
+- **Référence QR** : 27 chiffres, clé de contrôle par modulo 10 récursif (`qr-reference.ts`).
+  Ne pas « simplifier » l'algorithme — la banque le vérifie.
+- **`Reservation.prixTotalActe` est figé** à la signature ou dès qu'un appel est parti. Le prix
+  du lot peut bouger après ; l'acte, non.
+- **`EcheancierEtape.pourcentage` se fige** dès qu'un appel en découle.
+- L'échéancier **chiffre son écart** à 100 % — un « incomplet » sans montant ne se corrige pas.
+
+**PDF de la QR-facture : non généré.** Il suppose de choisir le stockage de documents. L'e-mail
+porte la mention en clair ; ne pas la retirer avant que la pièce existe vraiment.
 
 ## 4 quater. E-mails : un seul point de sortie
 

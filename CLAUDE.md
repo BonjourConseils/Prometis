@@ -92,6 +92,20 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 - Le prototype visuel « Prometis » (Claude Design) est la référence UI ; il est cohérent avec le schéma
   (ex. lot A02 = 850 000 → appel 15 % = 127 500).
 
+## 8 bis. Où en est le développement
+
+**Lots 0 à 6 livrés** (14 août 2026) — 289 tests verts — dépôt
+[BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
+Le fil rouge financier est complet ; le moteur d'appels de fonds tourne.
+**Prochain : Lot 7, passerelle Kolabimo.**
+
+État détaillé lot par lot, et surtout **la liste des sujets non livrés avec leur cause**
+(OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère) :
+`.claude/skills/prometis-dev/references/roadmap.md`.
+
+Reprendre sur une machine propre :
+`npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm test`.
+
 ## 9. Où trouver le « comment »
 
 - **Skill projet** : `.claude/skills/prometis-dev/` — conventions de code, mécanique RLS,

@@ -1,5 +1,46 @@
 # Roadmap, lots et versions
 
+## Où en est le développement (14 août 2026)
+
+| Lot | État | Ce qui existe |
+|---|---|---|
+| **0** Fondations | ✅ livré | monorepo, 40 tables, 38 policies RLS, seed 2 tenants |
+| **1** Identité & accès | ✅ livré | argon2id + JWT en deux temps, espaces de travail, RBAC à 3 étages, audit |
+| **2** Opérations & foncier | ✅ livré | parcelles, biens, lots, parkings, PPE, acteurs, **bilan promoteur** |
+| **3** Budget CFC | ✅ livré | arbre agrégé N niveaux, versions, ventilation par lot |
+| **4** Soumissions → contrats | ✅ livré | comparaison au net, adjudication, contrat SIA 118, avenants |
+| **5** Factures & écarts | ✅ livré | lecture des champs, rapprochement CFC, contrôle du cumul, écran Écarts |
+| **6** Ventes & appels de fonds | ✅ livré | réservations à prix figé, échéancier, **moteur idempotent + QR + e-mail** |
+| **7** Passerelle Kolabimo | ⬜ à faire | voir `kolabimo-gateway.md` |
+| **8** Modules annexes | ⬜ à faire | GED, séances & PV, courtage, trésorerie |
+
+**289 tests verts**, suite idempotente (elle peut être relancée sans reseed).
+Dépôt : https://github.com/BonjourConseils/Prometis — un commit par lot, message détaillé.
+
+Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
+poste CFC par poste CFC. C'est la valeur différenciante du produit, et elle est en place.
+
+## Ce qui n'a PAS été fait, et pourquoi
+
+Aucun de ces points n'est un oubli. Chacun attend un arbitrage, et le code est écrit pour
+l'accueillir sans réécriture.
+
+| Sujet | Bloqué par | Où c'est isolé |
+|---|---|---|
+| **OIDC** | choix du fournisseur (Docker absent, pas de Keycloak local) | `PasswordService` + `TokenService` |
+| **MFA** | *le schéma ne porte ni secret TOTP ni codes de secours* | — |
+| **Fournisseur SMTP** | choix d'un serveur suisse + secrets en coffre | `MAIL_TRANSPORT=console` |
+| **Extraction PDF → texte** | choix d'un service compatible nLPD | `extraction.ts` part du texte |
+| **PDF de la QR-facture** | choix du stockage de documents (S3 suisse) | mention en clair dans l'e-mail |
+| **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
+| **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
+
+Ne pas « débloquer » l'un de ces points en contournant le schéma ou en branchant un fournisseur
+sans arbitrage : c'est précisément ce que ces lignes servent à empêcher.
+
+---
+
+
 ## Correspondance lots ↔ phases ↔ modules
 
 `BACKLOG.md` découpe en **lots livrables** ; `Plan_Prometis.md` §8.2 découpe en **phases**
