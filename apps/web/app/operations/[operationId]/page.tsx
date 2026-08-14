@@ -110,8 +110,15 @@ export default async function FicheOperation({
           <Link href={`/operations/${operation.id}/budget`}>Budget CFC</Link> ·{' '}
           <Link href={`/operations/${operation.id}/soumissions`}>Soumissions</Link> ·{' '}
           <Link href={`/operations/${operation.id}/factures`}>Factures</Link> ·{' '}
-          <Link href={`/operations/${operation.id}/ecarts`}>Écarts</Link> ·{' '}
-          <Link href={`/operations/${operation.id}/registre-ppe`}>Registre PPE</Link>
+          <Link href={`/operations/${operation.id}/ecarts`}>Écarts</Link>
+          {operation.commercialisationActive && (
+            <>
+              {' '}
+              · <Link href={`/operations/${operation.id}/lots`}>Lots &amp; acquéreurs</Link> ·{' '}
+              <Link href={`/operations/${operation.id}/appels-de-fonds`}>Appels de fonds</Link>
+            </>
+          )}{' '}
+          · <Link href={`/operations/${operation.id}/registre-ppe`}>Registre PPE</Link>
         </p>
       </section>
 

@@ -12,6 +12,7 @@ import { ActeursModule } from './acteurs/acteurs.module';
 import { BudgetModule } from './budget/budget.module';
 import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
+import { VentesModule } from './ventes/ventes.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
@@ -24,6 +25,7 @@ import { ActeursController, OperationActeursController } from './acteurs/acteurs
 import { BudgetController } from './budget/budget.controller';
 import { EntreprisesController, SoumissionsController } from './soumissions/soumissions.controller';
 import { FacturesController } from './factures/factures.controller';
+import { AcquereursController, VentesController } from './ventes/ventes.controller';
 
 @Module({
   imports: [
@@ -43,6 +45,7 @@ import { FacturesController } from './factures/factures.controller';
     BudgetModule,
     SoumissionsModule,
     FacturesModule,
+    VentesModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -72,6 +75,8 @@ export class AppModule implements NestModule {
         EntreprisesController,
         SoumissionsController,
         FacturesController,
+        AcquereursController,
+        VentesController,
         AccesController,
         AuditController,
         MailController,
