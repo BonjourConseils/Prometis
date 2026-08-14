@@ -58,6 +58,12 @@ export interface NoeudCfc {
   ecartRevisionInitial: Prisma.Decimal;
   /** Révisé − facturé : négatif = dépassement. */
   ecartBudgetFacture: Prisma.Decimal;
+  /**
+   * Coût « au dernier connu » : le commandé quand il dépasse le budget,
+   * le budget révisé sinon. C'est le chiffre sur lequel un promoteur
+   * raisonne en cours de chantier, plutôt que sur un budget déjà périmé.
+   */
+  projectionATerminaison: Prisma.Decimal;
   enfants: NoeudCfc[];
 }
 
@@ -131,6 +137,9 @@ export function construireArbreCfc(
       resteADepenser: total.commande.minus(total.facture),
       ecartRevisionInitial: total.budgeteRevise.minus(total.budgeteInitial),
       ecartBudgetFacture: total.budgeteRevise.minus(total.facture),
+      projectionATerminaison: total.commande.greaterThan(total.budgeteRevise)
+        ? total.commande
+        : total.budgeteRevise,
       enfants,
     };
   };

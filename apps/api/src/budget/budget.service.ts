@@ -333,6 +333,7 @@ export class BudgetService {
           id: true,
           cfcNodeId: true,
           montantHT: true,
+          montantTTC: true,
           paiements: { select: { montant: true } },
         },
       });
@@ -383,8 +384,20 @@ export class BudgetService {
     }
     for (const f of donnees.factures) {
       ajouter(f.cfcNodeId, 'facture', f.montantHT);
-      const paye = f.paiements.reduce<Prisma.Decimal>((t, p) => t.plus(p.montant), ZERO);
-      if (!paye.isZero()) ajouter(f.cfcNodeId, 'paye', paye);
+
+      // Les paiements sont encaissés en TTC ; la colonne « payé » doit rester
+      // hors taxe comme les autres, sinon elle afficherait 8,1 % de plus que
+      // le facturé sur une facture pourtant soldée. On convertit à la part
+      // réglée, plafonnée au montant HT.
+      const payeTTC = f.paiements.reduce<Prisma.Decimal>((t, p) => t.plus(p.montant), ZERO);
+      if (!payeTTC.isZero() && f.montantHT) {
+        const du = f.montantTTC ?? f.montantHT;
+        const part = du.isZero() ? ZERO : payeTTC.dividedBy(du);
+        const payeHT = part.greaterThanOrEqualTo(1)
+          ? f.montantHT
+          : f.montantHT.times(part).toDecimalPlaces(2);
+        ajouter(f.cfcNodeId, 'paye', payeHT);
+      }
     }
 
     const { arbre, total } = construireArbreCfc(donnees.noeuds, montants);

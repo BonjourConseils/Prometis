@@ -419,6 +419,11 @@ tr.attenue td {
   color: var(--muted);
 }
 
+tr.depassement td {
+  background: color-mix(in srgb, var(--ko) 10%, transparent);
+  font-weight: 600;
+}
+
 .onglets {
   display: flex;
   flex-wrap: wrap;

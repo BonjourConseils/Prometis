@@ -767,7 +767,7 @@ async function seedProbat(): Promise<void> {
     },
   });
 
-  await prisma.contrat.create({
+  const contratPlatrerie = await prisma.contrat.create({
     data: {
       operationId: operation.id,
       entrepriseId: parNom('Plâtrerie Dubois SA').id,
@@ -829,6 +829,68 @@ async function seedProbat(): Promise<void> {
       },
     });
   }
+
+  // --- Factures fournisseurs -------------------------------------------
+  // Une facture validée et payée — elle alimente les colonnes « facturé » et
+  // « payé » du fil rouge — et une seconde tout juste reçue, avec son texte,
+  // pour que l'analyse et la proposition d'imputation aient de quoi tourner.
+  const factureSituation1 = await prisma.facture.create({
+    data: {
+      societeId: societe.id,
+      operationId: operation.id,
+      contratId: contratPlatrerie.id,
+      entrepriseId: parNom('Plâtrerie Dubois SA').id,
+      cfcNodeId: cfc.get('271.0')!,
+      type: 'SITUATION',
+      statut: 'VALIDEE',
+      numero: '2026-0417',
+      dateFacture: new Date('2026-07-31'),
+      montantHT: chf('145000'),
+      tvaPct: chf('8.10'),
+      montantTTC: chf('156745'),
+      ocrStatut: 'TRAITEE',
+      cfcSuggereId: cfc.get('271.0')!,
+      ocrConfiance: chf('98.00'),
+      dateValidation: new Date('2026-08-05'),
+    },
+  });
+
+  await prisma.paiementFournisseur.create({
+    data: {
+      factureId: factureSituation1.id,
+      montant: chf('156745'),
+      dateValeur: new Date('2026-08-12'),
+      moyen: 'virement',
+      reference: '21 00000 00000 00000 00417 30001',
+    },
+  });
+
+  await prisma.facture.create({
+    data: {
+      societeId: societe.id,
+      operationId: operation.id,
+      type: 'SITUATION',
+      statut: 'RECUE',
+      fichierUrl: 'demo://factures/2026-0603.pdf',
+      // Texte tel qu'un extracteur PDF le produirait. Le rapprochement CFC,
+      // lui, est calculé par Prometis : c'est la moitié qui nous appartient.
+      ocrTexte: [
+        'Plâtrerie Dubois SA',
+        'Route de Renens 44 — 1020 Renens',
+        '',
+        'Facture n° : 2026-0603',
+        'Date de facture : 30.09.2026',
+        'Chantier : Les Jardins de Prilly — contrat C-2026-014',
+        '',
+        'Situation n° 2 — plâtrerie et peinture, immeuble A',
+        'Total HT : 98’000.00',
+        'TVA 8.10 % : 7’938.00',
+        'Total TTC : 105’938.00',
+        '',
+        'Référence : 21 00000 00000 00000 00603 10001',
+      ].join('\n'),
+    },
+  });
 
   // --- Échéancier des appels de fonds ---------------------------------
   // Σ des pourcentages non nuls = 100 %. La dernière étape est un jalon de
@@ -1005,7 +1067,8 @@ async function seedProbat(): Promise<void> {
         dateEmission: new Date(a.emission),
         dateEnvoi: new Date(a.emission),
         dateEcheance: new Date(a.echeance),
-        qrReference: `21 00000 00003 13947 14300 0${a.ordre}`,
+        // Référence QR suisse : 27 chiffres, groupés 2 puis 5 x 5.
+        qrReference: `21 00000 00003 13947 14300 0900${a.ordre}`,
       },
     });
 
@@ -1121,6 +1184,7 @@ async function seedProbat(): Promise<void> {
   console.log(
     `   ${entreprises.length} entreprises · 2 soumissions (1 adjugée à 372 500, 1 en comparaison)`,
   );
+  console.log('   2 factures : 145 000 validée et payée, 98 000 reçue avec son texte à analyser');
 }
 
 // =====================================================================
