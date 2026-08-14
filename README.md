@@ -20,7 +20,7 @@ cp .env.example .env      # les valeurs par défaut correspondent au bootstrap c
 npm run db:bootstrap      # crée les rôles PostgreSQL et la base (idempotent)
 npm run db:migrate        # applique les migrations (schéma + RLS)
 npm run db:seed           # « Les Jardins de Prilly » + un second tenant témoin
-npm test                  # prouve l'isolation entre tenants
+npm run verifier          # build + API + toute la suite de tests
 npm run dev               # api :3001 · web :3000
 ```
 
@@ -96,7 +96,8 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3001/mail/configurati
 | `npm run db:migrate:deploy` | migrations en production |
 | `npm run db:seed` | données de démonstration, 2 tenants |
 | `npm run db:reset` | remise à zéro complète |
-| `npm test` | tout : isolation RLS, identité et accès, bilan, cohérence prototype |
+| `npm run verifier` | **build + API + tests** — la commande de reprise |
+| `npm test` | la suite seule (l'API doit déjà tourner) |
 | `npm run test:rls` | isolation seule |
 | `npm run lint` · `npm run format` | qualité |
 | `npm run typecheck` · `npm run build` | typage et build |

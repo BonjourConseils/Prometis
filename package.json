@@ -29,7 +29,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:rls": "vitest run tests/rls-isolation.spec.ts"
+    "test:rls": "vitest run tests/rls-isolation.spec.ts",
+    "verifier": "bash scripts/verifier.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

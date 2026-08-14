@@ -104,7 +104,8 @@ Le fil rouge financier est complet ; le moteur d'appels de fonds tourne.
 `.claude/skills/prometis-dev/references/roadmap.md`.
 
 Reprendre sur une machine propre :
-`npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm test`.
+`npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier`.
+(`npm test` seul échoue : une partie des tests tape l'API, que `verifier` démarre.)
 
 ## 9. Où trouver le « comment »
 

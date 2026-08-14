@@ -28,7 +28,7 @@ circuit multi-approbateurs. Aucun n'est un oubli : chacun attend un arbitrage, e
 Pour reprendre après une remise à zéro de la conversation :
 
 ```bash
-npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm test
+npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier
 ```
 
 Puis `npm run dev` et se connecter avec `christophe@probat.ch` / `Prometis!2026`.
@@ -111,7 +111,9 @@ d'avoir un tenant), `webhook_events` (journal d'ingestion), `_prisma_migrations`
 npm run db:bootstrap   # crée les rôles + la base (idempotent)
 npm run db:migrate     # prisma migrate dev  (rôle owner via DIRECT_DATABASE_URL)
 npm run db:seed        # « Les Jardins de Prilly » + 2e tenant de contrôle
-npm run test:rls       # prouve l'isolation — doit rester vert à chaque lot
+npm run verifier       # build + API + toute la suite : LA commande de vérification
+npm test               # la suite seule — l'API doit déjà tourner, sinon elle échoue
+npm run test:rls       # isolation seule
 npm run dev            # api (:3001) + web (:3000)
 ```
 
