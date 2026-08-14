@@ -13,6 +13,7 @@ import { BudgetModule } from './budget/budget.module';
 import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
 import { VentesModule } from './ventes/ventes.module';
+import { PasserelleModule } from './passerelle/passerelle.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
@@ -26,6 +27,11 @@ import { BudgetController } from './budget/budget.controller';
 import { EntreprisesController, SoumissionsController } from './soumissions/soumissions.controller';
 import { FacturesController } from './factures/factures.controller';
 import { AcquereursController, VentesController } from './ventes/ventes.controller';
+import {
+  OperationPasserelleController,
+  PasserelleController,
+  WebhooksKolabimoController,
+} from './passerelle/passerelle.controller';
 
 @Module({
   imports: [
@@ -46,6 +52,7 @@ import { AcquereursController, VentesController } from './ventes/ventes.controll
     SoumissionsModule,
     FacturesModule,
     VentesModule,
+    PasserelleModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -62,24 +69,28 @@ export class AppModule implements NestModule {
    * vie ne s'authentifie pas.
    */
   configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(AuthContextMiddleware)
-      .forRoutes(
-        AuthController,
-        SocieteController,
-        OperationsController,
-        FoncierController,
-        ActeursController,
-        OperationActeursController,
-        BudgetController,
-        EntreprisesController,
-        SoumissionsController,
-        FacturesController,
-        AcquereursController,
-        VentesController,
-        AccesController,
-        AuditController,
-        MailController,
-      );
+    consumer.apply(AuthContextMiddleware).forRoutes(
+      AuthController,
+      SocieteController,
+      OperationsController,
+      FoncierController,
+      ActeursController,
+      OperationActeursController,
+      BudgetController,
+      EntreprisesController,
+      SoumissionsController,
+      FacturesController,
+      AcquereursController,
+      VentesController,
+      // Le webhook Kolabimo est `@Public()` : il n'a pas de jeton, mais il
+      // traverse quand même le middleware, sans quoi aucun contexte de
+      // requête n'existerait pour la suite du traitement.
+      WebhooksKolabimoController,
+      PasserelleController,
+      OperationPasserelleController,
+      AccesController,
+      AuditController,
+      MailController,
+    );
   }
 }

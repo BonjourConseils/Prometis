@@ -78,3 +78,51 @@ Signés **HMAC-SHA256**, idempotents des deux côtés.
 Prometis : INGENIEUR, PILOTE), `EcheancierEtapeStatut` (NOT_STARTED / IN_PROGRESS / COMPLETED),
 `OperationAccessLevel` (READ_ONLY / OPERATE / MANAGE) sont volontairement identiques à Kolabimo.
 Ne pas les renommer.
+
+---
+
+## Ce qui est livré (Lot 7 — 14 août 2026)
+
+Code dans `apps/api/src/passerelle/` · écran `apps/web/app/passerelle/` ·
+tests `tests/passerelle.spec.ts` (purs) et `tests/passerelle-webhooks.spec.ts` (bout en bout).
+
+| Fichier | Rôle |
+|---|---|
+| `signature.ts` | HMAC-SHA256 dans les deux sens, comparaison à temps constant, fenêtre anti-rejeu de 5 min, `construireDedupeKey` |
+| `reconciliation.ts` | schémas zod des charges, traduction des statuts, **ce que Kolabimo n'a pas le droit de changer** |
+| `kolabimo.client.ts` | API v1 sortante, signée ; « non configuré » ≠ « en panne » |
+| `passerelle.service.ts` | réception, traitement, boîte d'envoi, journal, rejeu, reprise tirée |
+| `passerelle.controller.ts` | `POST /webhooks/kolabimo` (public, authentifié par clé + HMAC), `/passerelle/etat`, `/passerelle/journal`, rejeu, import |
+
+### Endpoints
+
+- `POST /webhooks/kolabimo` — entrant. `x-api-key` + `x-kolabimo-signature: t=…,v1=…`.
+- `GET  /passerelle/etat` — raccordement, clés acceptées (jamais leur valeur), compteurs.
+- `GET  /passerelle/journal?source=&statut=&limite=` — journal filtré **applicativement** par société.
+- `POST /passerelle/journal/:id/rejouer` — retraite un entrant, relivre un sortant. OWNER/ADMIN.
+- `POST /operations/:id/passerelle/importer-reservations` — reprise tirée, même chemin que les webhooks.
+
+### Événements
+
+Entrants pris en charge : `reservation.created`, `reservation.updated`, `reservation.cancelled`,
+`lot.updated`. Tout autre type → `IGNORE` (pas `ERREUR`) : Kolabimo peut pousser plus que ce
+qu'on consomme.
+
+Sortants : `echeancier.etape_completed` (clé `opérationId-étapeId`) et `encaissement.enregistre`
+(clé = id de l'encaissement).
+
+### Statuts d'un événement au journal
+
+`RECU` déposé, pas encore livré · `TRAITE` appliqué / livré · `IGNORE` hors périmètre, volontaire ·
+`ERREUR` demande un humain, avec la raison en clair.
+
+### Migration
+
+`20260814200000_lot7_passerelle_kolabimo` : `app.societe_de_cle_api(text)` (SECURITY DEFINER,
+inventoriée dans `app.security_definer_autorisees`) + deux index sur `webhook_events`.
+
+### Clés de développement
+
+`prisma/passerelle-cles-dev.ts`, une par société du seed. Elles servent **à la fois**
+d'identifiant de tenant et de secret de signature. Valeurs publiques : à régénérer avant toute
+mise en ligne.

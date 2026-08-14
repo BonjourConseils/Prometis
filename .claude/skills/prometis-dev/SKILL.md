@@ -10,20 +10,21 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 6 livrés** (14 août 2026) · **289 tests verts** · dépôt
+**Lots 0 à 7 livrés** (14 août 2026) · **327 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
 poste CFC par poste CFC. Le moteur d'appels de fonds tourne, idempotent, avec référence QR suisse
-et envoi e-mail redirigé.
+et envoi e-mail redirigé. La **passerelle Kolabimo** est en place dans les deux sens : webhooks
+entrants signés et dédoublonnés, boîte d'envoi sortante rejouable.
 
-**Prochain : Lot 7 — passerelle Kolabimo** (voir `references/kolabimo-gateway.md`), puis Lot 8
-(GED, séances & PV, courtage, trésorerie).
+**Prochain : Lot 8 — modules annexes** (GED, séances & PV, courtage, trésorerie).
 
 `references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
 avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
-circuit multi-approbateurs. Aucun n'est un oubli : chacun attend un arbitrage, et le code est
-écrit pour l'accueillir. Ne pas en « débloquer » un en contournant le schéma.
+circuit multi-approbateurs, identifiants Kolabimo par société. Aucun n'est un oubli : chacun
+attend un arbitrage, et le code est écrit pour l'accueillir. Ne pas en « débloquer » un en
+contournant le schéma.
 
 Pour reprendre après une remise à zéro de la conversation :
 
@@ -329,6 +330,59 @@ Le moteur vit dans `AppelsDeFondsService.declencherEtape()`. Trois propriétés 
 
 **PDF de la QR-facture : non généré.** Il suppose de choisir le stockage de documents. L'e-mail
 porte la mention en clair ; ne pas la retirer avant que la pièce existe vraiment.
+
+## 4 decies. Passerelle Kolabimo (Lot 7)
+
+Tout vit dans `apps/api/src/passerelle/`. Détail fonctionnel dans
+`references/kolabimo-gateway.md` ; ci-dessous ce qu'il ne faut pas défaire.
+
+**Authentifier un appel machine.** Un webhook n'a pas de jeton — aucun humain ne l'émet. La route
+`POST /webhooks/kolabimo` est donc `@Public()`, et authentifiée autrement :
+
+1. l'en-tête `x-api-key` identifie le **tenant** via `app.societe_de_cle_api()`, une fonction
+   `SECURITY DEFINER` posée par la migration du Lot 7 — même motif qu'au Lot 1 pour le sélecteur
+   d'espace : `api_keys` est sous RLS, et le tenant est justement ce qu'on cherche ;
+2. l'en-tête `x-kolabimo-signature` (`t=…,v1=…`) porte un HMAC-SHA256 du **corps brut**, avec la
+   même clé comme secret. D'où `rawBody: true` dans `main.ts` : re-sérialiser l'objet donnerait
+   une autre empreinte et rejetterait toute signature valide.
+
+L'horodatage est **dans** le message signé, pas seulement à côté — sinon on rejouerait une
+signature valide en rafraîchissant la date. Fenêtre : 5 minutes.
+
+**Ordre des étapes, dans `recevoir()`** — il n'est pas cosmétique :
+authentifier → journaliser → traiter → conclure. Journaliser avant d'authentifier laisserait
+n'importe qui remplir le journal ; c'est **l'insertion** de la `dedupeKey` unique qui dédoublonne,
+pas une lecture préalable.
+
+**Un événement en erreur ne se retraite pas tout seul.** Il reste en `ERREUR` avec sa raison,
+rejouable à la main depuis l'écran Passerelle. Rejouer une erreur qu'on n'a pas comprise ne fait
+que la répéter.
+
+**`webhook_events` est la seule table métier sans protection RLS** — elle n'a pas de `societe_id`,
+et c'est voulu : un événement est journalisé avant qu'on sache toujours à qui il appartient. La
+société traitée est écrite dans la charge, et le filtre du journal est **applicatif**
+(`payload.societeId`). C'est `tests/passerelle-webhooks.spec.ts` qui tient cette étanchéité, pas
+PostgreSQL — ne pas supprimer ce test.
+
+**Ce que Kolabimo n'a PAS le droit de changer** (`reconciliation.ts`, pur et testé) :
+- le **prix total acte** dès que l'acte est signé ou qu'un appel de fonds en découle — le laisser
+  bouger changerait rétroactivement l'assiette d'une créance déjà envoyée ;
+- une **annulation** quand des appels sont partis : l'événement passe en `ERREUR` avec un message
+  explicite, parce qu'une créance s'annule par un avoir ou un remboursement, donc par un humain ;
+- un **statut inconnu** lève au lieu de retomber sur `OPTION` — une vente sortirait sinon de
+  l'assiette des appels sans que personne ne le voie.
+
+**Sortant : motif de la boîte d'envoi.** `deposerSortant()` écrit l'événement **dans la
+transaction métier** (donc il ne peut pas exister sans le changement qui le produit), et
+`livrer()` tente la livraison **après le commit**. Kolabimo indisponible n'empêche jamais de clore
+un jalon : l'événement reste en attente et se rejoue. La `dedupeKey` sortante dérive de
+`(opération, étape)` ou de l'id d'encaissement — rejouer le geste métier ne produit pas un second
+message.
+
+**Non configuré n'est pas en panne.** Sans `KOLABIMO_API_URL`/`KOLABIMO_API_KEY`, le client le dit
+et ne tente rien. C'est ce qui permet de développer et de tester la passerelle entière sans compte
+Kolabimo. Limite assumée : ces deux variables sont globales à l'instance — deux sociétés Prometis
+parlant à deux comptes Kolabimo distincts demanderont un champ de schéma ou un coffre.
 
 ## 4 quater. E-mails : un seul point de sortie
 

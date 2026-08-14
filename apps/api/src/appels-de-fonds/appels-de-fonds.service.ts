@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { TenantPrismaService } from '../prisma/tenant-prisma.service';
+import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
+import { PasserelleService } from '../passerelle/passerelle.service';
 import { calculerMontantAppel, etatAppel, numeroAppel, STATUTS_ENGAGES } from './calculs';
 import { formaterReferenceQR, genererReferenceQR } from './qr-reference';
 
@@ -19,6 +20,8 @@ export interface ResultatDeclenchement {
   appelsDejaExistants: number;
   montantTotal: string;
   envois: { reussis: number; echecs: { appelId: number; raison: string }[] };
+  /** Résultat de la poussée vers Kolabimo. Un échec laisse l'événement rejouable. */
+  synchronisation: { livre: boolean; raison?: string };
 }
 
 @Injectable()
@@ -29,6 +32,7 @@ export class AppelsDeFondsService {
     private readonly db: TenantPrismaService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly passerelle: PasserelleService,
   ) {}
 
   // ===================================================================
@@ -58,118 +62,164 @@ export class AppelsDeFondsService {
     const dateCompletion = options.dateCompletion ?? new Date();
     const envoyer = options.envoyer ?? true;
 
-    const { etape, crees, dejaExistants, montantTotal } = await this.db.run(async (tx) => {
-      const etape = await tx.echeancierEtape.findFirst({
-        where: { id: etapeId, operationId },
-        select: { id: true, libelle: true, pourcentage: true, statut: true, ordre: true },
-      });
-      if (!etape) throw new NotFoundException(`Étape ${etapeId} introuvable dans cette opération.`);
+    const societeId = RequestContext.requireSocieteId();
 
-      await tx.echeancierEtape.update({
-        where: { id: etapeId },
-        data: { statut: 'COMPLETED', dateCompletion },
-      });
+    const { etape, crees, dejaExistants, montantTotal, evenementSortant } = await this.db.run(
+      async (tx) => {
+        const etape = await tx.echeancierEtape.findFirst({
+          where: { id: etapeId, operationId },
+          select: {
+            id: true,
+            libelle: true,
+            pourcentage: true,
+            statut: true,
+            ordre: true,
+            kolabimoEtapeId: true,
+          },
+        });
+        if (!etape)
+          throw new NotFoundException(`Étape ${etapeId} introuvable dans cette opération.`);
 
-      if (etape.pourcentage === null) {
+        const operation = await tx.operation.findUniqueOrThrow({
+          where: { id: operationId },
+          select: { kolabimoPromotionId: true },
+        });
+
+        await tx.echeancierEtape.update({
+          where: { id: etapeId },
+          data: { statut: 'COMPLETED', dateCompletion },
+        });
+
+        if (etape.pourcentage === null) {
+          await this.audit.enregistrer(tx, {
+            action: 'echeancier_etape.completee',
+            entite: 'EcheancierEtape',
+            entiteId: etapeId,
+            donnees: { operationId, libelle: etape.libelle, appelsDeFonds: 0, jalonDeSuivi: true },
+          });
+          // Un jalon de suivi n'appelle rien, mais Kolabimo doit quand même
+          // savoir que l'étape est faite : c'est de l'avancement de chantier.
+          const evenementSortant = await this.deposerJalon(tx, {
+            societeId,
+            operationId,
+            promotionId: operation.kolabimoPromotionId,
+            etape,
+            dateCompletion,
+            appels: [],
+          });
+          return { etape, crees: [], dejaExistants: 0, montantTotal: ZERO, evenementSortant };
+        }
+
+        const reservations = await tx.reservation.findMany({
+          where: { operationId, statut: { in: STATUTS_ENGAGES } },
+          include: {
+            lot: { select: { reference: true } },
+            acquereur: { select: { id: true, nom: true, prenom: true, email: true } },
+          },
+        });
+
+        const existants = await tx.appelDeFonds.findMany({
+          where: { etapeId },
+          select: { reservationId: true },
+        });
+        const dejaAppelees = new Set(existants.map((a) => a.reservationId));
+
+        const crees: {
+          id: number;
+          reservationId: number;
+          montant: Prisma.Decimal;
+          lot: string;
+          acquereurNom: string;
+          acquereurEmail: string | null;
+          qrReference: string;
+          dateEcheance: Date;
+        }[] = [];
+        let montantTotal = ZERO;
+
+        const dateEcheance = new Date(dateCompletion);
+        dateEcheance.setDate(dateEcheance.getDate() + DELAI_PAIEMENT_JOURS);
+
+        for (const reservation of reservations) {
+          if (dejaAppelees.has(reservation.id)) continue;
+          if (!reservation.prixTotalActe) {
+            // Sans assiette, on ne devine pas : mieux vaut sauter et le dire
+            // que d'émettre un appel à zéro qui passerait inaperçu.
+            this.logger.warn(
+              `Réservation ${reservation.id} sans prix total acte : aucun appel de fonds généré.`,
+            );
+            continue;
+          }
+
+          const montant = calculerMontantAppel(etape.pourcentage, reservation.prixTotalActe);
+          const qrReference = genererReferenceQR(operationId, reservation.id, etapeId);
+
+          const appel = await tx.appelDeFonds.create({
+            data: {
+              reservationId: reservation.id,
+              etapeId,
+              pourcentage: etape.pourcentage,
+              montant,
+              statut: 'EMIS',
+              dateEmission: dateCompletion,
+              dateEcheance,
+              qrReference,
+            },
+          });
+
+          // Le numéro dérive de l'identifiant : lisible, unique, et stable.
+          const numero = numeroAppel(dateCompletion.getFullYear(), appel.id);
+          await tx.appelDeFonds.update({ where: { id: appel.id }, data: { numero } });
+
+          montantTotal = montantTotal.plus(montant);
+          crees.push({
+            id: appel.id,
+            reservationId: reservation.id,
+            montant,
+            lot: reservation.lot.reference,
+            acquereurNom:
+              `${reservation.acquereur.prenom ?? ''} ${reservation.acquereur.nom ?? ''}`.trim(),
+            acquereurEmail: reservation.acquereur.email,
+            qrReference,
+            dateEcheance,
+          });
+        }
+
         await this.audit.enregistrer(tx, {
           action: 'echeancier_etape.completee',
           entite: 'EcheancierEtape',
           entiteId: etapeId,
-          donnees: { operationId, libelle: etape.libelle, appelsDeFonds: 0, jalonDeSuivi: true },
-        });
-        return { etape, crees: [], dejaExistants: 0, montantTotal: ZERO };
-      }
-
-      const reservations = await tx.reservation.findMany({
-        where: { operationId, statut: { in: STATUTS_ENGAGES } },
-        include: {
-          lot: { select: { reference: true } },
-          acquereur: { select: { id: true, nom: true, prenom: true, email: true } },
-        },
-      });
-
-      const existants = await tx.appelDeFonds.findMany({
-        where: { etapeId },
-        select: { reservationId: true },
-      });
-      const dejaAppelees = new Set(existants.map((a) => a.reservationId));
-
-      const crees: {
-        id: number;
-        reservationId: number;
-        montant: Prisma.Decimal;
-        lot: string;
-        acquereurNom: string;
-        acquereurEmail: string | null;
-        qrReference: string;
-        dateEcheance: Date;
-      }[] = [];
-      let montantTotal = ZERO;
-
-      const dateEcheance = new Date(dateCompletion);
-      dateEcheance.setDate(dateEcheance.getDate() + DELAI_PAIEMENT_JOURS);
-
-      for (const reservation of reservations) {
-        if (dejaAppelees.has(reservation.id)) continue;
-        if (!reservation.prixTotalActe) {
-          // Sans assiette, on ne devine pas : mieux vaut sauter et le dire
-          // que d'émettre un appel à zéro qui passerait inaperçu.
-          this.logger.warn(
-            `Réservation ${reservation.id} sans prix total acte : aucun appel de fonds généré.`,
-          );
-          continue;
-        }
-
-        const montant = calculerMontantAppel(etape.pourcentage, reservation.prixTotalActe);
-        const qrReference = genererReferenceQR(operationId, reservation.id, etapeId);
-
-        const appel = await tx.appelDeFonds.create({
-          data: {
-            reservationId: reservation.id,
-            etapeId,
+          donnees: {
+            operationId,
+            libelle: etape.libelle,
             pourcentage: etape.pourcentage,
-            montant,
-            statut: 'EMIS',
-            dateEmission: dateCompletion,
-            dateEcheance,
-            qrReference,
+            appelsCrees: crees.length,
+            appelsDejaExistants: dejaAppelees.size,
+            montantTotal,
           },
         });
 
-        // Le numéro dérive de l'identifiant : lisible, unique, et stable.
-        const numero = numeroAppel(dateCompletion.getFullYear(), appel.id);
-        await tx.appelDeFonds.update({ where: { id: appel.id }, data: { numero } });
-
-        montantTotal = montantTotal.plus(montant);
-        crees.push({
-          id: appel.id,
-          reservationId: reservation.id,
-          montant,
-          lot: reservation.lot.reference,
-          acquereurNom:
-            `${reservation.acquereur.prenom ?? ''} ${reservation.acquereur.nom ?? ''}`.trim(),
-          acquereurEmail: reservation.acquereur.email,
-          qrReference,
-          dateEcheance,
-        });
-      }
-
-      await this.audit.enregistrer(tx, {
-        action: 'echeancier_etape.completee',
-        entite: 'EcheancierEtape',
-        entiteId: etapeId,
-        donnees: {
+        const evenementSortant = await this.deposerJalon(tx, {
+          societeId,
           operationId,
-          libelle: etape.libelle,
-          pourcentage: etape.pourcentage,
-          appelsCrees: crees.length,
-          appelsDejaExistants: dejaAppelees.size,
-          montantTotal,
-        },
-      });
+          promotionId: operation.kolabimoPromotionId,
+          etape,
+          dateCompletion,
+          appels: crees,
+        });
 
-      return { etape, crees, dejaExistants: dejaAppelees.size, montantTotal };
-    });
+        return { etape, crees, dejaExistants: dejaAppelees.size, montantTotal, evenementSortant };
+      },
+    );
+
+    // La livraison à Kolabimo se fait hors transaction, et son échec ne remet
+    // rien en cause : l'événement reste en boîte d'envoi, rejouable depuis le
+    // journal. Kolabimo indisponible n'empêche pas de clore un jalon.
+    const synchronisation = await this.passerelle.livrer(evenementSortant);
+    if (synchronisation.livre) {
+      await this.db.run((tx) =>
+        tx.echeancierEtape.update({ where: { id: etapeId }, data: { syncedAt: new Date() } }),
+      );
+    }
 
     // --- Après le commit seulement -------------------------------------
     const echecs: { appelId: number; raison: string }[] = [];
@@ -227,7 +277,65 @@ export class AppelsDeFondsService {
       appelsDejaExistants: dejaExistants,
       montantTotal: montantTotal.toFixed(2),
       envois: { reussis, echecs },
+      synchronisation,
     };
+  }
+
+  /**
+   * Dépose l'événement `echeancier.etape_completed` en boîte d'envoi, dans la
+   * transaction qui clôt le jalon.
+   *
+   * La clé de dédoublonnage est `(opération, étape)` : rejouer le même
+   * déclenchement ne produit pas un second message. C'est la même propriété
+   * que celle qui empêche un second appel de fonds, appliquée au fil sortant.
+   */
+  private async deposerJalon(
+    tx: TenantDb,
+    contexte: {
+      societeId: number;
+      operationId: number;
+      promotionId: number | null;
+      etape: { id: number; libelle: string; ordre: number; pourcentage: Prisma.Decimal | null };
+      dateCompletion: Date;
+      appels: {
+        reservationId: number;
+        montant: Prisma.Decimal;
+        lot: string;
+        qrReference: string;
+        dateEcheance: Date;
+      }[];
+    },
+  ): Promise<number> {
+    const externalIds = await tx.reservation.findMany({
+      where: { id: { in: contexte.appels.map((a) => a.reservationId) } },
+      select: { id: true, externalId: true },
+    });
+    const parReservation = new Map(externalIds.map((r) => [r.id, r.externalId]));
+
+    return this.passerelle.deposerSortant(tx, {
+      evenement: 'echeancier.etape_completed',
+      cle: `${contexte.operationId}-${contexte.etape.id}`,
+      societeId: contexte.societeId,
+      donnees: {
+        promotionId: contexte.promotionId,
+        operationId: contexte.operationId,
+        etape: {
+          ordre: contexte.etape.ordre,
+          libelle: contexte.etape.libelle,
+          pourcentage: contexte.etape.pourcentage?.toString() ?? null,
+          dateCompletion: contexte.dateCompletion.toISOString(),
+        },
+        appelsDeFonds: contexte.appels.map((a) => ({
+          // `externalId` plutôt que notre id : c'est la clé que Kolabimo
+          // reconnaît, et il n'a rien à savoir de nos identifiants internes.
+          reservationExternalId: parReservation.get(a.reservationId) ?? null,
+          lot: a.lot,
+          montant: a.montant.toFixed(2),
+          dateEcheance: a.dateEcheance.toISOString(),
+          referenceQR: a.qrReference,
+        })),
+      },
+    });
   }
 
   private corpsAppel(
@@ -335,13 +443,16 @@ export class AppelsDeFondsService {
     },
   ) {
     const membershipId = RequestContext.requireWorkspace().membershipId;
+    const societeId = RequestContext.requireSocieteId();
 
-    return this.db.run(async (tx) => {
+    const { encaissement, etat, evenementSortant } = await this.db.run(async (tx) => {
       const appel = await tx.appelDeFonds.findFirst({
         where: { id: appelId, reservation: { operationId } },
         include: {
           encaissements: { select: { montant: true } },
-          reservation: { select: { lot: { select: { reference: true } } } },
+          reservation: {
+            select: { externalId: true, lot: { select: { reference: true } } },
+          },
         },
       });
       if (!appel) throw new NotFoundException(`Appel de fonds ${appelId} introuvable.`);
@@ -388,8 +499,31 @@ export class AppelsDeFondsService {
         },
       });
 
-      return { encaissement, etat };
+      // Kolabimo tient une trésorerie ; c'est nous qui savons ce qui est
+      // encaissé. On le lui dit, sans jamais lui demander la permission.
+      const evenementSortant = await this.passerelle.deposerSortant(tx, {
+        evenement: 'encaissement.enregistre',
+        cle: String(encaissement.id),
+        societeId,
+        donnees: {
+          operationId,
+          reservationExternalId: appel.reservation.externalId,
+          lot: appel.reservation.lot.reference,
+          appelNumero: appel.numero,
+          montant: donnees.montant.toFixed(2),
+          dateValeur: donnees.dateValeur.toISOString(),
+          cumulEncaisse: etat.montantEncaisse.toFixed(2),
+          solde: etat.solde.toFixed(2),
+          integralementPaye: etat.soldé,
+          source: donnees.source ?? 'saisie',
+        },
+      });
+
+      return { encaissement, etat, evenementSortant };
     });
+
+    const synchronisation = await this.passerelle.livrer(evenementSortant);
+    return { encaissement, etat, synchronisation };
   }
 
   /** Relance d'un appel échu et non soldé. */

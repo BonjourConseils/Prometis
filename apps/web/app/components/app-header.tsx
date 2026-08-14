@@ -47,9 +47,16 @@ export function AppHeader({ me, actif }: { me: Me; actif: string }) {
           </Link>
         )}
         {estAdmin && (
-          <Link href="/droits-acces" className={actif === 'droits' ? 'actif' : ''}>
-            Droits d&apos;accès
-          </Link>
+          <>
+            {/* La passerelle est de l'exploitation, pas un module métier :
+                elle suit le rôle et non `modulesActifs`. */}
+            <Link href="/passerelle" className={actif === 'passerelle' ? 'actif' : ''}>
+              Passerelle
+            </Link>
+            <Link href="/droits-acces" className={actif === 'droits' ? 'actif' : ''}>
+              Droits d&apos;accès
+            </Link>
+          </>
         )}
         {me.workspaces.length > 1 && <Link href="/espaces">Changer d&apos;espace</Link>}
         <LogoutButton />

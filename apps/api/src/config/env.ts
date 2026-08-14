@@ -76,6 +76,28 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
 
+  // --- Passerelle Kolabimo ---------------------------------------------
+  /**
+   * Base de l'API v1 de Kolabimo, par exemple `https://app.kolabimo.ch`.
+   *
+   * Absente, la passerelle reste **installée mais silencieuse** : les
+   * événements sortants sont écrits en boîte d'envoi et attendent d'être
+   * rejoués. Rien ne casse, et rien ne part au hasard.
+   */
+  KOLABIMO_API_URL: z.string().url().or(z.literal('')).optional(),
+  /**
+   * Clé d'API Kolabimo, qui sert AUSSI de secret de signature des messages
+   * que nous lui envoyons — comme la clé Prometis sert de secret aux messages
+   * qu'il nous envoie. Symétrique, donc une seule chose à échanger.
+   *
+   * Limite assumée : une seule clé pour toute l'instance. Le jour où deux
+   * sociétés Prometis parleront à deux comptes Kolabimo distincts, il faudra
+   * un champ de schéma ou un coffre — cf. `references/roadmap.md`.
+   */
+  KOLABIMO_API_KEY: z.string().optional(),
+  /** Délai d'attente d'un appel sortant vers Kolabimo, en millisecondes. */
+  KOLABIMO_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z
     .string()

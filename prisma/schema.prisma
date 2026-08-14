@@ -173,6 +173,10 @@ model Membership {
 
   @@unique([compteId, societeId])
   @@index([societeId])
+  // Sélecteur d'espace de travail : « à quelles sociétés ce compte
+  // appartient-il ? ». Posé par la migration du Lot 1, déclaré ici pour que
+  // le schéma et la base disent la même chose.
+  @@index([compteId])
   @@map("memberships")
 }
 
@@ -974,6 +978,8 @@ model WebhookEvent {
   processedAt DateTime?          @map("processed_at")
 
   @@index([evenement, statut])
+  // Le journal de synchronisation se lit du plus récent au plus ancien.
+  @@index([receivedAt(sort: Desc)])
   @@map("webhook_events")
 }
 

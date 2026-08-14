@@ -44,6 +44,31 @@ export class AuditService {
     });
   }
 
+  /**
+   * Trace une action dont l'auteur n'est pas une personne — un webhook entrant,
+   * un traitement planifié.
+   *
+   * `utilisateurId` reste nul, et c'est exact : inventer un membership ferait
+   * porter à un collaborateur une décision qu'il n'a pas prise. Le `societeId`,
+   * lui, est explicite puisqu'il n'y a pas d'espace de travail à interroger.
+   */
+  async enregistrerAutomatique(
+    tx: TenantDb,
+    societeId: number,
+    evenement: EvenementAudit,
+  ): Promise<void> {
+    await tx.auditLog.create({
+      data: {
+        societeId,
+        utilisateurId: null,
+        action: evenement.action,
+        entite: evenement.entite,
+        entiteId: evenement.entiteId ?? null,
+        donnees: evenement.donnees ?? undefined,
+      },
+    });
+  }
+
   async lister(limite = 50) {
     return this.tenantDb.run((tx) =>
       tx.auditLog.findMany({

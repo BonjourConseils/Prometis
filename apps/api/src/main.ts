@@ -8,7 +8,10 @@ async function bootstrap(): Promise<void> {
   const env = loadEnv();
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule);
+  // `rawBody` conserve les octets reçus à côté du corps analysé. C'est
+  // indispensable aux webhooks Kolabimo : la signature HMAC porte sur le texte
+  // exact envoyé, et re-sérialiser l'objet donnerait une autre empreinte.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({ origin: env.CORS_ORIGINS, credentials: true });
   // Pas de `ValidationPipe` de Nest : elle repose sur class-validator, alors

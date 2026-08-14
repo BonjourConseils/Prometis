@@ -11,10 +11,10 @@
 | **4** Soumissions → contrats | ✅ livré | comparaison au net, adjudication, contrat SIA 118, avenants |
 | **5** Factures & écarts | ✅ livré | lecture des champs, rapprochement CFC, contrôle du cumul, écran Écarts |
 | **6** Ventes & appels de fonds | ✅ livré | réservations à prix figé, échéancier, **moteur idempotent + QR + e-mail** |
-| **7** Passerelle Kolabimo | ⬜ à faire | voir `kolabimo-gateway.md` |
+| **7** Passerelle Kolabimo | ✅ livré | webhooks signés + dédoublonnés, boîte d'envoi rejouable, journal étanche |
 | **8** Modules annexes | ⬜ à faire | GED, séances & PV, courtage, trésorerie |
 
-**289 tests verts**, suite idempotente (elle peut être relancée sans reseed).
+**327 tests verts**, suite idempotente (elle peut être relancée sans reseed).
 Dépôt : https://github.com/BonjourConseils/Prometis — un commit par lot, message détaillé.
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -34,6 +34,9 @@ l'accueillir sans réécriture.
 | **PDF de la QR-facture** | choix du stockage de documents (S3 suisse) | mention en clair dans l'e-mail |
 | **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
+| **Identifiants Kolabimo par société** | une seule paire URL/clé par instance ; il faudrait un champ de schéma ou un coffre | `KOLABIMO_API_URL` / `KOLABIMO_API_KEY` |
+| **Séparation identifiant / secret de signature** | `ApiKey` ne porte qu'un champ `key`, qui sert des deux côtés | `signature.ts`, un seul secret à échanger |
+| **`GET /promotions/:id/echeancier` côté Kolabimo** | endpoint à écrire dans l'autre dépôt | `KolabimoClient.lireEcheancier()` prêt à l'appeler |
 
 Ne pas « débloquer » l'un de ces points en contournant le schéma ou en branchant un fournisseur
 sans arbitrage : c'est précisément ce que ces lignes servent à empêcher.
@@ -107,10 +110,16 @@ contrat, contrôle `facturé ≤ commandé`, circuit de validation. Écrans Fact
 Écrans Lots & acquéreurs, Appels de fonds.
 **Done** : marquer un jalon terminé génère et envoie les appels de fonds ; idempotent.
 
-### Lot 7 — Passerelle Kolabimo
-Voir `kolabimo-gateway.md`.
-**Done** : une réservation Kolabimo apparaît dans Prometis ; un jalon terminé alimente la
-trésorerie Kolabimo.
+### Lot 7 — Passerelle Kolabimo ✅
+Voir `kolabimo-gateway.md`. Livré : `POST /webhooks/kolabimo` authentifié par clé + HMAC sur le
+corps brut, journalisé dans `WebhookEvent` avec `dedupeKey` unique ; réconciliation des
+`reservation.*` et `lot.updated` par `externalId` ; boîte d'envoi sortante
+(`echeancier.etape_completed`, `encaissement.enregistre`) écrite dans la transaction métier et
+livrée après le commit ; reprise tirée `POST /operations/:id/passerelle/importer-reservations` ;
+écran Passerelle (état, journal, rejeu).
+**Done, vérifié** : une réservation Kolabimo apparaît dans Prometis (38 tests, dont l'idempotence
+d'un rejeu et l'étanchéité du journal entre tenants) ; un jalon terminé dépose son événement pour
+la trésorerie Kolabimo, même passerelle non configurée.
 
 ### Lot 8 — Modules annexes
 GED (`Document` versionnée), Séances & PV, Courtage, Trésorerie.

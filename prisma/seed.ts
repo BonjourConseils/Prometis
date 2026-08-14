@@ -23,6 +23,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { config as loadDotenv } from 'dotenv';
+import { CLE_API_CONSTRUCTA, CLE_API_PROBAT } from './passerelle-cles-dev';
 
 loadDotenv();
 
@@ -492,6 +493,10 @@ async function seedProbat(): Promise<void> {
       modeRealisation: 'CORPS_DETAT_SEPARES',
       notaireActeurId: notaire.id,
       commercialisationActive: true,
+      // Rattachement à la promotion Kolabimo : c'est cette clé que les
+      // webhooks entrants portent, et sans elle un événement est « hors
+      // périmètre » plutôt qu'en erreur.
+      kolabimoPromotionId: 4201,
       operationActeurs: {
         create: [
           {
@@ -526,6 +531,18 @@ async function seedProbat(): Promise<void> {
           },
         ],
       },
+    },
+  });
+
+  // --- Clé d'API de la passerelle Kolabimo -----------------------------
+  // Elle identifie le tenant d'un webhook entrant ET sert de secret de
+  // signature. Valeur de développement, au même titre que le mot de passe des
+  // comptes du seed : à régénérer avant toute mise en ligne.
+  await prisma.apiKey.create({
+    data: {
+      societeId: societe.id,
+      key: CLE_API_PROBAT,
+      label: 'Kolabimo — Les Jardins de Prilly',
     },
   });
 
@@ -565,12 +582,16 @@ async function seedProbat(): Promise<void> {
         quotePartPPE: millemes[index]!,
         prixVente: chf(spec.prix),
         statut: 'DISPONIBLE',
+        // Correspondance Kolabimo, dérivée de l'index pour rester stable d'un
+        // reseed à l'autre : A02 est toujours l'appartement 4302.
+        kolabimoAppartementId: 4300 + index,
         parkings: {
           create: [
             {
               reference: spec.parking.reference,
               type: spec.parking.type,
               prix: chf(spec.parking.prix),
+              kolabimoParkingId: 4500 + index,
               ordre: 0,
             },
           ],
@@ -1250,6 +1271,16 @@ async function seedConstructa(): Promise<void> {
       operationActeurs: {
         create: [{ acteurId: maitreOuvrage.id, role: 'MAITRE_OUVRAGE', ordre: 0 }],
       },
+    },
+  });
+
+  // Le second tenant a sa propre clé : c'est elle qui permet de prouver qu'un
+  // webhook signé par Constructa ne touche rien chez Probat.
+  await prisma.apiKey.create({
+    data: {
+      societeId: societe.id,
+      key: CLE_API_CONSTRUCTA,
+      label: 'Kolabimo — témoin d’isolation',
     },
   });
 
