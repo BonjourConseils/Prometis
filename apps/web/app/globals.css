@@ -395,3 +395,51 @@ tr.total td {
 .kpi.negatif .valeur {
   color: var(--ko);
 }
+
+/* --- Écran budget : arbre large et onglets de version ----------------- */
+
+main.large {
+  max-width: 72rem;
+}
+
+.tableau-large {
+  overflow-x: auto;
+}
+
+.tableau-large table {
+  min-width: 46rem;
+}
+
+tr.groupe td {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--border) 22%, transparent);
+}
+
+tr.attenue td {
+  color: var(--muted);
+}
+
+.onglets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.onglet {
+  padding: 0.4375rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.onglet:hover {
+  border-color: var(--accent);
+}
+
+.onglet.actif {
+  border-color: var(--accent);
+  color: var(--fg);
+  font-weight: 600;
+}

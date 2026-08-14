@@ -18,7 +18,7 @@ import {
   appel,
   jetonPourEspace,
 } from './api-client';
-import { ownerDb } from './tenant-db';
+import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
 let marcChezConstructa: string;
@@ -51,8 +51,10 @@ beforeAll(async () => {
 afterAll(async () => {
   // Suppression avec le rôle propriétaire : il n'existe pas de route de
   // suppression d'opération, et il ne doit pas en exister pour ce seul besoin.
+  // Pas de `catch` : un nettoyage qui échoue en silence casse les fichiers
+  // suivants et envoie le diagnostic dans la mauvaise direction.
   for (const id of operationsCreees) {
-    await ownerDb.operation.delete({ where: { id } }).catch(() => undefined);
+    await supprimerOperationDeTest(id);
   }
   await ownerDb.$disconnect();
 });

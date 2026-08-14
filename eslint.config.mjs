@@ -19,7 +19,12 @@ export default tseslint.config(
     rules: {
       // Les montants et ids viennent de Prisma : on veut un typage explicite aux frontières.
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // `ignoreRestSiblings` autorise l'idiome `const { aRetirer, ...reste } = obj`
+      // pour omettre un champ — c'est une intention explicite, pas un oubli.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       // `any` est un trou dans l'isolation tenant dès qu'il touche une requête.
       '@typescript-eslint/no-explicit-any': 'error',
       'no-console': ['warn', { allow: ['warn', 'error'] }],

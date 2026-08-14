@@ -40,3 +40,23 @@ export async function asTenant<T>(
 
 export const PROBAT = 1;
 export const CONSTRUCTA = 2;
+
+/**
+ * Efface une opération créée par un test, enfants compris.
+ *
+ * La suppression en cascade ne suffit pas : `lignes_budget` référence
+ * `cfc_nodes` en `Restrict`, et l'ordre d'évaluation des cascades n'est pas
+ * garanti. On descend donc explicitement.
+ *
+ * Aucune erreur n'est avalée. Un nettoyage qui échoue en silence laisse des
+ * données derrière lui, casse les suites suivantes, et envoie le diagnostic
+ * dans la mauvaise direction — c'est exactement ce qui est arrivé ici.
+ */
+export async function supprimerOperationDeTest(operationId: number): Promise<void> {
+  await ownerDb.ligneBudget.deleteMany({ where: { budgetVersion: { operationId } } });
+  await ownerDb.budgetVersion.deleteMany({ where: { operationId } });
+  await ownerDb.cfcNode.deleteMany({ where: { operationId } });
+  await ownerDb.parking.deleteMany({ where: { lot: { bien: { operationId } } } });
+  await ownerDb.lot.deleteMany({ where: { bien: { operationId } } });
+  await ownerDb.operation.delete({ where: { id: operationId } });
+}
