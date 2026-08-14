@@ -1,0 +1,282 @@
+:root {
+  --bg: #fbfaf8;
+  --fg: #1c1a17;
+  --muted: #6b665e;
+  --border: #e4e0d8;
+  --accent: #8a5a2b;
+  --ok: #2f6b46;
+  --ko: #9b2c2c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16150f;
+    --fg: #f0ede6;
+    --muted: #a29b8e;
+    --border: #322f27;
+    --accent: #d1a06a;
+    --ok: #6cbf8e;
+    --ko: #e08585;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 3rem 1.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    16px/1.6 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+main {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.25rem;
+}
+
+.lede {
+  color: var(--muted);
+  margin: 0 0 2.5rem;
+}
+
+section {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  padding: 0 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.875em;
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+}
+
+.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.ko {
+  color: var(--ko);
+  font-weight: 600;
+}
+
+main.etroit {
+  max-width: 32rem;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+/* --- En-tête applicatif --------------------------------------------- */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header .identite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+  font-size: 0.9375rem;
+}
+
+.app-header nav a,
+button.lien {
+  color: var(--muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-header nav a:hover,
+button.lien:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.app-header nav a.actif {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* --- Formulaires ----------------------------------------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.form input {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.form input:focus-visible,
+.espaces button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.form button[type='submit'] {
+  align-self: flex-start;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.375rem;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form button[type='submit']:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* --- Sélecteur d'espace de travail ----------------------------------- */
+
+.espaces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.espaces button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.espaces button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.espaces .titre {
+  font-weight: 600;
+}
+
+.espaces .meta {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* --- Puces de modules ------------------------------------------------ */
+
+.puces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.puce {
+  font-size: 0.75rem;
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.puce.accent {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}

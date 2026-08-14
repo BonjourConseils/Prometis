@@ -1,0 +1,55 @@
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { AuditModule } from './audit/audit.module';
+import { MailModule } from './mail/mail.module';
+import { AccesModule } from './acces/acces.module';
+import { SocieteModule } from './societe/societe.module';
+import { HealthModule } from './health/health.module';
+import { OperationsModule } from './operations/operations.module';
+import { AuthContextMiddleware } from './auth/auth-context.middleware';
+import { AuthController } from './auth/auth.controller';
+import { AccesController } from './acces/acces.controller';
+import { SocieteController } from './societe/societe.controller';
+import { OperationsController } from './operations/operations.controller';
+import { AuditController } from './audit/audit.controller';
+import { MailController } from './mail/mail.controller';
+
+@Module({
+  imports: [
+    PrismaModule,
+    AuthModule,
+    AuditModule,
+    MailModule,
+    AccesModule,
+    SocieteModule,
+    HealthModule,
+    OperationsModule,
+  ],
+})
+export class AppModule implements NestModule {
+  /**
+   * Tout contrôleur exposant des données doit figurer ici : c'est ce
+   * middleware qui décode le jeton et pose le contexte de la requête.
+   *
+   * On énumère plutôt que d'appliquer un joker — d'abord parce que la syntaxe
+   * des jokers a changé avec Express 5, ensuite parce que la question « ce
+   * contrôleur est-il authentifié ? » mérite d'être posée à chaque ajout.
+   *
+   * L'oubli ferme l'accès au lieu de l'ouvrir : sans contexte, le garde global
+   * répond 401. `HealthController` en est volontairement absent — une sonde de
+   * vie ne s'authentifie pas.
+   */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(AuthContextMiddleware)
+      .forRoutes(
+        AuthController,
+        SocieteController,
+        OperationsController,
+        AccesController,
+        AuditController,
+        MailController,
+      );
+  }
+}
