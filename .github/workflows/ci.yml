@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Le rôle superutilisateur ne sert QU'à créer les deux rôles applicatifs.
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      # L'application et les tests utilisent prometis_app : soumis à la RLS.
+      DATABASE_URL: postgresql://prometis_app:prometis_app_dev@localhost:5432/prometis_dev?schema=public
+      DIRECT_DATABASE_URL: postgresql://prometis:prometis_dev@localhost:5432/prometis_dev?schema=public
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      # Secret de CI uniquement — la production le tire de son coffre.
+      JWT_SECRET: ci-uniquement-secret-de-test-48-octets-minimum-xxxxx
+      JWT_EXPIRES_IN: 8h
+      API_PORT: '3001'
+      # Aucun e-mail ne doit sortir depuis la CI.
+      MAIL_TRANSPORT: console
+      MAIL_REDIRECT_TO: ci@example.invalid
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Rôles PostgreSQL et base
+        run: npm run db:bootstrap
+
+      - name: Migrations
+        run: npx prisma migrate deploy
+
+      - name: Client Prisma
+        run: npm run db:generate
+
+      - name: Seed de démonstration
+        run: npm run db:seed
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Formatage
+        run: npm run format:check
+
+      - name: Typage
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Les tests d'identité et d'accès tapent l'API réelle : ils échouent
+      # bruyamment si elle n'est pas là, plutôt que de s'ignorer en silence.
+      - name: Démarrer l'API
+        run: |
+          node apps/api/dist/main.js &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "L'API n'a pas démarré dans le délai imparti." >&2
+          exit 1
+
+      # Le test d'isolation est la garantie centrale du produit : s'il tombe,
+      # la CI doit être rouge, quel que soit le reste.
+      - name: Tests (isolation multi-tenant, identité et accès)
+        run: npm test

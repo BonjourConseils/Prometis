@@ -1,0 +1,30 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Environnement — jamais de secret dans le dépôt
+.env
+.env.*
+!.env.example
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Logs et caches
+*.log
+npm-debug.log*
+.eslintcache
+coverage/
+.vitest/
+
+# OS / éditeurs
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
