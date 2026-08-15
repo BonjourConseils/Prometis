@@ -3,7 +3,7 @@ import { createTransport, type Transporter } from 'nodemailer';
 import { loadEnv, type Env } from '../config/env';
 import { appliquerRedirection, type Message } from './redirection';
 
-export type { Message } from './redirection';
+export type { Message, PieceJointe } from './redirection';
 
 export interface ResultatEnvoi {
   /** Adresse réellement servie — celle de redirection hors production. */
@@ -70,6 +70,9 @@ export class MailService {
         `[${resultat.redirige ? 'redirigé' : 'direct'}] → ${joindre(aEnvoyer.to)} · ${aEnvoyer.subject}`,
       );
       this.logger.debug(aEnvoyer.text ?? aEnvoyer.html ?? '(corps vide)');
+      for (const piece of aEnvoyer.pieces ?? []) {
+        this.logger.debug(`  pièce jointe : ${piece.nom} (${piece.contenu.length} octets)`);
+      }
       return resultat;
     }
 
@@ -80,6 +83,11 @@ export class MailService {
       text: aEnvoyer.text,
       html: aEnvoyer.html,
       replyTo: aEnvoyer.replyTo,
+      attachments: aEnvoyer.pieces?.map((p) => ({
+        filename: p.nom,
+        content: p.contenu,
+        contentType: p.typeMime,
+      })),
     });
 
     this.logger.log(

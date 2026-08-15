@@ -12,6 +12,12 @@
  * a lieu.
  */
 
+export interface PieceJointe {
+  nom: string;
+  contenu: Buffer;
+  typeMime: string;
+}
+
 export interface Message {
   to: string | string[];
   cc?: string | string[];
@@ -20,6 +26,12 @@ export interface Message {
   text?: string;
   html?: string;
   replyTo?: string;
+  /**
+   * Les pièces jointes SUIVENT la redirection : elles font partie du message,
+   * et un e-mail redirigé sans sa QR-facture ne permettrait pas de vérifier
+   * ce que l'acquéreur aurait réellement reçu.
+   */
+  pieces?: PieceJointe[];
 }
 
 export interface OptionsRedirection {
@@ -105,6 +117,7 @@ export function appliquerRedirection(message: Message, options: OptionsRedirecti
     // aux vraies personnes, ce que la redirection cherche justement à éviter.
     subject: `[→ ${resume}] ${message.subject}`,
     replyTo: message.replyTo,
+    pieces: message.pieces,
     text: message.text ? bandeauTexte(message, options.environnement) + message.text : undefined,
     html: message.html ? bandeauHtml(message, options.environnement) + message.html : undefined,
   };

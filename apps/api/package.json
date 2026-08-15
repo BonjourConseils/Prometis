@@ -20,8 +20,10 @@
     "@prisma/client": "^6.19.3",
     "dotenv": "^17.4.2",
     "nodemailer": "^9.0.5",
+    "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "swissqrbill": "^4.4.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -29,6 +31,7 @@
     "@nestjs/schematics": "^11.1.0",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
-    "@types/nodemailer": "^8.0.1"
+    "@types/nodemailer": "^8.0.1",
+    "@types/pdfkit": "^0.17.6"
   }
 }

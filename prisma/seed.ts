@@ -27,6 +27,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { config as loadDotenv } from 'dotenv';
 import { CLE_API_CONSTRUCTA, CLE_API_PROBAT } from './passerelle-cles-dev';
+import { genererReferenceQR } from '../apps/api/src/appels-de-fonds/qr-reference';
 
 loadDotenv();
 
@@ -436,7 +437,11 @@ async function seedProbat(): Promise<void> {
       canton: 'VD',
       email: 'contact@probat.ch',
       telephone: '+41 21 555 10 10',
-      iban: 'CH93 0076 2011 6238 5295 7',
+      // QR-IBAN (identifiant d'institution 30000–31999) : c'est LUI qui rend
+      // la référence QR à 27 chiffres utilisable. Avec un IBAN ordinaire, la
+      // QR-facture part sans référence structurée et le rapprochement
+      // bancaire redevient manuel — cf. `qr-facture.ts`.
+      iban: 'CH57 3000 0123 4567 8901 2',
       profil: 'PROMOTEUR',
       // Un promoteur active tout : chantier + surcouche commercialisation.
       modulesActifs: [
@@ -1134,8 +1139,17 @@ async function seedProbat(): Promise<void> {
         dateEmission: new Date(a.emission),
         dateEnvoi: new Date(a.emission),
         dateEcheance: new Date(a.echeance),
-        // Référence QR suisse : 27 chiffres, groupés 2 puis 5 x 5.
-        qrReference: `21 00000 00003 13947 14300 0900${a.ordre}`,
+        // Référence QR produite par la MÊME fonction que le moteur : 27
+        // chiffres avec la clé de contrôle du modulo 10 récursif.
+        //
+        // Elle était auparavant recopiée du prototype, à titre illustratif —
+        // sa clé de contrôle était donc fausse, et la QR-facture générée à
+        // partir d'elle aurait été rejetée par la banque de l'acquéreur.
+        qrReference: genererReferenceQR(
+          operation.id,
+          reservationA02.id,
+          etapesCreees.get(a.ordre)!,
+        ),
       },
     });
 

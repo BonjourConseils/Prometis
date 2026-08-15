@@ -5,6 +5,8 @@ import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { PasserelleService } from '../passerelle/passerelle.service';
+import { GedService } from '../ged/ged.service';
+import { QrFactureService } from './qr-facture.pdf';
 import { calculerMontantAppel, etatAppel, numeroAppel, STATUTS_ENGAGES } from './calculs';
 import { formaterReferenceQR, genererReferenceQR } from './qr-reference';
 
@@ -33,6 +35,8 @@ export class AppelsDeFondsService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly passerelle: PasserelleService,
+    private readonly qrFacture: QrFactureService,
+    private readonly ged: GedService,
   ) {}
 
   // ===================================================================
@@ -114,7 +118,9 @@ export class AppelsDeFondsService {
           where: { operationId, statut: { in: STATUTS_ENGAGES } },
           include: {
             lot: { select: { reference: true } },
-            acquereur: { select: { id: true, nom: true, prenom: true, email: true } },
+            acquereur: {
+              select: { id: true, nom: true, prenom: true, email: true, adresse: true },
+            },
           },
         });
 
@@ -131,6 +137,7 @@ export class AppelsDeFondsService {
           lot: string;
           acquereurNom: string;
           acquereurEmail: string | null;
+          acquereurAdresse: string | null;
           qrReference: string;
           dateEcheance: Date;
         }[] = [];
@@ -179,6 +186,7 @@ export class AppelsDeFondsService {
             acquereurNom:
               `${reservation.acquereur.prenom ?? ''} ${reservation.acquereur.nom ?? ''}`.trim(),
             acquereurEmail: reservation.acquereur.email,
+            acquereurAdresse: reservation.acquereur.adresse,
             qrReference,
             dateEcheance,
           });
@@ -244,11 +252,34 @@ export class AppelsDeFondsService {
           echecs.push({ appelId: appel.id, raison: 'Acquéreur sans adresse e-mail' });
           continue;
         }
+
+        const numero = numeroAppel(dateCompletion.getFullYear(), appel.id);
+
+        // La QR-facture est produite AVANT l'envoi, et son absence n'empêche
+        // pas le message de partir : un acquéreur informé sans pièce jointe
+        // reste mieux servi qu'un acquéreur non informé.
+        const facture = await this.produireQrFacture(
+          operationId,
+          appel,
+          numero,
+          etape.libelle,
+          societe,
+        );
+
         try {
           await this.mail.envoyer({
             to: appel.acquereurEmail,
-            subject: `Appel de fonds ${numeroAppel(dateCompletion.getFullYear(), appel.id)} — lot ${appel.lot}`,
-            text: this.corpsAppel(appel, etape.libelle, societe),
+            subject: `Appel de fonds ${numero} — lot ${appel.lot}`,
+            text: this.corpsAppel(appel, etape.libelle, societe, facture !== null),
+            pieces: facture
+              ? [
+                  {
+                    nom: `${numero}-${appel.lot}.pdf`,
+                    contenu: facture,
+                    typeMime: 'application/pdf',
+                  },
+                ]
+              : undefined,
           });
           await this.db.run((tx) =>
             tx.appelDeFonds.update({
@@ -338,6 +369,75 @@ export class AppelsDeFondsService {
     });
   }
 
+  /**
+   * Produit la QR-facture et la dépose en GED.
+   *
+   * Elle est **archivée** en même temps qu'envoyée : un acquéreur qui perd le
+   * message doit pouvoir se la faire renvoyer telle quelle, et le promoteur
+   * doit pouvoir montrer ce qui est parti.
+   *
+   * Rien ici ne fait échouer l'appel de fonds : la créance existe déjà en
+   * base, une pièce jointe manquante ne la remet pas en cause.
+   */
+  private async produireQrFacture(
+    operationId: number,
+    appel: {
+      id: number;
+      montant: Prisma.Decimal;
+      lot: string;
+      acquereurNom: string;
+      acquereurAdresse: string | null;
+      qrReference: string;
+      dateEcheance: Date;
+    },
+    numero: string,
+    etapeLibelle: string,
+    societe: {
+      raisonSociale: string;
+      iban: string | null;
+      adresse: string | null;
+      codePostal: string | null;
+      localite: string | null;
+    },
+  ): Promise<Buffer | null> {
+    try {
+      const resultat = await this.qrFacture.generer({
+        montant: Number(appel.montant.toFixed(2)),
+        numero,
+        referenceQR: appel.qrReference,
+        lot: appel.lot,
+        etapeLibelle,
+        dateEcheance: appel.dateEcheance,
+        societe,
+        acquereur: { nom: appel.acquereurNom, adresse: appel.acquereurAdresse },
+      });
+      if (!resultat) return null;
+
+      if (resultat.reference.type === 'AUCUNE') {
+        // Le promoteur doit le savoir : sans référence structurée, le
+        // rapprochement bancaire redevient manuel.
+        this.logger.warn(`QR-facture ${numero} sans référence — ${resultat.reference.raison}`);
+      }
+
+      await this.ged.deposer(
+        operationId,
+        {
+          nomOriginal: `${numero}-${appel.lot}.pdf`,
+          mimeType: 'application/pdf',
+          contenu: resultat.pdf,
+        },
+        { titre: `QR-facture ${numero} — lot ${appel.lot}`, categorie: 'FACTURE' },
+      );
+
+      return resultat.pdf;
+    } catch (erreur) {
+      this.logger.error(
+        `QR-facture ${numero} non produite : ${erreur instanceof Error ? erreur.message : erreur}`,
+      );
+      return null;
+    }
+  }
+
   private corpsAppel(
     appel: {
       montant: Prisma.Decimal;
@@ -354,6 +454,7 @@ export class AppelsDeFondsService {
       codePostal: string | null;
       localite: string | null;
     },
+    avecFacture: boolean,
   ): string {
     // `null` = ligne absente ; `''` = ligne vide voulue. Filtrer les chaînes
     // vides écraserait la mise en page du message.
@@ -377,8 +478,12 @@ export class AppelsDeFondsService {
         .filter(Boolean)
         .join(' — ') || null,
       '',
-      '— Note de développement : la QR-facture au format PDF n’est pas encore',
-      'jointe. Sa génération attend le choix du stockage de documents.',
+      avecFacture
+        ? 'La QR-facture est jointe à ce message : elle peut être scannée depuis'
+        : 'La QR-facture n’a pas pu être établie — les coordonnées de paiement',
+      avecFacture
+        ? "l'application bancaire, ou imprimée pour un versement au guichet."
+        : 'ci-dessus font foi.',
     ];
 
     return lignes.filter((l): l is string => l !== null).join('\n');
