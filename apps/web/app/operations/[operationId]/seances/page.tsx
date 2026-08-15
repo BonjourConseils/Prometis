@@ -4,6 +4,7 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { date, lisible } from '../../../../lib/format';
+import { AjouterSeance } from './saisie';
 
 interface Seance {
   id: number;
@@ -163,7 +164,11 @@ export default async function SeancesPage({
                 return (
                   <tr key={s.id}>
                     <td>
-                      <strong>{s.numero ?? `Séance ${s.id}`}</strong>
+                      {/* La fiche est l'écran où se tient la séance : présences,
+                          points, PV. La liste n'est qu'un sommaire. */}
+                      <Link href={`/operations/${operationId}/seances/${s.id}`}>
+                        <strong>{s.numero ?? `Séance ${s.id}`}</strong>
+                      </Link>
                       <br />
                       <span className="meta">{s.titre}</span>
                     </td>
@@ -188,6 +193,9 @@ export default async function SeancesPage({
             </tbody>
           </table>
         )}
+      </section>
+      <section>
+        <AjouterSeance operationId={Number(operationId)} />
       </section>
     </main>
   );

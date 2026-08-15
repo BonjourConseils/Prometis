@@ -4,6 +4,12 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { date, lisible } from '../../../../lib/format';
+import { DeposerDocument, DeposerVersion, ModifierDocument } from './saisie';
+
+/** Réduit à ce dont la liste déroulante de rattachement a besoin. */
+interface Bien {
+  lots: { id: number; reference: string }[];
+}
 
 interface Document {
   id: number;
@@ -61,7 +67,12 @@ export default async function DocumentsPage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const documents = await apiGet<Document[]>(`/operations/${operationId}/documents`);
+  // Les lots ne servent qu'au rattachement d'une pièce ; un refus ici ne doit
+  // pas priver l'écran de la GED.
+  const [documents, biens] = await Promise.all([
+    apiGet<Document[]>(`/operations/${operationId}/documents`),
+    apiGet<Bien[]>(`/operations/${operationId}/biens`),
+  ]);
 
   if (documents === null) {
     return (
@@ -86,6 +97,8 @@ export default async function DocumentsPage({
   }
 
   const partages = documents.filter((d) => d.visibiliteExterne);
+  const id = Number(operationId);
+  const lots = (biens ?? []).flatMap((b) => b.lots);
 
   return (
     <main>
@@ -109,11 +122,15 @@ export default async function DocumentsPage({
         </p>
       </section>
 
-      {documents.length === 0 && (
-        <section>
-          <p>Aucune pièce déposée pour l&apos;instant.</p>
-        </section>
-      )}
+      <section>
+        {documents.length === 0 && (
+          <p className="note">
+            Aucune pièce déposée. Un titre et une catégorie sont demandés au dépôt : une GED se
+            range en y déposant, jamais après.
+          </p>
+        )}
+        <DeposerDocument operationId={id} lots={lots} />
+      </section>
 
       {[...parCategorie.entries()].map(([categorie, liste]) => (
         <section key={categorie}>
@@ -129,6 +146,7 @@ export default async function DocumentsPage({
                 <th className="droite">Version</th>
                 <th>Déposé le</th>
                 <th>Diffusion</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -171,6 +189,17 @@ export default async function DocumentsPage({
                     ) : (
                       <span className="meta">interne</span>
                     )}
+                  </td>
+                  <td>
+                    <div className="actions-cellule">
+                      <DeposerVersion operationId={id} documentId={d.id} />
+                      <ModifierDocument
+                        operationId={id}
+                        documentId={d.id}
+                        categorie={d.categorie}
+                        visibiliteExterne={d.visibiliteExterne}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

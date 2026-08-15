@@ -506,9 +506,19 @@ Deux règles, toutes deux vérifiées par l'échec inverse :
   (`request.arrayBuffer()`). Le relais forçait `application/json` et relisait le corps en
   texte : le fichier arrivait illisible.
 
+Les **métadonnées** voyagent dans le même multipart (troisième paramètre de `televerser`) : un
+document GED se dépose avec son titre et sa catégorie, jamais « d'abord le fichier, on classera
+après ». Elles arrivent en texte côté API — d'où les `z.coerce` du `depotSchema`.
+
 Ça se teste sans navigateur — le harnais ne sait pas remplir un `<input type="file">` : ouvrir
 une session sur `/api/session`, choisir l'espace sur `/api/session/workspace`, puis poster un
 `FormData` sur `/api/prometis/…`. C'est le vrai chemin, cookie compris.
+
+**Couverture de la saisie (15 août 2026).** Tout le fil rouge et les modules annexes se pilotent
+depuis l'interface : promotion, foncier, budget CFC, soumissions, factures, ventes, appels de
+fonds, GED, séances & PV, courtage. Seule la **trésorerie** reste en lecture — elle agrège des
+mouvements nés ailleurs, il n'y a rien à y saisir. La **landing page** publique n'est pas faite ;
+ses maquettes sont dans `Screenshots/screenshots/landing/`.
 
 **Le formulaire — `apps/web/app/components/formulaire.tsx`.** `Repliable` (bouton → formulaire
 déplié) et `useEnvoi()` (envoi, erreur, `router.refresh()`). Le hook rend `false` en cas

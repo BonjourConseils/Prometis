@@ -61,10 +61,17 @@ export async function appelApi<T>(
 export async function televerser<T>(
   chemin: string,
   fichier: File,
+  // Métadonnées envoyées dans le même multipart — le titre et la catégorie
+  // d'un document, par exemple. Les valeurs `undefined` sont omises : zod
+  // doit voir une absence, pas la chaîne « undefined ».
+  metadonnees: Record<string, string | boolean | number | undefined> = {},
   champFichier = 'fichier',
 ): Promise<{ ok: boolean; statut: number; data: T; erreur?: string }> {
   const formulaire = new FormData();
   formulaire.append(champFichier, fichier);
+  for (const [cle, valeur] of Object.entries(metadonnees)) {
+    if (valeur !== undefined) formulaire.append(cle, String(valeur));
+  }
 
   try {
     const res = await fetch(`/api/prometis${chemin}`, { method: 'POST', body: formulaire });

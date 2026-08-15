@@ -3,7 +3,13 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
-import { chf, date, lisible, montant, pourcentage } from '../../../../lib/format';
+import { chf, date, lisible, montant, nomAcquereur, pourcentage } from '../../../../lib/format';
+import {
+  AjouterMandat,
+  ChangerStatutCommission,
+  ChangerStatutMandat,
+  ConstaterCommissions,
+} from './saisie';
 
 interface Mandat {
   id: number;
@@ -35,6 +41,25 @@ interface Commission {
     lot: { reference: string };
     acquereur: { nom: string | null; prenom: string | null };
   };
+}
+
+interface Acteur {
+  id: number;
+  type: string;
+  societeNom: string | null;
+  nom: string | null;
+  prenom: string | null;
+}
+
+interface Bien {
+  lots: { id: number; reference: string }[];
+}
+
+interface Reservation {
+  id: number;
+  statut: string;
+  lot: { reference: string };
+  acquereur: { nom: string | null; prenom: string | null; email: string | null };
 }
 
 interface Operation {
@@ -72,9 +97,13 @@ export default async function CourtagePage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const [mandats, commissions] = await Promise.all([
+  // Acteurs, biens et réservations n'alimentent que les listes déroulantes.
+  const [mandats, commissions, acteurs, biens, reservations] = await Promise.all([
     apiGet<Mandat[]>(`/operations/${operationId}/courtage/mandats`),
     apiGet<Commission[]>(`/operations/${operationId}/courtage/commissions`),
+    apiGet<Acteur[]>('/acteurs'),
+    apiGet<Bien[]>(`/operations/${operationId}/biens`),
+    apiGet<Reservation[]>(`/operations/${operationId}/reservations`),
   ]);
 
   if (mandats === null || commissions === null) {
@@ -95,6 +124,21 @@ export default async function CourtagePage({
   const totalDu = commissions
     .filter((c) => c.statut === 'DUE')
     .reduce((total, c) => total + Number(c.montant), 0);
+
+  const id = Number(operationId);
+  // Seuls les acteurs de type COURTIER peuvent porter un mandat : proposer
+  // l'annuaire entier ferait signer un mandat à un ingénieur civil.
+  const courtiers = (acteurs ?? [])
+    .filter((a) => a.type === 'COURTIER')
+    .map((a) => ({
+      id: a.id,
+      libelle: (a.societeNom ?? [a.prenom, a.nom].filter(Boolean).join(' ')) || `Acteur ${a.id}`,
+    }));
+  const lots = (biens ?? []).flatMap((b) => b.lots);
+  const ventes = (reservations ?? []).map((r) => ({
+    reservationId: r.id,
+    libelle: `Lot ${r.lot.reference} — ${nomAcquereur(r.acquereur)} (${lisible(r.statut).toLowerCase()})`,
+  }));
 
   return (
     <main>
@@ -176,10 +220,33 @@ export default async function CourtagePage({
                   <td>{lisible(m.statut)}</td>
                   <td className="droite">{montant(m.totaux.due)}</td>
                   <td className="droite">{montant(m.totaux.payee)}</td>
+                  <td>
+                    <div className="actions-cellule">
+                      {m.statut === 'BROUILLON' && (
+                        <ChangerStatutMandat operationId={id} mandatId={m.id} vers="SIGNE" />
+                      )}
+                      {m.statut === 'SIGNE' && (
+                        <ChangerStatutMandat operationId={id} mandatId={m.id} vers="ACTIF" />
+                      )}
+                      {(m.statut === 'ACTIF' || m.statut === 'SIGNE') && (
+                        <>
+                          <ChangerStatutMandat operationId={id} mandatId={m.id} vers="TERMINE" />
+                          <ChangerStatutMandat operationId={id} mandatId={m.id} vers="RESILIE" />
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+        <AjouterMandat operationId={id} courtiers={courtiers} lots={lots} />
+        {courtiers.length === 0 && (
+          <p className="note">
+            Aucun acteur de type <strong>courtier</strong> dans l&apos;annuaire : un mandat ne peut
+            pas être signé sans lui.
+          </p>
         )}
       </section>
 
@@ -198,6 +265,7 @@ export default async function CourtagePage({
                 <th>Échéance</th>
                 <th>État</th>
                 <th className="droite">Montant</th>
+                <th>Règlement</th>
               </tr>
             </thead>
             <tbody>
@@ -218,11 +286,37 @@ export default async function CourtagePage({
                   <td>{date(c.dateDue)}</td>
                   <td>{lisible(c.statut)}</td>
                   <td className="droite">{montant(c.montant)}</td>
+                  <td>
+                    <div className="actions-cellule">
+                      {c.statut === 'DUE' && (
+                        <>
+                          <ChangerStatutCommission
+                            operationId={id}
+                            commissionId={c.id}
+                            vers="FACTUREE"
+                          />
+                          <ChangerStatutCommission
+                            operationId={id}
+                            commissionId={c.id}
+                            vers="ANNULEE"
+                          />
+                        </>
+                      )}
+                      {c.statut === 'FACTUREE' && (
+                        <ChangerStatutCommission
+                          operationId={id}
+                          commissionId={c.id}
+                          vers="PAYEE"
+                        />
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <ConstaterCommissions operationId={id} ventes={ventes} />
       </section>
     </main>
   );
