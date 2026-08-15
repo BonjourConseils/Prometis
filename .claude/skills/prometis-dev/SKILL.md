@@ -517,8 +517,32 @@ une session sur `/api/session`, choisir l'espace sur `/api/session/workspace`, p
 **Couverture de la saisie (15 août 2026).** Tout le fil rouge et les modules annexes se pilotent
 depuis l'interface : promotion, foncier, budget CFC, soumissions, factures, ventes, appels de
 fonds, GED, séances & PV, courtage. Seule la **trésorerie** reste en lecture — elle agrège des
-mouvements nés ailleurs, il n'y a rien à y saisir. La **landing page** publique n'est pas faite ;
-ses maquettes sont dans `Screenshots/screenshots/landing/`.
+mouvements nés ailleurs, il n'y a rien à y saisir.
+
+## 4 quaterdecies. Page publique
+
+`apps/web/app/accueil/landing.tsx` + son **module CSS**. La racine `/` sert la landing au
+visiteur sans session et la liste des promotions au connecté ; un jeton périmé continue de
+partir sur `/login`, parce qu'à ce moment-là on n'accueille plus, on reconnecte.
+
+Le module CSS est délibéré : la landing emprunte les **tokens** de `globals.css` (elle doit
+ressembler au produit) mais aucune de ses règles. Un back-office et une page de vente n'ont pas
+le même rythme, et mélanger leurs feuilles fait dériver les deux.
+
+Deux pièges payés comptant :
+
+- **`backdrop-filter` sur une barre collante** fait recomposer toute la page à chaque
+  défilement. Retiré : sur fond clair, personne ne voit la différence.
+- **Un fond sombre porté par la seule enveloppe** d'une section qui contient un enfant `sticky` :
+  le navigateur promeut la bande dans une couche à part et **les textes les plus clairs
+  disparaissent**. Les styles calculés restent corrects — seul l'affichage ment, ce qui rend le
+  diagnostic pénible. Reposer le fond sur l'élément qui contient réellement le texte lève le
+  problème.
+
+**Le contenu ne promet que ce qui est livré.** Les maquettes annonçaient des relances
+automatiques à J+10, un import camt.054, des exports ISO 20022 et un catalogue CRB importable :
+rien de tout cela n'existe. Le texte a été ramené au produit réel. À rétablir au fur et à
+mesure des livraisons, jamais avant.
 
 **Le formulaire — `apps/web/app/components/formulaire.tsx`.** `Repliable` (bouton → formulaire
 déplié) et `useEnvoi()` (envoi, erreur, `router.refresh()`). Le hook rend `false` en cas

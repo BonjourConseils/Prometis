@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../lib/session';
 import { AppHeader, type Me } from './components/app-header';
+import { Landing } from './accueil/landing';
 
 interface OperationListItem {
   id: number;
@@ -76,9 +77,19 @@ function Perimetre({ droits }: { droits: MesDroits }) {
   );
 }
 
+/**
+ * Racine du site.
+ *
+ * Sans session, c'est la **page publique** — pas une redirection vers le
+ * formulaire de connexion. Un visiteur qui découvre Prometis n'a rien à faire
+ * devant un champ mot de passe, et un lien partagé doit tomber sur ce qu'on
+ * voulait montrer.
+ *
+ * Avec une session, c'est la liste des promotions, comme avant.
+ */
 export default async function Home() {
   const token = await getToken();
-  if (!token) redirect('/login');
+  if (!token) return <Landing />;
 
   // Pas d'espace choisi : le jeton n'ouvre encore aucune donnée métier.
   if (!lirePayload(token)?.sid) redirect('/espaces');

@@ -1,0 +1,560 @@
+/* =====================================================================
+ *  Page publique — mêmes tokens que l'application (définis dans
+ *  globals.css), mais styles isolés en module CSS : le marketing et le
+ *  back-office ne partagent pas leurs règles, seulement leur palette.
+ *
+ *  Le rythme est plus large que dans l'application : une landing se lit
+ *  debout, un back-office se travaille assis.
+ * ===================================================================== */
+
+.page {
+  background: var(--surface-card);
+  color: var(--text-body);
+}
+
+/* ---- Barre de navigation --------------------------------------------- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  /* Aplat plein plutôt qu'un flou d'arrière-plan : `backdrop-filter` fait
+     recomposer toute la page à chaque défilement, pour un effet que personne
+     ne remarque sur un fond clair. */
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.navInterieur {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.marque {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: var(--tracking-tight);
+  text-decoration: none;
+}
+
+.marqueSigle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.navLiens {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.navLiens a {
+  color: var(--text-body);
+  text-decoration: none;
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.navLiens a:hover {
+  color: var(--text-strong);
+}
+
+/* ---- Boutons ---------------------------------------------------------- */
+
+.cta,
+.ctaSecondaire {
+  display: inline-block;
+  padding: var(--space-5) var(--space-8);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.cta {
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+}
+
+.cta:hover {
+  background: var(--surface-brand-hover);
+}
+
+.ctaSecondaire {
+  border: 1px solid var(--border-strong);
+  color: var(--text-body);
+}
+
+.ctaSecondaire:hover {
+  background: var(--surface-hover);
+}
+
+/* ---- Structure des sections ------------------------------------------ */
+
+.section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-11) var(--space-8);
+}
+
+.sectionSombre,
+/* Le fond est reposé sur la section INTERNE, celle qui contient réellement le
+   texte. Porté par la seule enveloppe, le navigateur promeut la bande sombre
+   dans une couche à part — à cause de l'illustration `sticky` qu'elle
+   contient — et les textes les plus clairs disparaissent à l'affichage.
+   Reproduit puis levé en posant ce fond. */
+.sectionSombre .section {
+  background: var(--surface-ink);
+  color: var(--text-on-ink);
+}
+
+.sectionSombre h2,
+.sectionSombre h3 {
+  color: var(--slate-0);
+}
+
+.etiquette {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-link);
+  margin-bottom: var(--space-6);
+}
+
+.sectionSombre .etiquette {
+  color: var(--petrol-300);
+}
+
+.titre {
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: 700;
+  color: var(--text-strong);
+  margin: 0 0 var(--space-6);
+  max-width: 20ch;
+}
+
+.chapo {
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+  color: var(--text-muted);
+  max-width: 62ch;
+  margin: 0 0 var(--space-9);
+}
+
+.sectionSombre .chapo {
+  color: var(--text-on-ink-muted);
+}
+
+/* ---- Hero ------------------------------------------------------------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-11);
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--surface-brand-subtle);
+  color: var(--petrol-700);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  margin-bottom: var(--space-8);
+}
+
+.heroTitre {
+  font-size: 46px;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  color: var(--text-strong);
+  margin: 0 0 var(--space-7);
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-9);
+}
+
+/* ---- Carte « écart permanent », l'argument en une image --------------- */
+
+.carteEcart {
+  background: var(--surface-ink);
+  border-radius: var(--radius-lg);
+  padding: var(--space-9);
+  box-shadow: var(--shadow-md);
+}
+
+.carteEcartTitre {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-on-ink-muted);
+  margin: 0 0 var(--space-8);
+}
+
+.ligneEcart {
+  margin-bottom: var(--space-7);
+}
+
+.ligneEcartTete {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-4);
+}
+
+.ligneEcartNom {
+  font-size: var(--text-base);
+  color: var(--text-on-ink);
+}
+
+.ligneEcartValeur {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--slate-0);
+}
+
+.ligneEcartValeurAlerte {
+  color: var(--red-500);
+}
+
+.jauge {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--slate-800);
+  overflow: hidden;
+}
+
+.jaugeRemplissage {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--petrol-400);
+}
+
+.jaugeAlerte {
+  background: var(--red-500);
+}
+
+.depassement {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: var(--space-7);
+  border-top: 1px solid var(--slate-800);
+}
+
+.depassementLibelle {
+  font-size: var(--text-sm);
+  color: var(--text-on-ink-muted);
+}
+
+.depassementValeur {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--red-500);
+}
+
+/* ---- Grilles de cartes ------------------------------------------------ */
+
+.grille4,
+.grille3 {
+  display: grid;
+  gap: var(--space-7);
+}
+
+.grille4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.grille3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.carte {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  background: var(--surface-card);
+}
+
+.carteIcone {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--surface-brand-subtle);
+  color: var(--petrol-700);
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--space-6);
+}
+
+.carte h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0 0 var(--space-4);
+}
+
+.carte p {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---- Échéancier : la grue à gauche, les jalons à droite ---------------- */
+
+.echeancier {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-11);
+  align-items: start;
+}
+
+.illustration {
+  position: sticky;
+  top: 120px;
+  color: var(--petrol-400);
+}
+
+.jalon {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+  border: 1px solid transparent;
+}
+
+/* Le jalon courant est le seul encadré : c'est là qu'on en est. */
+.jalonActif {
+  border-color: var(--slate-700);
+  background: var(--slate-950);
+}
+
+.jalonTete {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.jalonNumero {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--slate-600);
+}
+
+.jalonActif .jalonNumero {
+  color: var(--petrol-400);
+}
+
+.jalonTitre {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-on-ink);
+}
+
+.jalonPct {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--petrol-300);
+}
+
+.jalonTexte {
+  font-size: var(--text-base);
+  color: var(--text-on-ink-muted);
+  margin: 0 0 var(--space-5);
+  max-width: 60ch;
+}
+
+.jalonMontant {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--slate-600);
+}
+
+.jalonMontantFort {
+  color: var(--petrol-300);
+}
+
+/* ---- Passerelle Kolabimo ---------------------------------------------- */
+
+.passerelle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-11);
+  align-items: center;
+}
+
+.tableCorrespondance {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tableCorrespondance th {
+  text-align: left;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: var(--space-6) var(--space-7);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tableCorrespondance td {
+  padding: var(--space-6) var(--space-7);
+  font-size: var(--text-base);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tableCorrespondance tr:last-child td {
+  border-bottom: 0;
+}
+
+.colonneProduit {
+  background: var(--surface-brand-subtle);
+  color: var(--petrol-700);
+  font-weight: 500;
+}
+
+.remarque {
+  border-left: 2px solid var(--surface-brand);
+  padding-left: var(--space-6);
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  margin-top: var(--space-8);
+}
+
+/* ---- Chiffres --------------------------------------------------------- */
+
+.chiffre {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-5);
+}
+
+.chiffreTexte {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---- Appel final et pied de page -------------------------------------- */
+
+.appel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-11);
+  align-items: center;
+}
+
+.appelTitre {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--slate-0);
+  margin: 0 0 var(--space-6);
+  letter-spacing: var(--tracking-tight);
+}
+
+.appelActions {
+  text-align: center;
+}
+
+.appelPrecision {
+  display: block;
+  margin-top: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-on-ink-muted);
+}
+
+.pied {
+  border-top: 1px solid var(--slate-800);
+  margin-top: var(--space-10);
+  padding-top: var(--space-8);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--text-on-ink-muted);
+}
+
+/* ---- Adaptation aux petits écrans ------------------------------------- */
+
+@media (max-width: 900px) {
+  .hero,
+  .passerelle,
+  .echeancier,
+  .appel {
+    grid-template-columns: 1fr;
+  }
+
+  .grille4,
+  .grille3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .illustration {
+    display: none;
+  }
+
+  .heroTitre {
+    font-size: 34px;
+  }
+
+  .navLiens a {
+    display: none;
+  }
+
+  .navLiens .cta {
+    display: inline-block;
+  }
+}
+
+@media (max-width: 600px) {
+  .grille4,
+  .grille3 {
+    grid-template-columns: 1fr;
+  }
+
+  .pied {
+    flex-direction: column;
+  }
+}
