@@ -32,12 +32,26 @@ async function relayer(request: Request, segments: string[]): Promise<Response> 
   }
 
   const requete = new URL(request.url);
-  const corps = request.method === 'GET' ? undefined : await request.text();
+
+  // Le dépôt d'un PDF de facture arrive en `multipart/form-data`. Son en-tête
+  // porte la **frontière** qui sépare les parties : la réécrire en JSON, ou
+  // relire le corps en texte, rendrait le fichier illisible côté API. On
+  // retransmet donc l'en-tête d'origine et les octets tels quels.
+  const typeEntrant = request.headers.get('content-type') ?? '';
+  const estMultipart = typeEntrant.startsWith('multipart/form-data');
+
+  let corps: BodyInit | undefined;
+  if (request.method !== 'GET') {
+    corps = estMultipart ? await request.arrayBuffer() : (await request.text()) || undefined;
+  }
 
   const res = await fetch(`${API}/${chemin}${requete.search}`, {
     method: request.method,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jeton}` },
-    body: corps || undefined,
+    headers: {
+      'Content-Type': estMultipart ? typeEntrant : 'application/json',
+      Authorization: `Bearer ${jeton}`,
+    },
+    body: corps,
     cache: 'no-store',
   });
 

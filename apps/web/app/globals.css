@@ -929,8 +929,14 @@ button.principal:disabled {
   cursor: not-allowed;
 }
 
-/* Boutons secondaires : contour, jamais un aplat concurrent de la marque. */
+/* Boutons secondaires : contour, jamais un aplat concurrent de la marque.
+   La liste couvre aussi les actions posées dans une cellule de tableau et
+   celles alignées dans un bloc `.actions` : un bouton non stylé au milieu de
+   boutons stylés se lit comme un accident, pas comme une hiérarchie. */
 section > button:not(.principal),
+.actions > button:not(.principal),
+td button:not(.principal):not(.lien),
+label.lien-fichier,
 .form button[type='button']:not(.lien) {
   font-size: var(--text-sm);
   font-weight: 600;
@@ -943,8 +949,31 @@ section > button:not(.principal),
   transition: background var(--dur-fast) var(--ease-out);
 }
 
-section > button:not(.principal):hover:not(:disabled) {
+section > button:not(.principal):hover:not(:disabled),
+.actions > button:not(.principal):hover:not(:disabled),
+td button:not(.principal):not(.lien):hover:not(:disabled),
+label.lien-fichier:hover {
   background: var(--surface-hover);
+}
+
+/* Actions empilées dans une cellule : les formulaires se déplient sous la
+   ligne, donc on garde une colonne étroite plutôt qu'une rangée qui pousse
+   le tableau hors de l'écran. */
+.actions-cellule {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* Dépôt de fichier : le `<input type="file">` natif ne se met pas en forme,
+   on l'enveloppe donc dans un libellé qui porte l'apparence du bouton. */
+label.lien-fichier {
+  display: inline-block;
+}
+
+label.lien-fichier input[type='file'] {
+  display: none;
 }
 
 section > button:disabled {

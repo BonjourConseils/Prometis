@@ -4,6 +4,31 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { date, lisible, montant } from '../../../../lib/format';
+import {
+  AjouterFacture,
+  ChangerStatut,
+  DeposerPdf,
+  EnregistrerPaiement,
+  ValiderFacture,
+} from './saisie';
+
+interface NoeudBudget {
+  id: number;
+  code: string;
+  libelle: string;
+  enfants: NoeudBudget[];
+}
+
+interface Contrat {
+  id: number;
+  reference: string | null;
+  entreprise: { id: number; nom: string } | null;
+}
+
+interface Entreprise {
+  id: number;
+  nom: string;
+}
 
 interface Facture {
   id: number;
@@ -46,6 +71,26 @@ const CLASSE_STATUT: Record<string, string> = {
   REJETEE: 'ko',
 };
 
+/**
+ * Ce qu'il reste à régler sur une facture : TTC moins les paiements déjà
+ * enregistrés. C'est une **suggestion** pré-remplie, modifiable — un paiement
+ * partiel ou une retenue de garantie est le cas courant, pas l'exception.
+ */
+function resteADue(f: Facture): string | null {
+  if (f.montantTTC === null) return null;
+  const paye = f.paiements.reduce((t, p) => t + Number(p.montant), 0);
+  const reste = Number(f.montantTTC) - paye;
+  return reste > 0 ? reste.toFixed(2) : null;
+}
+
+/** Aplatit l'arbre CFC : on ne choisit pas un poste dans un arbre replié. */
+function aplatirPostes(noeuds: NoeudBudget[]): { id: number; code: string; libelle: string }[] {
+  return noeuds.flatMap((n) => [
+    { id: n.id, code: n.code, libelle: n.libelle },
+    ...aplatirPostes(n.enfants),
+  ]);
+}
+
 export default async function FacturesPage({
   params,
 }: {
@@ -65,7 +110,14 @@ export default async function FacturesPage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const factures = await apiGet<Facture[]>(`/operations/${operationId}/factures`);
+  // Contrats, entreprises et postes ne servent qu'aux listes déroulantes de
+  // saisie ; un refus sur l'un d'eux ne doit pas priver l'écran des factures.
+  const [factures, contrats, entreprises, budget] = await Promise.all([
+    apiGet<Facture[]>(`/operations/${operationId}/factures`),
+    apiGet<Contrat[]>(`/operations/${operationId}/contrats`),
+    apiGet<Entreprise[]>('/entreprises'),
+    apiGet<{ arbre: NoeudBudget[] }>(`/operations/${operationId}/budget`),
+  ]);
 
   if (factures === null) {
     return (
@@ -80,6 +132,14 @@ export default async function FacturesPage({
   }
 
   const aValider = factures.filter((f) => f.statut === 'RECUE' || f.statut === 'A_VALIDER');
+
+  const id = Number(operationId);
+  const postes = aplatirPostes(budget?.arbre ?? []);
+  const contratsChoisis = (contrats ?? []).map((c) => ({
+    id: c.id,
+    reference: c.reference,
+    entrepriseNom: c.entreprise?.nom ?? '—',
+  }));
 
   return (
     <main className="large">
@@ -117,6 +177,7 @@ export default async function FacturesPage({
                   <th className="droite">TTC</th>
                   <th className="droite">Payé</th>
                   <th>Statut</th>
+                  <th>Traitement</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,6 +220,33 @@ export default async function FacturesPage({
                       <td className={CLASSE_STATUT[f.statut] ?? ''}>
                         {LIBELLE_STATUT[f.statut] ?? lisible(f.statut)}
                       </td>
+                      <td>
+                        <div className="actions-cellule">
+                          {/* Une facture validée n'est plus à relire ni à
+                              imputer : seul le règlement reste à faire. */}
+                          {f.statut !== 'VALIDEE' && f.statut !== 'PAYEE' && (
+                            <>
+                              <DeposerPdf operationId={id} factureId={f.id} />
+                              <ValiderFacture
+                                operationId={id}
+                                factureId={f.id}
+                                postes={postes}
+                                contrats={contratsChoisis}
+                              />
+                            </>
+                          )}
+                          {f.statut !== 'PAYEE' && (
+                            <ChangerStatut operationId={id} factureId={f.id} />
+                          )}
+                          {(f.statut === 'VALIDEE' || f.statut === 'PAYEE') && (
+                            <EnregistrerPaiement
+                              operationId={id}
+                              factureId={f.id}
+                              suggestion={resteADue(f)}
+                            />
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -172,6 +260,13 @@ export default async function FacturesPage({
           rouge. Une imputation proposée par la lecture automatique reste une proposition tant
           qu&apos;un humain ne l&apos;a pas confirmée.
         </p>
+
+        <AjouterFacture
+          operationId={id}
+          entreprises={entreprises ?? []}
+          contrats={contratsChoisis}
+          postes={postes}
+        />
       </section>
     </main>
   );

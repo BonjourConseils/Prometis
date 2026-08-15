@@ -497,6 +497,19 @@ sources de vérité. La protection CSRF repose sur `SameSite=lax`.
 de lever. `champ()` traduit une chaîne vide en `undefined` : zod doit voir une **absence**, pas
 un vide — sinon un champ facultatif laissé blanc devient une erreur de validation.
 
+**Le dépôt de fichier — `televerser()`.** Le PDF d'une facture part en `multipart/form-data`.
+Deux règles, toutes deux vérifiées par l'échec inverse :
+
+- côté client, ne **jamais** poser `Content-Type` à la main : le navigateur doit le calculer
+  pour y placer la frontière du multipart ;
+- côté relais, retransmettre l'en-tête entrant **et les octets tels quels**
+  (`request.arrayBuffer()`). Le relais forçait `application/json` et relisait le corps en
+  texte : le fichier arrivait illisible.
+
+Ça se teste sans navigateur — le harnais ne sait pas remplir un `<input type="file">` : ouvrir
+une session sur `/api/session`, choisir l'espace sur `/api/session/workspace`, puis poster un
+`FormData` sur `/api/prometis/…`. C'est le vrai chemin, cookie compris.
+
 **Le formulaire — `apps/web/app/components/formulaire.tsx`.** `Repliable` (bouton → formulaire
 déplié) et `useEnvoi()` (envoi, erreur, `router.refresh()`). Le hook rend `false` en cas
 d'échec, ce qui laisse le formulaire ouvert **avec la saisie de l'utilisateur** : elle n'est

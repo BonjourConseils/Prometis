@@ -51,6 +51,39 @@ export async function appelApi<T>(
 }
 
 /**
+ * Téléverse un fichier — le PDF d'une facture, aujourd'hui.
+ *
+ * Le `Content-Type` n'est **pas** posé à la main : le navigateur doit le
+ * calculer lui-même pour y placer la frontière du multipart. L'écrire ici
+ * produirait un en-tête sans frontière, et un corps que l'API ne saurait pas
+ * découper.
+ */
+export async function televerser<T>(
+  chemin: string,
+  fichier: File,
+  champFichier = 'fichier',
+): Promise<{ ok: boolean; statut: number; data: T; erreur?: string }> {
+  const formulaire = new FormData();
+  formulaire.append(champFichier, fichier);
+
+  try {
+    const res = await fetch(`/api/prometis${chemin}`, { method: 'POST', body: formulaire });
+    const data = (await res.json().catch(() => ({}))) as T;
+
+    return res.ok
+      ? { ok: true, statut: res.status, data }
+      : {
+          ok: false,
+          statut: res.status,
+          data,
+          erreur: messageLisible(data, `L'API a répondu ${res.status}.`),
+        };
+  } catch {
+    return { ok: false, statut: 0, data: {} as T, erreur: "L'API est injoignable." };
+  }
+}
+
+/**
  * Vide les chaînes en `undefined`.
  *
  * Un champ laissé vide doit être **absent** du corps, pas envoyé comme
