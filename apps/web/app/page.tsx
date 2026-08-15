@@ -44,7 +44,7 @@ function Perimetre({ droits }: { droits: MesDroits }) {
         <section>
           <h2>Votre périmètre</h2>
           <p className="note">
-            Votre accès est restreint à ces modules sur les opérations qui vous sont confiées. Les
+            Votre accès est restreint à ces modules sur les promotions qui vous sont confiées. Les
             autres routes vous sont refusées par l&apos;API, pas seulement masquées ici.
           </p>
           <div className="puces">
@@ -93,24 +93,37 @@ export default async function Home() {
 
   const niveauParOperation = new Map(droits?.operations.map((o) => [o.id, o]) ?? []);
 
+  // Le bouton suit le rôle. L'API refuse de toute façon — mais proposer une
+  // action qui finira en 403 fait perdre le temps de la saisie.
+  const peutCreer = ['OWNER', 'ADMIN', 'CHEF_PROJET'].includes(me.membership?.role ?? '');
+
   return (
     <main>
       <AppHeader me={me} actif="operations" />
 
+      <div className="page-header">
+        <h1>Promotions</h1>
+        <span className="contexte">{me.societe?.raisonSociale}</span>
+        {peutCreer && (
+          <Link href="/promotions/nouvelle" className="action-entete">
+            Nouvelle promotion
+          </Link>
+        )}
+      </div>
+
       <section>
-        <h2>Opérations accessibles</h2>
         {operations === null ? (
           <p className="ko">Lecture impossible.</p>
         ) : operations.length === 0 ? (
           <p>
-            Aucune opération ne vous a été confiée dans cet espace. Un administrateur peut vous en
+            Aucune promotion ne vous a été confiée dans cet espace. Un administrateur peut vous en
             ouvrir l&apos;accès depuis l&apos;écran Droits d&apos;accès.
           </p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Opération</th>
+                <th>Promotion</th>
                 <th>Commune</th>
                 <th>Statut</th>
                 <th>Biens</th>

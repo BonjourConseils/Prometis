@@ -74,7 +74,7 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
         <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Écarts</h2>
-          <p>Votre accès à cette opération ne couvre pas le budget.</p>
+          <p>Votre accès à cette promotion ne couvre pas le budget.</p>
         </section>
       </main>
     );
@@ -95,7 +95,7 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Écarts
       </div>
@@ -214,7 +214,7 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
                 );
               })}
               <tr className="total">
-                <td>Total opération</td>
+                <td>Total promotion</td>
                 <td className="droite">{montant(vue.total.budgeteRevise)}</td>
                 <td className="droite">{montant(vue.total.adjuge)}</td>
                 <td className="droite">{montant(vue.total.commande)}</td>

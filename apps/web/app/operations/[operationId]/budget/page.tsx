@@ -96,7 +96,7 @@ export default async function BudgetPage({
         <section>
           <h2>Budget CFC</h2>
           <p>
-            Votre accès à cette opération ne couvre pas le budget, ou le module n&apos;est pas
+            Votre accès à cette promotion ne couvre pas le budget, ou le module n&apos;est pas
             activé sur cette société.
           </p>
         </section>
@@ -117,7 +117,7 @@ export default async function BudgetPage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Budget CFC
       </div>
@@ -125,7 +125,7 @@ export default async function BudgetPage({
       <section>
         <h2>Version de budget</h2>
         {vue.versions.length === 0 ? (
-          <p>Aucune version de budget sur cette opération.</p>
+          <p>Aucune version de budget sur cette promotion.</p>
         ) : (
           <div className="onglets">
             {vue.versions.map((v) => (
@@ -220,7 +220,7 @@ export default async function BudgetPage({
                 );
               })}
               <tr className="total">
-                <td>Total opération</td>
+                <td>Total promotion</td>
                 <td className="droite">{montant(vue.total.budgeteInitial)}</td>
                 <td className="droite">{montant(vue.total.budgeteRevise)}</td>
                 <td className="droite">{montant(vue.total.adjuge)}</td>

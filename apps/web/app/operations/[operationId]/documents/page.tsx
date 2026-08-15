@@ -35,7 +35,7 @@ function taille(octets: number): string {
 }
 
 /**
- * GED de l'opération.
+ * GED de la promotion.
  *
  * Les documents sont groupés par catégorie, et seule la **version courante**
  * de chacun est listée : une GED qui déroule toutes les versions à plat
@@ -70,7 +70,7 @@ export default async function DocumentsPage({
         <section>
           <h2>Documents</h2>
           <p>
-            Le module GED n&apos;est pas activé sur cette société, ou votre accès à l&apos;opération
+            Le module GED n&apos;est pas activé sur cette société, ou votre accès à l&apos;promotion
             ne le couvre pas.
           </p>
         </section>

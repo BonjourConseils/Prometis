@@ -84,7 +84,7 @@ export default async function DroitsAccesPage() {
       <section>
         <h2>Intervenants externes</h2>
         <p className="note">
-          Rattachés à leur propre société. Leur accès est scopé par opération et, au besoin, par
+          Rattachés à leur propre société. Leur accès est scopé par promotion et, au besoin, par
           module — une entreprise générale peut saisir les soumissions sans jamais voir les ventes.
         </p>
         {externes.length === 0 ? (
@@ -107,7 +107,7 @@ function TableMembres({ membres }: { membres: Membre[] }) {
           <th>Personne</th>
           <th>Rôle</th>
           <th>Société</th>
-          <th>Accès par opération</th>
+          <th>Accès par promotion</th>
           <th>État</th>
         </tr>
       </thead>
@@ -131,11 +131,11 @@ function TableMembres({ membres }: { membres: Membre[] }) {
             <td>{m.acteur?.societeNom ?? '—'}</td>
             <td>
               {/* Propriétaires et administrateurs couvrent toutes les
-                  opérations par leur rôle, sans droit ligne à ligne. */}
+                  promotions par leur rôle, sans droit ligne à ligne. */}
               {m.role === 'OWNER' || m.role === 'ADMIN' ? (
-                <span className="meta">toutes les opérations (par le rôle)</span>
+                <span className="meta">toutes les promotions (par le rôle)</span>
               ) : m.operationAccesses.length === 0 ? (
-                <span className="meta">aucune opération confiée</span>
+                <span className="meta">aucune promotion confiée</span>
               ) : (
                 m.operationAccesses.map((a) => (
                   <div key={a.operationId}>

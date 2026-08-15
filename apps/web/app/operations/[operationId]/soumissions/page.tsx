@@ -64,7 +64,7 @@ export default async function SoumissionsPage({
         <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Soumissions</h2>
-          <p>Votre accès à cette opération ne couvre pas les soumissions.</p>
+          <p>Votre accès à cette promotion ne couvre pas les soumissions.</p>
         </section>
       </main>
     );
@@ -80,7 +80,7 @@ export default async function SoumissionsPage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Soumissions
       </div>
@@ -88,7 +88,7 @@ export default async function SoumissionsPage({
       <section>
         <h2>Appels d&apos;offres</h2>
         {soumissions.length === 0 ? (
-          <p>Aucune soumission sur cette opération.</p>
+          <p>Aucune soumission sur cette promotion.</p>
         ) : (
           <table>
             <thead>

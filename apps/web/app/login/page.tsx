@@ -28,7 +28,7 @@ export default function LoginPage() {
               <td>
                 <code>julie@cbpromotions.ch</code>
               </td>
-              <td>Cheffe de projet, accès à une opération</td>
+              <td>Cheffe de projet, accès à une promotion</td>
             </tr>
             <tr>
               <td>

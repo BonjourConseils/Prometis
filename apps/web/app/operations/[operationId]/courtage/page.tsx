@@ -85,7 +85,7 @@ export default async function CourtagePage({
           <h2>Courtage</h2>
           <p>
             Le module Courtage n&apos;est pas activé sur cette société, ou votre accès à
-            l&apos;opération ne le couvre pas.
+            l&apos;promotion ne le couvre pas.
           </p>
         </section>
       </main>
@@ -161,7 +161,7 @@ export default async function CourtagePage({
                   </td>
                   <td>
                     {m.perimetre === 'TOUTE_OPERATION' ? (
-                      "toute l'opération"
+                      'toute la promotion'
                     ) : (
                       <>
                         {m.lots.length} lot{m.lots.length > 1 ? 's' : ''}

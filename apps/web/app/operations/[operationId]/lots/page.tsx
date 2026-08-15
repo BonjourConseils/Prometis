@@ -78,7 +78,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
         <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Lots &amp; acquéreurs</h2>
-          <p>Votre accès à cette opération ne couvre pas les lots.</p>
+          <p>Votre accès à cette promotion ne couvre pas les lots.</p>
         </section>
       </main>
     );
@@ -102,7 +102,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Lots &amp; acquéreurs
       </div>

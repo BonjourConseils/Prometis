@@ -87,12 +87,15 @@ describe('refus par défaut : sans contexte tenant, rien ne sort', () => {
 // =====================================================================
 
 describe('lecture : chaque tenant ne voit que ses données', () => {
-  it('CB Promotions voit son opération et pas celle de Constructa', async () => {
+  it('CB Promotions voit sa promotion et pas celle de Constructa', async () => {
     const operations = await asTenant(CB, (tx) =>
       tx.operation.findMany({ select: { id: true, nom: true } }),
     );
-    expect(operations).toHaveLength(1);
-    expect(operations[0]!.nom).toBe('Les Jardins de Prilly');
+    // Ce qui prouve l'isolation, c'est la PRÉSENCE de la sienne et l'ABSENCE
+    // de celle du voisin — pas le nombre de lignes. Compter cassait la suite
+    // dès qu'une promotion était créée depuis l'interface, et une suite qui
+    // punit l'usage normal du produit finit par être désactivée.
+    expect(operations.map((o) => o.nom)).toContain('Les Jardins de Prilly');
     expect(operations.map((o) => o.id)).not.toContain(idsConstructa.operationId);
   });
 

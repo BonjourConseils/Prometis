@@ -38,7 +38,7 @@ export function MfaForm({ etat }: { etat: EtatMfa }) {
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (!res.ok) {
-        setErreur((data.message as string) ?? 'Opération impossible.');
+        setErreur((data.message as string) ?? 'Promotion impossible.');
         return null;
       }
       return data;

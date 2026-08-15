@@ -51,8 +51,8 @@ export interface Me {
  *     couleur du texte.
  *
  * `operationId` est facultatif : le bloc des écrans d'une opération n'apparaît
- * que lorsqu'on est *dans* une opération. Afficher ces entrées ailleurs
- * demanderait de choisir une opération au hasard — ou de servir des liens
+ * que lorsqu'on est *dans* une promotion. Afficher ces entrées ailleurs
+ * demanderait de choisir une promotion au hasard — ou de servir des liens
  * morts, ce qui est pire qu'un menu court.
  *
  * Un module absent de la société ne s'affiche pas. Ce n'est pas la sécurité —
@@ -111,7 +111,7 @@ export function AppHeader({
       </div>
 
       <nav>
-        {lien('operations', '/', 'Opérations', IconeOperations)}
+        {lien('operations', '/', 'Promotions', IconeOperations)}
         {moduleActif('ACTEURS') && lien('acteurs', '/acteurs', 'Acteurs & courtage', IconeActeurs)}
 
         {operationId !== undefined && (

@@ -74,7 +74,7 @@ export default async function ComparaisonPage({
         <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Comparaison des offres</h2>
-          <p>Votre accès à cette opération ne couvre pas les soumissions.</p>
+          <p>Votre accès à cette promotion ne couvre pas les soumissions.</p>
         </section>
       </main>
     );
@@ -94,7 +94,7 @@ export default async function ComparaisonPage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}/soumissions`}>Soumissions</Link>{' '}

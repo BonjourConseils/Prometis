@@ -73,7 +73,7 @@ export default async function FacturesPage({
         <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Factures</h2>
-          <p>Votre accès à cette opération ne couvre pas les factures.</p>
+          <p>Votre accès à cette promotion ne couvre pas les factures.</p>
         </section>
       </main>
     );
@@ -91,7 +91,7 @@ export default async function FacturesPage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Factures
       </div>
@@ -104,7 +104,7 @@ export default async function FacturesPage({
         </p>
 
         {factures.length === 0 ? (
-          <p>Aucune facture sur cette opération.</p>
+          <p>Aucune facture sur cette promotion.</p>
         ) : (
           <div className="tableau-large">
             <table>

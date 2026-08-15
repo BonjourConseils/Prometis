@@ -93,7 +93,7 @@ export default async function AppelsDeFondsPage({
         <section>
           <h2>Appels de fonds</h2>
           <p>
-            Votre accès à cette opération ne couvre pas les appels de fonds, ou le module n&apos;est
+            Votre accès à cette promotion ne couvre pas les appels de fonds, ou le module n&apos;est
             pas activé sur cette société.
           </p>
         </section>
@@ -116,7 +116,7 @@ export default async function AppelsDeFondsPage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Appels de fonds
       </div>

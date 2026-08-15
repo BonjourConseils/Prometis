@@ -78,7 +78,7 @@ export default async function SeancesPage({
           <h2>Séances &amp; PV</h2>
           <p>
             Le module Séances n&apos;est pas activé sur cette société, ou votre accès à
-            l&apos;opération ne le couvre pas.
+            l&apos;promotion ne le couvre pas.
           </p>
         </section>
       </main>

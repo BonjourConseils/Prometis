@@ -216,15 +216,20 @@ describe('rôles au niveau du tenant', () => {
 // =====================================================================
 
 describe('droits par opération (OperationAccess)', () => {
-  it('un administrateur voit toutes les opérations sans droit ligne à ligne', async () => {
+  it('un administrateur voit toutes les promotions sans droit ligne à ligne', async () => {
     const token = await jetonPourEspace(COMPTES.christophe, CB);
-    const droits = await appel<{ estAdministrateur: boolean; operations: unknown[] }>(
-      '/acces/mes-droits',
-      { token },
-    );
+    const droits = await appel<{
+      estAdministrateur: boolean;
+      operations: { nom: string }[];
+    }>('/acces/mes-droits', { token });
 
     expect(droits.body.estAdministrateur).toBe(true);
-    expect(droits.body.operations).toHaveLength(1);
+    // On vérifie ce que le test PRÉTEND vérifier — qu'un administrateur voit
+    // la promotion sans qu'aucun `OperationAccess` ne la lui accorde — et non
+    // le nombre de promotions en base. Compter les lignes faisait échouer la
+    // suite dès qu'on en créait une depuis l'interface, ce qui punit
+    // exactement l'usage normal du produit.
+    expect(droits.body.operations.map((o) => o.nom)).toContain('Les Jardins de Prilly');
   });
 
   it('un non-administrateur ne voit que les opérations qui lui sont confiées', async () => {

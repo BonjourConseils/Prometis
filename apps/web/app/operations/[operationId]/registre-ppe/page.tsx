@@ -80,7 +80,7 @@ export default async function RegistrePpePage({
         <section>
           <h2>Registre PPE</h2>
           <p>
-            Votre accès à cette opération ne couvre pas le foncier. Un administrateur peut élargir
+            Votre accès à cette promotion ne couvre pas le foncier. Un administrateur peut élargir
             votre périmètre depuis l&apos;écran Droits d&apos;accès.
           </p>
         </section>
@@ -98,7 +98,7 @@ export default async function RegistrePpePage({
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span>{' '}
         <Link href={`/operations/${operation.id}`}>{operation.nom}</Link>{' '}
         <span aria-hidden="true">›</span> Registre PPE
       </div>

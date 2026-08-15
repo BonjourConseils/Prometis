@@ -18,7 +18,7 @@ interface Acteur {
 }
 
 /**
- * Annuaire des acteurs — au niveau de la société, pas de l'opération.
+ * Annuaire des acteurs — au niveau de la société, pas de la promotion.
  * Le même notaire sert plusieurs promotions : c'est tout l'intérêt.
  */
 export default async function ActeursPage() {
@@ -63,7 +63,7 @@ export default async function ActeursPage() {
         <h2>Annuaire des acteurs</h2>
         <p className="note">
           {acteurs.length} intervenants enregistrés pour {me.societe?.raisonSociale}. Ils sont
-          réutilisables sur toutes les opérations de la société.
+          réutilisables sur toutes les promotions de la société.
         </p>
       </section>
 
@@ -78,7 +78,7 @@ export default async function ActeursPage() {
                 <th>Société</th>
                 <th>Contact</th>
                 <th>Localité</th>
-                <th className="droite">Opérations</th>
+                <th className="droite">Promotions</th>
               </tr>
             </thead>
             <tbody>

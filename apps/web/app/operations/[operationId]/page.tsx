@@ -82,16 +82,16 @@ export default async function FicheOperation({
       <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
 
       <PageHeader
-        titre="Fiche opération"
+        titre="Fiche promotion"
         contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
       />
 
       <div className="fil-ariane">
-        <Link href="/">Opérations</Link> <span aria-hidden="true">›</span> {operation.nom}
+        <Link href="/">Promotions</Link> <span aria-hidden="true">›</span> {operation.nom}
       </div>
 
       <section>
-        <h2>Fiche opération</h2>
+        <h2>Fiche promotion</h2>
         <div className="fiche">
           <dl>
             <dt>Commune</dt>
@@ -140,7 +140,7 @@ export default async function FicheOperation({
         <section>
           <h2>Bilan promoteur</h2>
           <p>
-            Indisponible sur cette opération — soit la commercialisation y est désactivée, soit le
+            Indisponible sur cette promotion — soit la commercialisation y est désactivée, soit le
             module n&apos;est pas activé pour cette société.
           </p>
         </section>

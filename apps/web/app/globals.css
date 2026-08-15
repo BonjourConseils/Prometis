@@ -808,6 +808,63 @@ button {
   font-family: inherit;
 }
 
+/* Deux ou trois champs sur une ligne : un formulaire de dossier se remplit
+   par groupes de sens, pas en colonne interminable. */
+.grille-2,
+.grille-3 {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.grille-2 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.grille-3 {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+/* La case à cocher garde son libellé À CÔTÉ, pas au-dessus : c'est le seul
+   champ dont l'étiquette se lit comme une phrase. */
+.form label.case {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.form label.case input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+  accent-color: var(--surface-brand);
+}
+
+.form label.case .meta {
+  display: block;
+  font-weight: 400;
+  margin-top: var(--space-2);
+}
+
+/* Action principale d'un écran, hors formulaire : contour, à droite du titre. */
+.action-entete {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.action-entete:hover {
+  background: var(--surface-hover);
+  text-decoration: none;
+}
+
 .form button[type='submit'],
 button.principal {
   font-size: var(--text-base);
