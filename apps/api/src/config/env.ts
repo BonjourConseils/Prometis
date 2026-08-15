@@ -80,7 +80,7 @@ const envSchema = z.object({
    * permet de travailler sans identifiants SMTP. `smtp` envoie réellement.
    */
   MAIL_TRANSPORT: z.enum(['console', 'smtp']).default('console'),
-  MAIL_FROM: z.string().default('Prometis <ne-pas-repondre@prometis.ch>'),
+  MAIL_FROM: z.string().default('Prometis <noreply@prometis.ch>'),
   /**
    * Adresse unique qui reçoit TOUS les e-mails hors production.
    *
@@ -101,16 +101,28 @@ const envSchema = z.object({
 
   // --- Stockage des documents (GED) ------------------------------------
   /**
-   * `local` écrit sous `STOCKAGE_LOCAL_DIR` — le défaut, et le seul
-   * implémenté : il permet de développer et de tester la GED sans compte
-   * object storage. Refusé en production, où le disque d'un conteneur n'est
-   * pas un stockage durable.
+   * `local` écrit sous `STOCKAGE_LOCAL_DIR` — le défaut en développement, et
+   * **refusé en production** : le disque d'un conteneur n'est pas durable,
+   * la GED y perdrait ses pièces au premier redéploiement.
    *
-   * `s3` est déclaré mais lève : choisir l'hébergeur (Exoscale, Infomaniak)
-   * engage la localisation des données au sens de la nLPD.
+   * `s3` vise l'object storage Infomaniak (compatible S3, données en
+   * Suisse) — c'est le transport de production.
    */
   STOCKAGE_TRANSPORT: z.enum(['local', 's3']).default('local'),
   STOCKAGE_LOCAL_DIR: z.string().default('./var/documents'),
+
+  /**
+   * Point d'accès S3, par exemple `https://s3.pub1.infomaniak.cloud`.
+   *
+   * Un fournisseur autre qu'AWS impose l'adressage par chemin
+   * (`endpoint/bucket/cle`) : les sous-domaines par bucket supposent un
+   * certificat générique qu'ils n'ont pas.
+   */
+  S3_ENDPOINT: z.string().url().or(z.literal('')).optional(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
 
   // --- Passerelle Kolabimo ---------------------------------------------
   /**
