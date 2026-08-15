@@ -4,6 +4,16 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { chf, date, lisible, montant, pourcentage } from '../../../../lib/format';
+import { AjouterEtape, ChangerAvancement, DeclencherEtape, Encaisser, Relancer } from './saisie';
+
+/** Réduit à ce qui sert ici : compter les réservations engagées. */
+interface Reservation {
+  id: number;
+  statut: string;
+}
+
+/** Seuls ces statuts font naître un appel de fonds (voir `calculs.ts`). */
+const STATUTS_ENGAGES = ['RESERVE', 'FONDS_VERSES', 'VENDU'];
 
 interface Etape {
   id: number;
@@ -81,9 +91,10 @@ export default async function AppelsDeFondsPage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const [echeancier, appels] = await Promise.all([
+  const [echeancier, appels, reservations] = await Promise.all([
     apiGet<Echeancier>(`/operations/${operationId}/echeancier`),
     apiGet<Appel[]>(`/operations/${operationId}/appels-de-fonds`),
+    apiGet<Reservation[]>(`/operations/${operationId}/reservations`),
   ]);
 
   if (echeancier === null) {
@@ -105,6 +116,13 @@ export default async function AppelsDeFondsPage({
   const total = liste.reduce((t, a) => t + Number(a.montant), 0);
   const encaisse = liste.reduce((t, a) => t + Number(a.etat.montantEncaisse), 0);
   const enRetard = liste.filter((a) => a.etat.enRetard);
+
+  const id = Number(operationId);
+  const engagees = (reservations ?? []).filter((r) => STATUTS_ENGAGES.includes(r.statut)).length;
+  const ordreSuivant = echeancier.etapes.reduce((max, e) => Math.max(max, e.ordre), 0) + 1;
+  // `ecart` est signé (somme − 100) : à zéro pour cent appelé il vaut −100.
+  // Ce qui intéresse celui qui saisit, c'est ce qu'il RESTE à répartir.
+  const restant = String(-Number(echeancier.controle.ecart));
 
   return (
     <main className="large">
@@ -147,6 +165,7 @@ export default async function AppelsDeFondsPage({
               <th>Avancement</th>
               <th>Date</th>
               <th className="droite">Appels émis</th>
+              <th>Conduite</th>
             </tr>
           </thead>
           <tbody>
@@ -174,10 +193,37 @@ export default async function AppelsDeFondsPage({
                   )}
                 </td>
                 <td className="droite">{e._count.appelsDeFonds}</td>
+                <td>
+                  <div className="actions-cellule">
+                    {/* Un jalon terminé ne se redéclenche pas : le moteur est
+                        idempotent, mais proposer le geste laisserait croire
+                        qu'il reste quelque chose à faire. */}
+                    {e.statut !== 'COMPLETED' && (
+                      <>
+                        <ChangerAvancement
+                          operationId={id}
+                          etapeId={e.id}
+                          vers={e.statut === 'IN_PROGRESS' ? 'NOT_STARTED' : 'IN_PROGRESS'}
+                        />
+                        {e.pourcentage !== null && (
+                          <DeclencherEtape
+                            operationId={id}
+                            etapeId={e.id}
+                            libelle={e.libelle}
+                            pourcentage={pourcentage(e.pourcentage)}
+                            nombreEngagees={engagees}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        <AjouterEtape operationId={id} ordreSuivant={ordreSuivant} restant={pourcentage(restant)} />
       </section>
 
       <section>
@@ -224,6 +270,7 @@ export default async function AppelsDeFondsPage({
                   <th className="droite">Solde</th>
                   <th>Échéance</th>
                   <th>Statut</th>
+                  <th>Recouvrement</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +295,16 @@ export default async function AppelsDeFondsPage({
                     <td className={a.etat.soldé ? 'ok' : a.etat.enRetard ? 'ko' : ''}>
                       {lisible(a.statut)}
                     </td>
+                    <td>
+                      {a.etat.soldé ? (
+                        <span className="meta">soldé</span>
+                      ) : (
+                        <div className="actions-cellule">
+                          <Encaisser operationId={id} appelId={a.id} solde={a.etat.solde} />
+                          <Relancer operationId={id} appelId={a.id} />
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,8 +315,7 @@ export default async function AppelsDeFondsPage({
         <p className="note">
           Chaque appel porte une <strong>référence QR suisse</strong> déterministe, calculée depuis
           le couple réservation × étape. Rejouer un déclenchement ne crée donc pas de seconde
-          créance. La QR-facture au format PDF n&apos;est pas encore jointe aux envois : sa
-          génération attend le choix du stockage de documents.
+          créance. La QR-facture au format PDF est jointe à l&apos;envoi et déposée en GED.
         </p>
       </section>
     </main>

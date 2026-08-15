@@ -519,6 +519,12 @@ code aurait été celle de trop.
 **Les montants restent des chaînes** jusqu'au `Decimal` côté serveur. Les convertir en `number`
 dans le navigateur ferait passer les prix par un flottant.
 
+**La frontière serveur/client.** Un module `'use client'` n'exporte que des composants
+utilisables depuis le serveur : une **fonction** qu'il exporte ne peut pas être appelée dans un
+composant serveur (erreur d'exécution, pas de compilation — TypeScript ne voit rien). Les aides
+partagées entre les deux mondes vont dans `apps/web/lib/format.ts`, qui n'est ni l'un ni l'autre.
+C'est ce qui est arrivé à `nomAcquereur()`.
+
 Deux pièges vérifiés :
 
 - **Pas d'indentation par espaces dans les listes déroulantes CFC.** Elle casse la recherche au
@@ -526,10 +532,13 @@ Deux pièges vérifiés :
   **insécables**, ce qui la cassait définitivement. Sur soixante-neuf postes, taper « 211 » est
   le geste utile ; la hiérarchie se lit déjà dans le code, c'est à cela que sert la numérotation.
 - **Un test qui compte des lignes à l'échelle de la société casse dès qu'on saisit depuis
-  l'interface.** C'est arrivé quatre fois (`identite-acces`, `rls-isolation` ×2,
-  `references-prototype`). Portez l'assertion sur la promotion du seed, ou sur l'invariant réel :
-  « une version courante **par opération** », pas « une pour toute la société ». Une suite qui
-  punit l'usage normal du produit finit par être désactivée.
+  l'interface.** C'est arrivé **sept fois** (`identite-acces`, `rls-isolation` ×3,
+  `references-prototype` ×3). Portez l'assertion sur la promotion du seed
+  (`where: { operation: { nom: 'Les Jardins de Prilly' } }`), ou sur l'invariant réel : « une
+  version courante **par opération** », « Σ des pourcentages = 100 % **par échéancier** ». Une
+  suite qui punit l'usage normal du produit finit par être désactivée. Avant d'écrire un
+  `.toBe(n)` sur un `count()`, demandez-vous ce que devient ce chiffre quand un utilisateur crée
+  une deuxième promotion — parce qu'il en créera une.
 
 ## 4 quater. E-mails : un seul point de sortie
 

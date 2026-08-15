@@ -150,3 +150,19 @@ export const GROUPES_CFC: Record<string, string> = {
   '5': 'Frais secondaires',
   '9': 'Ameublement',
 };
+
+/**
+ * Nom affichable d'un acquéreur — « Marie Dupont », à défaut l'e-mail.
+ *
+ * Vit ici, et non dans un module `'use client'` : les écrans serveur en ont
+ * besoin aussi, et une fonction exportée d'un module client ne peut pas être
+ * appelée depuis le serveur.
+ */
+export function nomAcquereur(a: {
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+}): string {
+  const complet = [a.prenom, a.nom].filter(Boolean).join(' ');
+  return complet || (a.email ?? 'sans nom');
+}

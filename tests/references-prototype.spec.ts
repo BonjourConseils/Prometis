@@ -82,9 +82,14 @@ describe('appel de fonds = pourcentage de l’étape × prix total acte', () => 
 });
 
 describe('échéancier', () => {
+  // Comme ailleurs dans ce fichier : scopé à la promotion de référence.
+  // L'invariant « Σ = 100 % » vaut PAR promotion — deux échéanciers dans la
+  // même société en feraient 200, ce qui n'est pas une anomalie.
+  const echeancierDeReference = { operation: { nom: 'Les Jardins de Prilly' } };
+
   it('Σ des pourcentages non nuls = 100 %', async () => {
     const etapes = await asTenant(CB, (tx) =>
-      tx.echeancierEtape.findMany({ orderBy: { ordre: 'asc' } }),
+      tx.echeancierEtape.findMany({ where: echeancierDeReference, orderBy: { ordre: 'asc' } }),
     );
 
     const somme = etapes.reduce(
@@ -96,7 +101,10 @@ describe('échéancier', () => {
 
   it("la première étape est la signature de l'acte", async () => {
     const premiere = await asTenant(CB, (tx) =>
-      tx.echeancierEtape.findFirstOrThrow({ orderBy: { ordre: 'asc' } }),
+      tx.echeancierEtape.findFirstOrThrow({
+        where: echeancierDeReference,
+        orderBy: { ordre: 'asc' },
+      }),
     );
     expect(premiere.libelle).toContain("Signature de l'acte");
   });
@@ -104,7 +112,7 @@ describe('échéancier', () => {
   it("un jalon sans pourcentage n'a généré aucun appel de fonds", async () => {
     const suivi = await asTenant(CB, (tx) =>
       tx.echeancierEtape.findFirstOrThrow({
-        where: { pourcentage: null },
+        where: { ...echeancierDeReference, pourcentage: null },
         include: { appelsDeFonds: true },
       }),
     );

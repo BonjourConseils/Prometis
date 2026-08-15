@@ -161,9 +161,21 @@ describe('tables sans societe_id : la chaîne de rattachement tient', () => {
   });
 
   it('appels de fonds et encaissements — via reservation → operation', async () => {
+    // Ce qui est testé, c'est l'ÉTANCHÉITÉ : Constructa ne voit rien, CB voit
+    // les siens. Le compte côté CB est scopé à la promotion du seed, sinon
+    // émettre un appel depuis l'interface ferait échouer un test d'isolation
+    // qui n'a rien à voir avec ce qu'on vient de faire.
     expect(await asTenant(CONSTRUCTA, (tx) => tx.appelDeFonds.count())).toBe(0);
     expect(await asTenant(CONSTRUCTA, (tx) => tx.encaissement.count())).toBe(0);
-    expect(await asTenant(CB, (tx) => tx.appelDeFonds.count())).toBe(2);
+    expect(
+      await asTenant(CB, (tx) =>
+        tx.appelDeFonds.count({
+          where: {
+            reservation: { lot: { bien: { operation: { nom: 'Les Jardins de Prilly' } } } },
+          },
+        }),
+      ),
+    ).toBe(2);
   });
 
   it('lignes de budget — via budget_version → operation', async () => {

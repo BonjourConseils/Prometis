@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { AjouterAcquereur, AvancerReservation, ReserverLot } from './saisie';
 import { PageHeader } from '../../../components/page-header';
-import { chf, lisible, montant, nombre } from '../../../../lib/format';
+import { chf, lisible, montant, nomAcquereur, nombre } from '../../../../lib/format';
 
 interface Parking {
   id: number;
@@ -45,6 +46,15 @@ interface Reservation {
   }[];
 }
 
+interface Acquereur {
+  id: number;
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+  telephone: string | null;
+  adresse: string | null;
+}
+
 interface Operation {
   id: number;
   nom: string;
@@ -67,9 +77,10 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const [biens, reservations] = await Promise.all([
+  const [biens, reservations, acquereurs] = await Promise.all([
     apiGet<Bien[]>(`/operations/${operationId}/biens`),
     apiGet<Reservation[]>(`/operations/${operationId}/reservations`),
+    apiGet<Acquereur[]>('/acquereurs'),
   ]);
 
   if (biens === null) {
@@ -91,6 +102,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
     0,
   );
   const vendus = tousLots.filter((l) => parLot.has(l.id));
+  const id = Number(operationId);
 
   return (
     <main className="large">
@@ -140,6 +152,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
                   <th className="droite">Prix total acte</th>
                   <th>Acquéreur</th>
                   <th>Statut</th>
+                  <th>Vente</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,6 +218,22 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
                         )}
                       </td>
                       <td>{lisible(reservation?.statut ?? lot.statut)}</td>
+                      <td>
+                        {reservation ? (
+                          <AvancerReservation
+                            operationId={id}
+                            reservationId={reservation.id}
+                            statut={reservation.statut}
+                          />
+                        ) : (
+                          <ReserverLot
+                            operationId={id}
+                            lotId={lot.id}
+                            referenceLot={lot.reference}
+                            acquereurs={acquereurs ?? []}
+                          />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -213,6 +242,45 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
           </div>
         </section>
       ))}
+
+      <section>
+        <h2>Répertoire des acquéreurs</h2>
+        {acquereurs === null ? (
+          <p className="note">Le module Acquéreurs n&apos;est pas activé sur cette société.</p>
+        ) : (
+          <>
+            {acquereurs.length > 0 && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Acquéreur</th>
+                    <th>E-mail</th>
+                    <th>Téléphone</th>
+                    <th>Adresse</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acquereurs.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <strong>{nomAcquereur(a)}</strong>
+                      </td>
+                      <td>{a.email ?? <span className="meta">—</span>}</td>
+                      <td>{a.telephone ?? <span className="meta">—</span>}</td>
+                      <td>
+                        {/* L'adresse figure sur la QR-facture : son absence
+                            n'est pas anodine, elle bloquera l'appel de fonds. */}
+                        {a.adresse ?? <span className="ko">manquante</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <AjouterAcquereur />
+          </>
+        )}
+      </section>
     </main>
   );
 }
