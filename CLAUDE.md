@@ -94,19 +94,19 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 
 ## 8 bis. Où en est le développement
 
-**Lots 0 à 8 livrés — le périmètre MVP est complet** (15 août 2026) — 377 tests verts —
+**Lots 0 à 9 livrés** (15 août 2026) — 427 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
-Le fil rouge financier est complet, le moteur d'appels de fonds tourne, la passerelle
-Kolabimo circule dans les deux sens, et les modules annexes (GED versionnée, séances & PV,
-courtage, trésorerie) closent le backlog.
-**Prochain : durcissement et jalons pilotes**, puis la V2 (portail acquéreur, signature QES,
-intégrations comptables et bancaires) — à n'engager qu'après validation sur des promotions
-réelles.
+Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
+stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de
+fonds, extraction OCR auto-hébergée.
+**Prochain : les jalons de validation sur des promotions réelles.** C'est le second qui vaut
+go/no-go — il confronte les calculs du produit à une opération dont on connaît la vérité
+comptable. La V2 (portail acquéreur, signature QES, intégrations comptables et bancaires) ne
+s'engage qu'après.
 
 État détaillé lot par lot, et surtout **la liste des sujets non livrés avec leur cause**
-(OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère, identifiants
-Kolabimo par société, object storage suisse) :
-`.claude/skills/prometis-dev/references/roadmap.md`.
+(OIDC, notation multicritère, circuit multi-approbateurs, identifiants Kolabimo par société,
+PV en PDF) : `.claude/skills/prometis-dev/references/roadmap.md`.
 
 Reprendre sur une machine propre :
 `npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier`.

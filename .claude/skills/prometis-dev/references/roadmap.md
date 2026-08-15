@@ -13,8 +13,9 @@
 | **6** Ventes & appels de fonds | ✅ livré | réservations à prix figé, échéancier, **moteur idempotent + QR + e-mail** |
 | **7** Passerelle Kolabimo | ✅ livré | webhooks signés + dédoublonnés, boîte d'envoi rejouable, journal étanche |
 | **8** Modules annexes | ✅ livré | GED versionnée, séances & PV, courtage, trésorerie |
+| **9** Mise en production | ✅ livré | MFA TOTP, stockage S3 Infomaniak, SMTP du domaine, QR-facture PDF, OCR auto-hébergé |
 
-**377 tests verts**, suite idempotente (elle peut être relancée sans reseed).
+**427 tests verts**, suite idempotente (elle peut être relancée sans reseed).
 **Le périmètre MVP est épuisé** : la suite est la V2, à n'engager qu'après les jalons pilotes.
 Dépôt : https://github.com/BonjourConseils/Prometis — un commit par lot, message détaillé.
 
@@ -28,18 +29,13 @@ l'accueillir sans réécriture.
 
 | Sujet | Bloqué par | Où c'est isolé |
 |---|---|---|
-| **OIDC** | choix du fournisseur (Docker absent, pas de Keycloak local) | `PasswordService` + `TokenService` |
-| **MFA** | *le schéma ne porte ni secret TOTP ni codes de secours* | — |
-| **Fournisseur SMTP** | choix d'un serveur suisse + secrets en coffre | `MAIL_TRANSPORT=console` |
-| **Extraction PDF → texte** | choix d'un service compatible nLPD | `extraction.ts` part du texte |
-| **PDF de la QR-facture** | choix d'un moteur de rendu PDF — le stockage, lui, existe depuis le Lot 8 | mention en clair dans l'e-mail |
+| **OIDC** | non retenu pour l'instant : l'authentification par identifiants + MFA TOTP couvre le besoin pilote | `PasswordService` + `TokenService` |
 | **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
 | **Identifiants Kolabimo par société** | une seule paire URL/clé par instance ; il faudrait un champ de schéma ou un coffre | `KOLABIMO_API_URL` / `KOLABIMO_API_KEY` |
 | **Séparation identifiant / secret de signature** | `ApiKey` ne porte qu'un champ `key`, qui sert des deux côtés | `signature.ts`, un seul secret à échanger |
 | **`GET /promotions/:id/echeancier` côté Kolabimo** | endpoint à écrire dans l'autre dépôt | `KolabimoClient.lireEcheancier()` prêt à l'appeler |
-| **Object storage suisse (S3)** | choix de l'hébergeur — engage la localisation des données (nLPD) | `STOCKAGE_TRANSPORT=local`, un seul fichier à changer |
-| **PV en PDF mis en page** | choix d'un moteur de rendu, même décision que la QR-facture | `pv.ts` produit du Markdown, lisible tel quel |
+| **PV en PDF mis en page** | le moteur de rendu existe désormais (pdfkit) ; reste à dessiner la mise en page | `pv.ts` produit du Markdown, lisible tel quel |
 
 Ne pas « débloquer » l'un de ces points en contournant le schéma ou en branchant un fournisseur
 sans arbitrage : c'est précisément ce que ces lignes servent à empêcher.
@@ -123,6 +119,16 @@ livrée après le commit ; reprise tirée `POST /operations/:id/passerelle/impor
 **Done, vérifié** : une réservation Kolabimo apparaît dans Prometis (38 tests, dont l'idempotence
 d'un rejeu et l'étanchéité du journal entre tenants) ; un jalon terminé dépose son événement pour
 la trésorerie Kolabimo, même passerelle non configurée.
+
+### Lot 9 — Mise en production ✅
+Décisions d'hébergement prises le 15 août 2026 : VPS et domaine Infomaniak, object storage S3
+Infomaniak, `noreply@prometis.ch`, MFA, OCR auto-hébergé.
+
+Livré : **MFA TOTP** (RFC 6238 écrit et vérifié contre les vecteurs de la norme, secret chiffré
+au repos, codes de secours à usage unique, connexion en deux temps avec jeton de défi qui
+n'ouvre rien) · **transport S3** pour la GED, même convention de clé que le local ·
+**SMTP Infomaniak** et expéditeur du domaine · **QR-facture suisse en PDF**, jointe à l'e-mail et
+archivée en GED · **extraction OCR auto-hébergée**, aucun octet ne sort du serveur.
 
 ### Lot 8 — Modules annexes ✅
 GED (`Document` versionnée), Séances & PV, Courtage, Trésorerie.

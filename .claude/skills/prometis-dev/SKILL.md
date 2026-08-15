@@ -10,7 +10,7 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 8 livrés — le MVP est complet** (15 août 2026) · **377 tests verts** · dépôt
+**Lots 0 à 9 livrés** (15 août 2026) · **427 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -19,13 +19,16 @@ et envoi e-mail redirigé. La **passerelle Kolabimo** est en place dans les deux
 entrants signés et dédoublonnés, boîte d'envoi sortante rejouable. Les modules annexes
 (GED versionnée, séances & PV, courtage, trésorerie) closent le périmètre MVP.
 
-**Prochain : durcissement et pilotes.** Le backlog MVP est épuisé ; la suite est la V2
-(portail acquéreur, signature QES, intégrations comptables et bancaires, import CAN/NPK) —
-à n'engager qu'après les jalons de validation sur promotions réelles.
+Le **Lot 9** a branché les décisions d'hébergement : MFA TOTP, stockage S3 Infomaniak, SMTP
+`noreply@prometis.ch`, QR-facture PDF jointe aux appels de fonds, OCR auto-hébergé.
+
+**Prochain : les jalons de validation sur promotions réelles.** Le backlog de périmètre est
+épuisé ; la V2 (portail acquéreur, signature QES, intégrations comptables et bancaires,
+import CAN/NPK) ne s'engage qu'après le go/no-go du second jalon.
 
 `references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
 avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
-circuit multi-approbateurs, identifiants Kolabimo par société, object storage suisse. Aucun n'est un oubli : chacun
+circuit multi-approbateurs, identifiants Kolabimo par société, PV en PDF. Aucun n'est un oubli : chacun
 attend un arbitrage, et le code est écrit pour l'accueillir. Ne pas en « débloquer » un en
 contournant le schéma.
 
@@ -437,6 +440,48 @@ connaît pas la TVA. Elle ne se compare donc PAS à l'écran Écarts : elle rép
 quoi payer la prochaine situation ? », lui à « suis-je dans mon budget ? ». Les engagements
 fournisseurs sont rendus à part, hors taxe, explicitement non additionnables aux flux.
 Les mois sans mouvement sont **comblés** : sauter de mars à juillet masquerait le creux.
+
+## 4 duodecies. Mise en production (Lot 9)
+
+**Second facteur — `totp.ts`, `chiffrement.ts`, `mfa.service.ts`.**
+TOTP est **écrit, pas importé** : cinquante lignes figées depuis 2011, et la RFC 6238 publie
+ses vecteurs de test — on vérifie donc les chiffres exacts, pas un comportement plausible.
+Ne pas remplacer par une bibliothèque sans raison : c'est une dépendance de moins sur le
+chemin de l'authentification.
+
+- Le secret est **chiffré** (AES-256-GCM), jamais haché : le vérifier suppose de le relire.
+  La clé vit dans `MFA_ENCRYPTION_KEY`, hors base. **Sans clé, l'enrôlement est refusé** —
+  un secret TOTP en clair vaut l'absence de second facteur.
+- `totpActiveAt` nul = enrôlement **non confirmé** : la connexion reste à un facteur. Ne pas
+  « simplifier » en activant au moment de la génération : un QR affiché puis abandonné
+  enfermerait le compte dehors.
+- Entre le mot de passe et le code, la connexion rend un **jeton de défi** (`typ: 'defi'`).
+  `TokenService.verify()` le refuse partout ailleurs — c'est le point qui empêche de
+  contourner le second facteur. `lastLoginAt` n'est touché qu'après le code.
+- Les codes de secours sont hachés en SHA-256 **et non argon2** : générés par la machine
+  avec ~50 bits d'entropie, un hachage lent ne protégerait de rien et coûterait, à chaque
+  connexion de secours, autant de vérifications qu'il reste de codes. L'usage unique vient
+  du retrait de la liste.
+- Désactiver exige un **code**, pas seulement la session : une session volée ne doit pas
+  pouvoir retirer la protection qu'elle vient de contourner.
+- Le QR est fabriqué **dans le navigateur**. Le produire côté serveur ferait transiter le
+  secret dans une URL, donc dans les journaux de tous les intermédiaires.
+
+**Stockage S3** — transport `s3` (Infomaniak) avec `forcePathStyle`, indispensable hors AWS.
+Même convention de clé que `local` : basculer ne touche ni les fiches ni le reste de la GED.
+
+**QR-facture — `qr-facture.ts` (pur) puis `qr-facture.pdf.ts`.**
+La règle à ne jamais perdre : **une référence QR à 27 chiffres n'est valable qu'avec un
+QR-IBAN** (identifiant d'institution 30000–31999). Sur un IBAN ordinaire, la banque refuse le
+document — et l'acquéreur croit avoir payé. Le module décide **avant** de générer : QR-IBAN →
+référence structurée ; sinon → pas de référence, numéro d'appel en message, et la raison dite
+sur la facture et dans les journaux. La facture est archivée en GED en même temps qu'envoyée,
+et rien de tout ça ne peut faire échouer l'appel de fonds.
+
+**OCR auto-hébergé — `ocr.service.ts`.** C'est le seul endroit où des données de tiers
+auraient pu partir chez un prestataire ; elles ne partent pas. Le binaire est appelé par
+`execFile`, **jamais via un shell**, et le PDF transite par un répertoire temporaire effacé
+quoi qu'il arrive. `pdftotext` par défaut ; `ocrmypdf` ou `tesseract` pour des scans.
 
 ## 4 quater. E-mails : un seul point de sortie
 

@@ -4,6 +4,7 @@ import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.serv
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
 import { extraireChamps } from './extraction';
+import { OcrService } from './ocr.service';
 import {
   controlerCumul,
   suggererImputation,
@@ -35,7 +36,32 @@ export class FacturesService {
   constructor(
     private readonly db: TenantPrismaService,
     private readonly audit: AuditService,
+    private readonly ocr: OcrService,
   ) {}
+
+  /**
+   * Dépose un PDF sur une facture, en extrait le texte, puis analyse.
+   *
+   * Le texte extrait est conservé dans `ocrTexte` : c'est lui qui justifie
+   * ce que la lecture automatique a proposé. Sans lui, un comptable qui
+   * conteste une imputation n'aurait rien à relire.
+   */
+  async extraireDepuisPdf(operationId: number, factureId: number, pdf: Buffer) {
+    const texte = await this.ocr.extraire(pdf);
+
+    await this.db.run(async (tx) => {
+      await this.factureDeLOperation(tx, operationId, factureId);
+      await tx.facture.update({
+        where: { id: factureId },
+        // Le statut reste EN_ATTENTE : c'est `analyser()` qui le passera à
+        // TRAITEE. Le marquer traité ici mentirait — le texte est extrait,
+        // les champs ne sont pas encore lus.
+        data: { ocrTexte: texte, ocrStatut: 'EN_ATTENTE' },
+      });
+    });
+
+    return this.analyser(operationId, factureId);
+  }
 
   private async factureDeLOperation(tx: TenantDb, operationId: number, factureId: number) {
     const facture = await tx.facture.findFirst({
@@ -170,8 +196,8 @@ export class FacturesService {
           data: { ocrStatut: 'ECHOUEE' },
         });
         throw new BadRequestException(
-          "Aucun texte à analyser sur cette facture. L'extraction du PDF est assurée par un " +
-            'service tiers, qui reste à choisir : en attendant, fournir `ocrTexte`.',
+          'Aucun texte à analyser sur cette facture. Déposer le PDF sur cette facture ' +
+            'pour que le serveur en extraie le texte, ou fournir `ocrTexte` à la main.',
         );
       }
 

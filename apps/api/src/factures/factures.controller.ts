@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,8 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
+import { TAILLE_MAX_OCTETS } from '../stockage/chemin';
 import { ZodBody } from '../common/zod-body.pipe';
 import { montant, montantPositif, nombreDecimal } from '../common/zod-decimal';
 import { RequireModule, RequireOperationAccess, Roles } from '../auth/decorators';
@@ -99,6 +104,29 @@ export class FacturesController {
     @Body(new ZodBody(factureSchema.partial())) body: Partial<z.infer<typeof factureSchema>>,
   ) {
     return this.factures.modifier(operationId, factureId, body);
+  }
+
+  /**
+   * Dépose le PDF de la facture, en extrait le texte, puis analyse.
+   *
+   * L'extraction tourne sur le serveur : aucune donnée de fournisseur ne
+   * part chez un prestataire.
+   */
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
+  @Post(':factureId/pdf')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('fichier', { limits: { fileSize: TAILLE_MAX_OCTETS } }))
+  deposerPdf(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+    @UploadedFile() fichier: Express.Multer.File | undefined,
+  ) {
+    if (!fichier) {
+      throw new BadRequestException(
+        'Aucun fichier reçu. Envoyer un formulaire multipart avec un champ « fichier ».',
+      );
+    }
+    return this.factures.extraireDepuisPdf(operationId, factureId, fichier.buffer);
   }
 
   /** Lecture des champs et proposition d'imputation CFC. */

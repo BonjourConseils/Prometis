@@ -124,6 +124,23 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
 
+  // --- Extraction du texte des factures (OCR) --------------------------
+  /**
+   * `absent` — défaut : l'analyse fonctionne sur un texte fourni à la main.
+   * `local`  — appelle un binaire du serveur. **Auto-hébergé, délibérément** :
+   * une facture porte le nom d'un fournisseur et ses montants ; déléguer
+   * l'étape à un service en ligne poserait une question nLPD à chaque pièce.
+   */
+  OCR_TRANSPORT: z.enum(['absent', 'local']).default('absent'),
+  /**
+   * Binaire d'extraction. `pdftotext` (poppler) suffit aux PDF déjà
+   * textuels ; pour des scans, pointer sur `ocrmypdf` ou `tesseract`.
+   */
+  OCR_COMMANDE: z.string().default('pdftotext'),
+  /** Arguments, séparés par des virgules. `{fichier}` reçoit le chemin du PDF. */
+  OCR_ARGUMENTS: z.string().default('-layout,{fichier},-'),
+  OCR_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+
   // --- Passerelle Kolabimo ---------------------------------------------
   /**
    * Base de l'API v1 de Kolabimo, par exemple `https://app.kolabimo.ch`.
