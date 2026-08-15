@@ -3,6 +3,13 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
+import {
+  AdopterVersion,
+  AjouterLigne,
+  AjouterPoste,
+  AjouterVersion,
+  ImporterTrame,
+} from './saisie';
 import { chf, montant } from '../../../../lib/format';
 
 interface Colonnes {
@@ -107,6 +114,15 @@ export default async function BudgetPage({
   const lignes = aplatir(vue.arbre);
   const ecart = Number(vue.total.ecartRevisionInitial);
 
+  // Liste plate des postes, pour les listes déroulantes de saisie : on ne
+  // choisit pas un poste CFC dans un arbre replié.
+  const postes = lignes.map(({ noeud, profondeur }) => ({
+    id: noeud.id,
+    code: noeud.code,
+    libelle: noeud.libelle,
+    niveau: profondeur + 1,
+  }));
+
   return (
     <main className="large">
       <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
@@ -125,7 +141,10 @@ export default async function BudgetPage({
       <section>
         <h2>Version de budget</h2>
         {vue.versions.length === 0 ? (
-          <p>Aucune version de budget sur cette promotion.</p>
+          <p className="note">
+            Aucune version de budget. Une version porte les lignes chiffrées ; les révisions se
+            créent en copiant la précédente.
+          </p>
         ) : (
           <div className="onglets">
             {vue.versions.map((v) => (
@@ -144,6 +163,16 @@ export default async function BudgetPage({
             ))}
           </div>
         )}
+
+        <div className="actions">
+          <AjouterVersion
+            operationId={Number(operationId)}
+            versions={vue.versions.map((v) => ({ id: v.id, libelle: v.libelle }))}
+          />
+          {vue.versionAffichee && !vue.versionAffichee.isCourant && (
+            <AdopterVersion operationId={Number(operationId)} versionId={vue.versionAffichee.id} />
+          )}
+        </div>
       </section>
 
       <section>
@@ -188,53 +217,70 @@ export default async function BudgetPage({
 
       <section>
         <h2>Arborescence CFC</h2>
-        <div className="tableau-large">
-          <table>
-            <thead>
-              <tr>
-                <th>Poste</th>
-                <th className="droite">Initial</th>
-                <th className="droite">Révisé</th>
-                <th className="droite">Adjugé</th>
-                <th className="droite">Facturé</th>
-                <th className="droite">Reste à engager</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lignes.map(({ noeud, profondeur }) => {
-                const vide = estZero(noeud.total.budgeteRevise) && estZero(noeud.total.adjuge);
-                return (
-                  <tr
-                    key={noeud.id}
-                    className={profondeur === 0 ? 'groupe' : vide ? 'attenue' : ''}
-                  >
-                    <td style={{ paddingLeft: `${profondeur * 1.25}rem` }}>
-                      <code>{noeud.code}</code> {noeud.libelle}
-                    </td>
-                    <td className="droite">{montant(noeud.total.budgeteInitial)}</td>
-                    <td className="droite">{montant(noeud.total.budgeteRevise)}</td>
-                    <td className="droite">{montant(noeud.total.adjuge)}</td>
-                    <td className="droite">{montant(noeud.total.facture)}</td>
-                    <td className="droite">{montant(noeud.resteAEngager)}</td>
-                  </tr>
-                );
-              })}
-              <tr className="total">
-                <td>Total promotion</td>
-                <td className="droite">{montant(vue.total.budgeteInitial)}</td>
-                <td className="droite">{montant(vue.total.budgeteRevise)}</td>
-                <td className="droite">{montant(vue.total.adjuge)}</td>
-                <td className="droite">{montant(vue.total.facture)}</td>
-                <td className="droite">{montant(vue.total.resteAEngager)}</td>
-              </tr>
-            </tbody>
-          </table>
+        {lignes.length === 0 ? (
+          <ImporterTrame operationId={Number(operationId)} />
+        ) : (
+          <div className="tableau-large">
+            <table>
+              <thead>
+                <tr>
+                  <th>Poste</th>
+                  <th className="droite">Initial</th>
+                  <th className="droite">Révisé</th>
+                  <th className="droite">Adjugé</th>
+                  <th className="droite">Facturé</th>
+                  <th className="droite">Reste à engager</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lignes.map(({ noeud, profondeur }) => {
+                  const vide = estZero(noeud.total.budgeteRevise) && estZero(noeud.total.adjuge);
+                  return (
+                    <tr
+                      key={noeud.id}
+                      className={profondeur === 0 ? 'groupe' : vide ? 'attenue' : ''}
+                    >
+                      <td style={{ paddingLeft: `${profondeur * 1.25}rem` }}>
+                        <code>{noeud.code}</code> {noeud.libelle}
+                      </td>
+                      <td className="droite">{montant(noeud.total.budgeteInitial)}</td>
+                      <td className="droite">{montant(noeud.total.budgeteRevise)}</td>
+                      <td className="droite">{montant(noeud.total.adjuge)}</td>
+                      <td className="droite">{montant(noeud.total.facture)}</td>
+                      <td className="droite">{montant(noeud.resteAEngager)}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="total">
+                  <td>Total promotion</td>
+                  <td className="droite">{montant(vue.total.budgeteInitial)}</td>
+                  <td className="droite">{montant(vue.total.budgeteRevise)}</td>
+                  <td className="droite">{montant(vue.total.adjuge)}</td>
+                  <td className="droite">{montant(vue.total.facture)}</td>
+                  <td className="droite">{montant(vue.total.resteAEngager)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {lignes.length > 0 && (
+          <p className="note">
+            Les colonnes adjugé et facturé se remplissent avec les adjudications et les factures.
+            Elles sont déjà calculées : la vue est juste dès le premier contrat.
+          </p>
+        )}
+
+        <div className="actions">
+          {lignes.length > 0 && <AjouterPoste operationId={Number(operationId)} noeuds={postes} />}
+          {vue.versionAffichee && lignes.length > 0 && (
+            <AjouterLigne
+              operationId={Number(operationId)}
+              versionId={vue.versionAffichee.id}
+              noeuds={postes}
+            />
+          )}
         </div>
-        <p className="note">
-          Les colonnes adjugé et facturé se rempliront avec les adjudications (lot 4) et les
-          factures (lot 5). Elles sont déjà calculées : la vue sera juste dès le premier contrat,
-          sans changement de code.
-        </p>
       </section>
     </main>
   );

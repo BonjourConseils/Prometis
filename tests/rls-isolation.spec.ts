@@ -137,15 +137,27 @@ describe('tables sans societe_id : la chaîne de rattachement tient', () => {
     expect(
       await asTenant(CONSTRUCTA, (tx) => tx.lot.findUnique({ where: { id: idsCb.lotId } })),
     ).toBeNull();
-    // Et CB Promotions, lui, voit bien ses 20 lots PPE.
-    expect(await asTenant(CB, (tx) => tx.lot.count())).toBe(20);
+    // Et CB Promotions, lui, voit bien les 20 lots PPE de sa promotion.
+    // Le compte est scopé à l'opération du seed : compter tout le tenant
+    // ferait échouer la suite dès qu'un lot est créé depuis l'interface.
+    expect(
+      await asTenant(CB, (tx) =>
+        tx.lot.count({ where: { bien: { operation: { nom: 'Les Jardins de Prilly' } } } }),
+      ),
+    ).toBe(20);
   });
 
   it('parkings — via lot → bien → operation (trois niveaux)', async () => {
     expect(
       await asTenant(CONSTRUCTA, (tx) => tx.parking.findUnique({ where: { id: idsCb.parkingId } })),
     ).toBeNull();
-    expect(await asTenant(CB, (tx) => tx.parking.count())).toBe(20);
+    expect(
+      await asTenant(CB, (tx) =>
+        tx.parking.count({
+          where: { lot: { bien: { operation: { nom: 'Les Jardins de Prilly' } } } },
+        }),
+      ),
+    ).toBe(20);
   });
 
   it('appels de fonds et encaissements — via reservation → operation', async () => {
@@ -155,7 +167,11 @@ describe('tables sans societe_id : la chaîne de rattachement tient', () => {
   });
 
   it('lignes de budget — via budget_version → operation', async () => {
-    const cb = await asTenant(CB, (tx) => tx.ligneBudget.count());
+    const cb = await asTenant(CB, (tx) =>
+      tx.ligneBudget.count({
+        where: { budgetVersion: { operation: { nom: 'Les Jardins de Prilly' } } },
+      }),
+    );
     const constructa = await asTenant(CONSTRUCTA, (tx) => tx.ligneBudget.count());
     expect(cb).toBe(17);
     expect(constructa).toBe(4);

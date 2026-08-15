@@ -117,6 +117,7 @@ export function AppHeader({
         {operationId !== undefined && (
           <>
             <div className="rubrique">Chantier</div>
+            {moduleActif('FONCIER') && lien('foncier', op('/foncier'), 'Foncier', IconePpe)}
             {moduleActif('BUDGET_CFC') && lien('budget', op('/budget'), 'Budget CFC', IconeBudget)}
             {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SOUMISSIONS') &&

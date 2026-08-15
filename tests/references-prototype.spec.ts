@@ -114,8 +114,12 @@ describe('échéancier', () => {
 
 describe('registre PPE', () => {
   it('Immeuble A (12 lots) + Immeuble B (8 lots) = 20 lots PPE', async () => {
+    // Scopé à la promotion de référence : ce fichier verrouille les chiffres
+    // du prototype, pas l'état global de la base. Sans ce filtre, la suite
+    // tomberait dès qu'un bien est créé depuis l'interface.
     const biens = await asTenant(CB, (tx) =>
       tx.bien.findMany({
+        where: { operation: { nom: 'Les Jardins de Prilly' } },
         include: { _count: { select: { lots: true } } },
         orderBy: { nom: 'asc' },
       }),
