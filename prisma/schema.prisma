@@ -146,6 +146,20 @@ model Compte {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  // --- Second facteur (TOTP, RFC 6238) — ajouté au Lot 9 -------------
+  // Seule extension du modèle depuis sa validation, et elle a été arbitrée :
+  // aucun champ n'existait pour un secret TOTP ni pour des codes de secours,
+  // ce qui rendait le MFA littéralement impossible à livrer.
+  //
+  // `totpSecret` est CHIFFRÉ au repos (AES-256-GCM, clé hors base) et non
+  // haché : vérifier un code suppose de le relire. `totpActiveAt` reste nul
+  // tant que l'enrôlement n'a pas été confirmé par un premier code — sans
+  // quoi un enrôlement interrompu enfermerait le compte dehors.
+  totpSecret   String?   @map("totp_secret")
+  totpActiveAt DateTime? @map("totp_active_at")
+  /// Empreintes des codes de secours non encore consommés.
+  codesSecours String[]  @map("codes_secours")
+
   memberships Membership[]
 
   @@map("comptes")

@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { AccessService } from './access.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { MfaService } from './mfa.service';
 import { AuthContextMiddleware } from './auth-context.middleware';
 import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './guards';
 
@@ -35,6 +36,7 @@ import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './g
     AccessService,
     PasswordService,
     TokenService,
+    MfaService,
     AuthContextMiddleware,
     // Ordre significatif : identité, puis rôle, puis module de la société,
     // puis droit sur l'opération. Chaque étage suppose le précédent satisfait.
@@ -43,6 +45,13 @@ import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './g
     { provide: APP_GUARD, useClass: AppModuleGuard },
     { provide: APP_GUARD, useClass: OperationAccessGuard },
   ],
-  exports: [AuthService, AccessService, PasswordService, TokenService, AuthContextMiddleware],
+  exports: [
+    AuthService,
+    AccessService,
+    PasswordService,
+    TokenService,
+    MfaService,
+    AuthContextMiddleware,
+  ],
 })
 export class AuthModule {}

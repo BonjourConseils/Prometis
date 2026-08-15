@@ -32,7 +32,7 @@ l'accueillir sans réécriture.
 | **MFA** | *le schéma ne porte ni secret TOTP ni codes de secours* | — |
 | **Fournisseur SMTP** | choix d'un serveur suisse + secrets en coffre | `MAIL_TRANSPORT=console` |
 | **Extraction PDF → texte** | choix d'un service compatible nLPD | `extraction.ts` part du texte |
-| **PDF de la QR-facture** | choix du stockage de documents (S3 suisse) | mention en clair dans l'e-mail |
+| **PDF de la QR-facture** | choix d'un moteur de rendu PDF — le stockage, lui, existe depuis le Lot 8 | mention en clair dans l'e-mail |
 | **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
 | **Identifiants Kolabimo par société** | une seule paire URL/clé par instance ; il faudrait un champ de schéma ou un coffre | `KOLABIMO_API_URL` / `KOLABIMO_API_KEY` |

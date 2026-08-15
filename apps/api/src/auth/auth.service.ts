@@ -3,8 +3,10 @@ import type { AppModule, SocieteProfil, UtilisateurRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { RequestContext, type AuthenticatedCompte } from '../context/request-context';
+import { loadEnv, type Env } from '../config/env';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { MfaService } from './mfa.service';
 
 export interface WorkspaceSummary {
   membershipId: number;
@@ -30,11 +32,14 @@ interface WorkspaceRow {
 
 @Injectable()
 export class AuthService {
+  private readonly env: Env = loadEnv();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantDb: TenantPrismaService,
     private readonly password: PasswordService,
     private readonly tokens: TokenService,
+    private readonly mfa: MfaService,
   ) {}
 
   /**
@@ -60,20 +65,51 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants invalides.');
     }
 
-    await this.prisma.compte.update({
-      where: { id: compte.id },
+    const identite: AuthenticatedCompte = { compteId: compte.id, email: compte.email };
+
+    // Second facteur actif : on s'arrête ici. Le jeton rendu est un jeton de
+    // DÉFI — il n'ouvre aucune route, et `lastLoginAt` n'est pas encore
+    // touché : la connexion n'a pas eu lieu tant que le code n'est pas donné.
+    if (compte.totpActiveAt) {
+      return {
+        mfaRequis: true as const,
+        defiToken: this.tokens.signDefiMfa(identite, this.env.MFA_DEFI_EXPIRES_IN),
+      };
+    }
+
+    return this.ouvrirSession(identite);
+  }
+
+  /**
+   * Second temps de la connexion : le code du second facteur.
+   *
+   * Le jeton de défi prouve que le mot de passe a été vérifié, sans le faire
+   * circuler une seconde fois. Il est court-vivant et n'ouvre rien d'autre.
+   */
+  async verifierMfa(defiToken: string, code: string) {
+    const payload = this.tokens.verifyDefiMfa(defiToken);
+    await this.mfa.verifierPourConnexion(payload.sub, code);
+
+    const compte = await this.prisma.compte.findUnique({ where: { id: payload.sub } });
+    if (!compte || !compte.isActive) throw new UnauthorizedException('Identifiants invalides.');
+
+    return this.ouvrirSession({ compteId: compte.id, email: compte.email });
+  }
+
+  /** Délivre le jeton d'identité et la liste des espaces. */
+  private async ouvrirSession(identite: AuthenticatedCompte) {
+    const compte = await this.prisma.compte.update({
+      where: { id: identite.compteId },
       data: { lastLoginAt: new Date() },
     });
 
-    const identite: AuthenticatedCompte = { compteId: compte.id, email: compte.email };
-    const workspaces = await this.workspacesDe(compte.id);
-
     return {
+      mfaRequis: false as const,
       // Jeton d'identité seul : il ne donne accès à aucune donnée métier tant
       // qu'un espace de travail n'a pas été choisi.
       accessToken: this.tokens.signCompte(identite),
       compte: { id: compte.id, email: compte.email, prenom: compte.prenom, nom: compte.nom },
-      workspaces,
+      workspaces: await this.workspacesDe(compte.id),
     };
   }
 

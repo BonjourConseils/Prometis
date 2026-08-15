@@ -51,6 +51,29 @@ const envSchema = z.object({
     .regex(/^\d+(ms|s|m|h|d|w|y)$/, 'Durée attendue au format « 8h », « 30m », « 7d ».')
     .default('8h'),
 
+  // --- Second facteur (MFA) --------------------------------------------
+  /**
+   * Clé de chiffrement des secrets TOTP, **hors de la base**.
+   *
+   * Un secret TOTP ne peut pas être haché : il faut le relire pour vérifier
+   * un code. Il est donc chiffré, et la clé vit ici — de sorte qu'une copie
+   * du dump ne suffise pas à fabriquer les codes de quelqu'un.
+   *
+   * Absente, l'enrôlement est refusé plutôt que stocké en clair. 32
+   * caractères minimum, aléatoires : `openssl rand -base64 48`.
+   */
+  MFA_ENCRYPTION_KEY: z.string().min(32).optional(),
+  /** Nom affiché dans l'application d'authentification. */
+  MFA_ISSUER: z.string().default('Prometis'),
+  /**
+   * Durée du jeton de défi, entre le mot de passe et le code.
+   * Court : il ne sert qu'à saisir six chiffres.
+   */
+  MFA_DEFI_EXPIRES_IN: z
+    .string()
+    .regex(/^\d+(ms|s|m|h|d|w|y)$/, 'Durée attendue au format « 5m ».')
+    .default('5m'),
+
   // --- Messagerie ------------------------------------------------------
   /**
    * `console` journalise le message sans rien envoyer — c'est le défaut, et il

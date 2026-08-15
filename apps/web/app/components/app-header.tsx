@@ -58,6 +58,9 @@ export function AppHeader({ me, actif }: { me: Me; actif: string }) {
             </Link>
           </>
         )}
+        <Link href="/securite" className={actif === 'securite' ? 'actif' : ''}>
+          Sécurité
+        </Link>
         {me.workspaces.length > 1 && <Link href="/espaces">Changer d&apos;espace</Link>}
         <LogoutButton />
       </nav>
