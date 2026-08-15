@@ -14,17 +14,9 @@
  *     synchronisation d'un autre.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  API,
-  COMPTES,
-  CONSTRUCTA,
-  PROBAT,
-  apiDisponible,
-  appel,
-  jetonPourEspace,
-} from './api-client';
+import { API, COMPTES, CONSTRUCTA, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
-import { CLE_API_CONSTRUCTA, CLE_API_PROBAT } from '../prisma/passerelle-cles-dev';
+import { CLE_API_CONSTRUCTA, CLE_API_CB } from '../prisma/passerelle-cles-dev';
 import { signer } from '../apps/api/src/passerelle/signature';
 
 const PROMOTION_KOLABIMO = 4201;
@@ -57,7 +49,7 @@ async function envoyerWebhook(
   corps: unknown,
   options: { cle?: string; signature?: string; horodatage?: Date } = {},
 ): Promise<{ status: number; body: ReponseWebhook }> {
-  const cle = options.cle ?? CLE_API_PROBAT;
+  const cle = options.cle ?? CLE_API_CB;
   const corpsBrut = JSON.stringify(corps);
   const entetes: Record<string, string> = { 'Content-Type': 'application/json' };
   if (cle) entetes['x-api-key'] = cle;
@@ -111,7 +103,7 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Lancer « npm run verifier ».`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
   marc = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
 
   const lot = await ownerDb.lot.findFirstOrThrow({
@@ -161,7 +153,7 @@ describe('Le webhook refuse ce qu’il ne peut pas authentifier', () => {
 
   it('refuse une signature qui ne correspond pas au corps', async () => {
     const res = await envoyerWebhook(reservationKolabimo(), {
-      signature: signer(CLE_API_PROBAT, '{"autre":"corps"}'),
+      signature: signer(CLE_API_CB, '{"autre":"corps"}'),
     });
     expect(res.status).toBe(401);
   });
@@ -289,7 +281,7 @@ describe('Réconciliation d’une réservation', () => {
 // ---------------------------------------------------------------------
 
 describe('Le journal de synchronisation reste dans son tenant', () => {
-  it('Probat voit ses propres événements', async () => {
+  it('CB Promotions voit ses propres événements', async () => {
     const res = await appel<{ id: number; evenement: string; dedupeKey: string }[]>(
       '/passerelle/journal?limite=200',
       { token: christophe },
@@ -306,7 +298,7 @@ describe('Le journal de synchronisation reste dans son tenant', () => {
     expect(res.body.some((e) => e.dedupeKey.includes('test-lot7'))).toBe(false);
   });
 
-  it('une clé Kolabimo d’un autre tenant ne touche pas la promotion de Probat', async () => {
+  it('une clé Kolabimo d’un autre tenant ne touche pas la promotion de CB Promotions', async () => {
     // Même promotion, même appartement, mais signé par Constructa : chez lui,
     // aucune opération ne porte ce kolabimoPromotionId — donc hors périmètre.
     const res = await envoyerWebhook(

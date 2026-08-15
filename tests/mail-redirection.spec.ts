@@ -51,7 +51,7 @@ describe('redirection active', () => {
 
 describe('copies et copies cachées', () => {
   const avecCopies = appliquerRedirection(
-    { ...appelDeFonds, cc: 'notaire@etude.ch', bcc: 'compta@probat.ch' },
+    { ...appelDeFonds, cc: 'notaire@etude.ch', bcc: 'compta@cbpromotions.ch' },
     { redirigerVers: REDIRECTION, environnement: 'development' },
   );
 
@@ -62,9 +62,9 @@ describe('copies et copies cachées', () => {
 
   it('mais les rappelle dans le bandeau, pour ne rien perdre', () => {
     expect(avecCopies.text).toContain('notaire@etude.ch');
-    expect(avecCopies.text).toContain('compta@probat.ch');
+    expect(avecCopies.text).toContain('compta@cbpromotions.ch');
     expect(avecCopies.html).toContain('notaire@etude.ch');
-    expect(avecCopies.html).toContain('compta@probat.ch');
+    expect(avecCopies.html).toContain('compta@cbpromotions.ch');
   });
 });
 

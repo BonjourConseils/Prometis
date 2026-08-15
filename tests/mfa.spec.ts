@@ -106,8 +106,11 @@ describe('Vérification d’un code', () => {
 
 describe('URI otpauth', () => {
   it('porte le secret, l’émetteur et la période', () => {
-    const uri = uriOtpauth(SECRET_RFC, { compte: 'christophe@probat.ch', emetteur: 'Prometis' });
-    expect(uri.startsWith('otpauth://totp/Prometis%3Achristophe%40probat.ch?')).toBe(true);
+    const uri = uriOtpauth(SECRET_RFC, {
+      compte: 'christophe@cbpromotions.ch',
+      emetteur: 'Prometis',
+    });
+    expect(uri.startsWith('otpauth://totp/Prometis%3Achristophe%40cbpromotions.ch?')).toBe(true);
     expect(uri).toContain(`secret=${SECRET_RFC}`);
     expect(uri).toContain('issuer=Prometis');
     expect(uri).toContain(`period=${PAS_SECONDES}`);

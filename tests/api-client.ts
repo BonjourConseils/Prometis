@@ -62,12 +62,12 @@ export async function jetonPourEspace(email: string, societeId: number): Promise
 }
 
 export const COMPTES = {
-  christophe: 'christophe@probat.ch',
-  julie: 'julie@probat.ch',
+  christophe: 'christophe@cbpromotions.ch',
+  julie: 'julie@cbpromotions.ch',
   marc: 'm.girard@constructa.ch',
 } as const;
 
-export const PROBAT = 1;
+export const CB = 1;
 export const CONSTRUCTA = 2;
 
 /** L'API est-elle joignable ? Les tests d'API sont ignorés sinon. */

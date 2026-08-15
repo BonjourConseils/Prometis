@@ -6,15 +6,7 @@
  * supposent la base dans l'état du seed.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  API,
-  COMPTES,
-  CONSTRUCTA,
-  PROBAT,
-  apiDisponible,
-  appel,
-  jetonPourEspace,
-} from './api-client';
+import { API, COMPTES, CONSTRUCTA, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
@@ -29,8 +21,8 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Démarrer « npm run dev:api » puis relancer.`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
-  julie = await jetonPourEspace(COMPTES.julie, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
+  julie = await jetonPourEspace(COMPTES.julie, CB);
   marcChezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
@@ -436,11 +428,11 @@ describe('ventilation du budget sur les lots', () => {
 // =====================================================================
 
 describe('droits sur le budget', () => {
-  it("l'entreprise générale externe n'atteint pas le budget de Probat", async () => {
+  it("l'entreprise générale externe n'atteint pas le budget de CB Promotions", async () => {
     // Son accès est restreint à SOUMISSIONS, CONTRATS et DOCUMENTS.
-    const marcChezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marcChezCb = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel<{ message: string }>(`/operations/${operationSeed}/budget`, {
-      token: marcChezProbat,
+      token: marcChezCb,
     });
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('BUDGET_CFC');

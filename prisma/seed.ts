@@ -5,7 +5,7 @@
  * le témoin du test d'isolation (`tests/rls-isolation.spec.ts`). Sans lui,
  * « le tenant A voit ses données » ne prouve rien.
  *
- *   1. Probat Promotions SA   — PROMOTEUR, tous modules.
+ *   1. CB Promotions SA   — PROMOTEUR, tous modules.
  *                               Opération « Les Jardins de Prilly ».
  *   2. Constructa EG SA       — ENTREPRISE_GENERALE, chantier seulement.
  *                               Opération « Résidence du Lac ».
@@ -26,7 +26,7 @@ import { dirname, resolve } from 'node:path';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { config as loadDotenv } from 'dotenv';
-import { CLE_API_CONSTRUCTA, CLE_API_PROBAT } from './passerelle-cles-dev';
+import { CLE_API_CONSTRUCTA, CLE_API_CB } from './passerelle-cles-dev';
 import { genererReferenceQR } from '../apps/api/src/appels-de-fonds/qr-reference';
 
 loadDotenv();
@@ -421,13 +421,13 @@ function calculerMillemes(lots: LotSpec[], totalMillemes: number): Prisma.Decima
 }
 
 // =====================================================================
-//  Tenant 1 — Probat Promotions SA
+//  Tenant 1 — CB Promotions SA
 // =====================================================================
 
-async function seedProbat(): Promise<void> {
+async function seedCb(): Promise<void> {
   const societe = await prisma.societe.create({
     data: {
-      raisonSociale: 'Probat Promotions SA',
+      raisonSociale: 'CB Promotions SA',
       formeJuridique: 'SA',
       ide: 'CHE-114.223.987',
       numeroTva: 'CHE-114.223.987 TVA',
@@ -435,7 +435,7 @@ async function seedProbat(): Promise<void> {
       codePostal: '1003',
       localite: 'Lausanne',
       canton: 'VD',
-      email: 'contact@probat.ch',
+      email: 'contact@cbpromotions.ch',
       telephone: '+41 21 555 10 10',
       // QR-IBAN (identifiant d'institution 30000–31999) : c'est LUI qui rend
       // la référence QR à 27 chiffres utilisable. Avec un IBAN ordinaire, la
@@ -511,7 +511,7 @@ async function seedProbat(): Promise<void> {
   });
 
   // L'EG intervient sur l'opération : elle existe ici comme ACTEUR du tenant
-  // Probat, et par ailleurs comme Societe à part entière (tenant 2).
+  // CB Promotions, et par ailleurs comme Societe à part entière (tenant 2).
   const acteurEg = await prisma.acteur.create({
     data: {
       societeId: societe.id,
@@ -592,7 +592,7 @@ async function seedProbat(): Promise<void> {
   await prisma.apiKey.create({
     data: {
       societeId: societe.id,
-      key: CLE_API_PROBAT,
+      key: CLE_API_CB,
       label: 'Kolabimo — Les Jardins de Prilly',
     },
   });
@@ -1225,7 +1225,7 @@ async function seedProbat(): Promise<void> {
       ordreDuJour: 'Avancement gros œuvre · étanchéité toiture · choix des revêtements.',
       participants: {
         create: [
-          { nom: 'Julie Favre', organisation: 'Probat Promotions SA', present: true },
+          { nom: 'Julie Favre', organisation: 'CB Promotions SA', present: true },
           {
             acteurId: architecte.id,
             nom: 'Léa Berger',
@@ -1256,7 +1256,7 @@ async function seedProbat(): Promise<void> {
             ordre: 2,
             titre: 'Choix des revêtements de sol',
             contenu: 'Trois échantillons présentés ; arbitrage attendu du promoteur.',
-            responsable: 'Probat',
+            responsable: 'CB Promotions',
             echeance: new Date('2026-09-30'),
             statut: 'EN_COURS',
           },
@@ -1311,7 +1311,7 @@ async function seedProbat(): Promise<void> {
 
   const compteChristophe = await prisma.compte.create({
     data: {
-      email: 'christophe@probat.ch',
+      email: 'christophe@cbpromotions.ch',
       passwordHash: empreinte,
       prenom: 'Christophe',
       nom: 'Bonjour',
@@ -1319,7 +1319,7 @@ async function seedProbat(): Promise<void> {
   });
   const compteJulie = await prisma.compte.create({
     data: {
-      email: 'julie@probat.ch',
+      email: 'julie@cbpromotions.ch',
       passwordHash: empreinte,
       prenom: 'Julie',
       nom: 'Favre',
@@ -1355,8 +1355,8 @@ async function seedProbat(): Promise<void> {
       fonction: 'Cheffe de projet',
     },
   });
-  // Membre EXTERNE chez Probat, rattaché à son acteur : accès scopé.
-  const membershipMarcChezProbat = await prisma.membership.create({
+  // Membre EXTERNE chez CB Promotions, rattaché à son acteur : accès scopé.
+  const membershipMarcChezCb = await prisma.membership.create({
     data: {
       compteId: compteMarc.id,
       societeId: societe.id,
@@ -1377,7 +1377,7 @@ async function seedProbat(): Promise<void> {
   await prisma.operationAccess.create({
     data: {
       operationId: operation.id,
-      membershipId: membershipMarcChezProbat.id,
+      membershipId: membershipMarcChezCb.id,
       accessLevel: 'OPERATE',
       // Restriction fine : l'EG saisit les soumissions et les contrats,
       // elle ne voit ni les ventes ni les appels de fonds.
@@ -1473,7 +1473,7 @@ async function seedConstructa(): Promise<void> {
   });
 
   // Le second tenant a sa propre clé : c'est elle qui permet de prouver qu'un
-  // webhook signé par Constructa ne touche rien chez Probat.
+  // webhook signé par Constructa ne touche rien chez CB Promotions.
   await prisma.apiKey.create({
     data: {
       societeId: societe.id,
@@ -1583,7 +1583,7 @@ async function seedConstructa(): Promise<void> {
 async function main(): Promise<void> {
   console.log('Seed Prometis — rôle propriétaire (contourne la RLS)\n');
   await reset();
-  await seedProbat();
+  await seedCb();
   await seedConstructa();
 
   const societes = await prisma.societe.count();
@@ -1592,10 +1592,16 @@ async function main(): Promise<void> {
   console.log(`\n✓ ${societes} tenants · ${operations} opérations · ${lots} lots`);
   console.log('  Le second tenant est le témoin du test d’isolation (npm run test:rls).');
   console.log(`\n  Comptes de démonstration — mot de passe : ${MOT_DE_PASSE_DEV}`);
-  console.log('    christophe@probat.ch        OWNER chez Probat');
-  console.log('    julie@probat.ch             CHEF_PROJET chez Probat, MANAGE sur l’opération');
-  console.log('    m.girard@constructa.ch      OWNER chez Constructa ET EXTERNE chez Probat');
-  console.log('                                (accès scopé : SOUMISSIONS, CONTRATS, DOCUMENTS)');
+  console.log('    christophe@cbpromotions.ch        OWNER chez CB Promotions');
+  console.log(
+    '    julie@cbpromotions.ch             CHEF_PROJET chez CB Promotions, MANAGE sur l’opération',
+  );
+  console.log(
+    '    m.girard@constructa.ch            OWNER chez Constructa ET EXTERNE chez CB Promotions',
+  );
+  console.log(
+    '                                      (accès scopé : SOUMISSIONS, CONTRATS, DOCUMENTS)',
+  );
 }
 
 main()

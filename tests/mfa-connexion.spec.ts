@@ -13,7 +13,7 @@ import { API, MOT_DE_PASSE, apiDisponible, appel } from './api-client';
 import { ownerDb } from './tenant-db';
 import { codeTotp } from '../apps/api/src/auth/totp';
 
-const EMAIL = 'julie@probat.ch';
+const EMAIL = 'julie@cbpromotions.ch';
 
 let jetonIdentite: string;
 let secret = '';

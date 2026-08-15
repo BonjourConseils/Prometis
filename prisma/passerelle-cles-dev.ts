@@ -9,5 +9,5 @@
  * public, servent à la fois d'identifiant de tenant et de secret de signature,
  * et doivent être régénérées avant toute mise en ligne.
  */
-export const CLE_API_PROBAT = 'pk_dev_probat_5f3a9c1e7b2d4086a1c5e9f30b7d2846';
+export const CLE_API_CB = 'pk_dev_cb_5f3a9c1e7b2d4086a1c5e9f30b7d2846';
 export const CLE_API_CONSTRUCTA = 'pk_dev_constructa_2c8e14a7d05b39f6428ae1cd70b95f3a';

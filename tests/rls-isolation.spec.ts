@@ -5,21 +5,21 @@
  * Prérequis : npm run db:bootstrap && npm run db:migrate && npm run db:seed
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { appDb, ownerDb, asTenant, PROBAT, CONSTRUCTA } from './tenant-db';
+import { appDb, ownerDb, asTenant, CB, CONSTRUCTA } from './tenant-db';
 
-let idsProbat: { operationId: number; bienId: number; lotId: number; parkingId: number };
+let idsCb: { operationId: number; bienId: number; lotId: number; parkingId: number };
 let idsConstructa: { operationId: number; bienId: number; lotId: number };
 
 beforeAll(async () => {
   // Les identifiants sont relevés avec le rôle propriétaire : les tests ont
   // besoin de connaître les ids de l'AUTRE tenant pour prouver qu'ils ne
   // peuvent pas les atteindre.
-  const opProbat = await ownerDb.operation.findFirstOrThrow({
-    where: { societeId: PROBAT },
+  const opCb = await ownerDb.operation.findFirstOrThrow({
+    where: { societeId: CB },
     include: { biens: { include: { lots: { include: { parkings: true } } } } },
   });
-  const bienProbat = opProbat.biens[0]!;
-  const lotProbat = bienProbat.lots[0]!;
+  const bienCb = opCb.biens[0]!;
+  const lotCb = bienCb.lots[0]!;
 
   const opConstructa = await ownerDb.operation.findFirstOrThrow({
     where: { societeId: CONSTRUCTA },
@@ -27,11 +27,11 @@ beforeAll(async () => {
   });
   const bienConstructa = opConstructa.biens[0]!;
 
-  idsProbat = {
-    operationId: opProbat.id,
-    bienId: bienProbat.id,
-    lotId: lotProbat.id,
-    parkingId: lotProbat.parkings[0]!.id,
+  idsCb = {
+    operationId: opCb.id,
+    bienId: bienCb.id,
+    lotId: lotCb.id,
+    parkingId: lotCb.parkings[0]!.id,
   };
   idsConstructa = {
     operationId: opConstructa.id,
@@ -87,8 +87,8 @@ describe('refus par défaut : sans contexte tenant, rien ne sort', () => {
 // =====================================================================
 
 describe('lecture : chaque tenant ne voit que ses données', () => {
-  it('Probat voit son opération et pas celle de Constructa', async () => {
-    const operations = await asTenant(PROBAT, (tx) =>
+  it('CB Promotions voit son opération et pas celle de Constructa', async () => {
+    const operations = await asTenant(CB, (tx) =>
       tx.operation.findMany({ select: { id: true, nom: true } }),
     );
     expect(operations).toHaveLength(1);
@@ -96,24 +96,24 @@ describe('lecture : chaque tenant ne voit que ses données', () => {
     expect(operations.map((o) => o.id)).not.toContain(idsConstructa.operationId);
   });
 
-  it('Constructa voit son opération et pas celle de Probat', async () => {
+  it('Constructa voit son opération et pas celle de CB Promotions', async () => {
     const operations = await asTenant(CONSTRUCTA, (tx) =>
       tx.operation.findMany({ select: { id: true, nom: true } }),
     );
     expect(operations).toHaveLength(1);
     expect(operations[0]!.nom).toBe('Résidence du Lac');
-    expect(operations.map((o) => o.id)).not.toContain(idsProbat.operationId);
+    expect(operations.map((o) => o.id)).not.toContain(idsCb.operationId);
   });
 
   it('la société elle-même est filtrée', async () => {
-    const societes = await asTenant(PROBAT, (tx) => tx.societe.findMany());
+    const societes = await asTenant(CB, (tx) => tx.societe.findMany());
     expect(societes).toHaveLength(1);
-    expect(societes[0]!.id).toBe(PROBAT);
+    expect(societes[0]!.id).toBe(CB);
   });
 
   it("un accès direct par id à l'opération de l'autre tenant ne renvoie rien", async () => {
     const trouve = await asTenant(CONSTRUCTA, (tx) =>
-      tx.operation.findUnique({ where: { id: idsProbat.operationId } }),
+      tx.operation.findUnique({ where: { id: idsCb.operationId } }),
     );
     expect(trouve).toBeNull();
   });
@@ -124,39 +124,37 @@ describe('lecture : chaque tenant ne voit que ses données', () => {
 describe('tables sans societe_id : la chaîne de rattachement tient', () => {
   it('biens — via operation_id', async () => {
     const vus = await asTenant(CONSTRUCTA, (tx) => tx.bien.findMany({ select: { id: true } }));
-    expect(vus.map((b) => b.id)).not.toContain(idsProbat.bienId);
+    expect(vus.map((b) => b.id)).not.toContain(idsCb.bienId);
     expect(
-      await asTenant(CONSTRUCTA, (tx) => tx.bien.findUnique({ where: { id: idsProbat.bienId } })),
+      await asTenant(CONSTRUCTA, (tx) => tx.bien.findUnique({ where: { id: idsCb.bienId } })),
     ).toBeNull();
   });
 
   it('lots — via bien → operation (deux niveaux)', async () => {
     expect(
-      await asTenant(CONSTRUCTA, (tx) => tx.lot.findUnique({ where: { id: idsProbat.lotId } })),
+      await asTenant(CONSTRUCTA, (tx) => tx.lot.findUnique({ where: { id: idsCb.lotId } })),
     ).toBeNull();
-    // Et Probat, lui, voit bien ses 20 lots PPE.
-    expect(await asTenant(PROBAT, (tx) => tx.lot.count())).toBe(20);
+    // Et CB Promotions, lui, voit bien ses 20 lots PPE.
+    expect(await asTenant(CB, (tx) => tx.lot.count())).toBe(20);
   });
 
   it('parkings — via lot → bien → operation (trois niveaux)', async () => {
     expect(
-      await asTenant(CONSTRUCTA, (tx) =>
-        tx.parking.findUnique({ where: { id: idsProbat.parkingId } }),
-      ),
+      await asTenant(CONSTRUCTA, (tx) => tx.parking.findUnique({ where: { id: idsCb.parkingId } })),
     ).toBeNull();
-    expect(await asTenant(PROBAT, (tx) => tx.parking.count())).toBe(20);
+    expect(await asTenant(CB, (tx) => tx.parking.count())).toBe(20);
   });
 
   it('appels de fonds et encaissements — via reservation → operation', async () => {
     expect(await asTenant(CONSTRUCTA, (tx) => tx.appelDeFonds.count())).toBe(0);
     expect(await asTenant(CONSTRUCTA, (tx) => tx.encaissement.count())).toBe(0);
-    expect(await asTenant(PROBAT, (tx) => tx.appelDeFonds.count())).toBe(2);
+    expect(await asTenant(CB, (tx) => tx.appelDeFonds.count())).toBe(2);
   });
 
   it('lignes de budget — via budget_version → operation', async () => {
-    const probat = await asTenant(PROBAT, (tx) => tx.ligneBudget.count());
+    const cb = await asTenant(CB, (tx) => tx.ligneBudget.count());
     const constructa = await asTenant(CONSTRUCTA, (tx) => tx.ligneBudget.count());
-    expect(probat).toBe(17);
+    expect(cb).toBe(17);
     expect(constructa).toBe(4);
   });
 
@@ -177,7 +175,7 @@ describe("écriture : WITH CHECK empêche d'écrire chez le voisin", () => {
     await expect(
       asTenant(CONSTRUCTA, (tx) =>
         tx.bien.create({
-          data: { operationId: idsProbat.operationId, nature: 'IMMEUBLE', nom: 'Bien pirate' },
+          data: { operationId: idsCb.operationId, nature: 'IMMEUBLE', nom: 'Bien pirate' },
         }),
       ),
     ).rejects.toThrow();
@@ -186,7 +184,7 @@ describe("écriture : WITH CHECK empêche d'écrire chez le voisin", () => {
   it('refuse de créer une opération pour une autre société', async () => {
     await expect(
       asTenant(CONSTRUCTA, (tx) =>
-        tx.operation.create({ data: { societeId: PROBAT, nom: 'Opération pirate' } }),
+        tx.operation.create({ data: { societeId: CB, nom: 'Opération pirate' } }),
       ),
     ).rejects.toThrow();
   });
@@ -194,7 +192,7 @@ describe("écriture : WITH CHECK empêche d'écrire chez le voisin", () => {
   it("une mise à jour ciblant l'opération d'un autre tenant ne touche aucune ligne", async () => {
     const { count } = await asTenant(CONSTRUCTA, (tx) =>
       tx.operation.updateMany({
-        where: { id: idsProbat.operationId },
+        where: { id: idsCb.operationId },
         data: { nom: 'Renommée par le voisin' },
       }),
     );
@@ -202,17 +200,17 @@ describe("écriture : WITH CHECK empêche d'écrire chez le voisin", () => {
 
     // Vérification par le propriétaire : le nom est intact.
     const operation = await ownerDb.operation.findUniqueOrThrow({
-      where: { id: idsProbat.operationId },
+      where: { id: idsCb.operationId },
     });
     expect(operation.nom).toBe('Les Jardins de Prilly');
   });
 
   it("une suppression ciblant les lots d'un autre tenant ne touche aucune ligne", async () => {
     const { count } = await asTenant(CONSTRUCTA, (tx) =>
-      tx.lot.deleteMany({ where: { id: idsProbat.lotId } }),
+      tx.lot.deleteMany({ where: { id: idsCb.lotId } }),
     );
     expect(count).toBe(0);
-    expect(await ownerDb.lot.count({ where: { id: idsProbat.lotId } })).toBe(1);
+    expect(await ownerDb.lot.count({ where: { id: idsCb.lotId } })).toBe(1);
   });
 });
 

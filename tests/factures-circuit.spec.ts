@@ -4,7 +4,7 @@
  *     la vue écart est juste ».
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { API, COMPTES, PROBAT, apiDisponible, appel, jetonPourEspace } from './api-client';
+import { API, COMPTES, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
@@ -41,8 +41,8 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Démarrer « npm run dev:api » puis relancer.`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
-  julie = await jetonPourEspace(COMPTES.julie, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
+  julie = await jetonPourEspace(COMPTES.julie, CB);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
     token: christophe,
@@ -191,7 +191,7 @@ describe('DoD — lecture, proposition, puis imputation après validation', () =
   });
 
   it('un intervenant externe ne valide pas de facture', async () => {
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel(`/operations/${operationSeed}/factures/${factureId}/validation`, {
       methode: 'POST',
       token: marc,

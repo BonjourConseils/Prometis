@@ -38,7 +38,7 @@ Pour reprendre après une remise à zéro de la conversation :
 npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier
 ```
 
-Puis `npm run dev` et se connecter avec `christophe@probat.ch` / `Prometis!2026`.
+Puis `npm run dev` et se connecter avec `christophe@cbpromotions.ch` / `Prometis!2026`.
 
 ## 1. Sources de vérité — ordre de préséance
 
@@ -211,8 +211,8 @@ révoqué de `PUBLIC`. Toute nouvelle fonction de ce type doit être inscrite da
 ### Comptes de démonstration
 
 Mot de passe commun `Prometis!2026` :
-`christophe@probat.ch` (OWNER Probat) · `julie@probat.ch` (CHEF_PROJET, MANAGE sur l'opération) ·
-`m.girard@constructa.ch` (OWNER chez Constructa **et** EXTERNE chez Probat, scopé
+`christophe@cbpromotions.ch` (OWNER CB Promotions) · `julie@cbpromotions.ch` (CHEF_PROJET, MANAGE sur l'opération) ·
+`m.girard@constructa.ch` (OWNER chez Constructa **et** EXTERNE chez CB Promotions, scopé
 SOUMISSIONS/CONTRATS/DOCUMENTS).
 
 ### Ce qui n'est pas fait, et pourquoi

@@ -20,7 +20,7 @@
 - `Societe` (profil + `modulesActifs`), `Actionnaire`, `ApiKey`.
 - RBAC : `UtilisateurRole` + `OperationAccess` (niveau `READ_ONLY`/`OPERATE`/`MANAGE`, restreint par `AccessModule`).
 - Écran **Droits d'accès** (internes + intervenants externes scopés). `AuditLog`.
-**Done** : un compte Probat bascule entre deux sociétés isolées ; une EG a un accès scopé par module.
+**Done** : un compte CB Promotions bascule entre deux sociétés isolées ; une EG a un accès scopé par module.
 
 ## Lot 2 — Opérations, foncier & acteurs
 **But** : créer une promotion et son cadre.

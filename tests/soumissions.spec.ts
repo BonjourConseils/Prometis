@@ -5,7 +5,7 @@
  * La suite déroule la chaîne complète sur son propre terrain, puis l'efface.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { API, COMPTES, PROBAT, apiDisponible, appel, jetonPourEspace } from './api-client';
+import { API, COMPTES, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
@@ -16,7 +16,7 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Démarrer « npm run dev:api » puis relancer.`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
     token: christophe,
@@ -303,14 +303,14 @@ describe('le seed illustre les deux stades', () => {
 
   it("l'entreprise générale externe voit les soumissions — c'est son périmètre", async () => {
     // Marc a SOUMISSIONS et CONTRATS dans son accès scopé.
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel<unknown[]>(`/operations/${operationSeed}/soumissions`, { token: marc });
     expect(res.status).toBe(200);
     expect(res.body.length).toBe(2);
   });
 
   it('mais ne peut pas adjuger : MANAGE requis', async () => {
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel<{ message: string }>(
       `/operations/${operationSeed}/soumissions/2/adjudication`,
       { methode: 'POST', token: marc, corps: { offreId: 4 } },

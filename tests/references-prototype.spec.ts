@@ -10,7 +10,7 @@
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { Prisma } from '@prisma/client';
-import { appDb, ownerDb, asTenant, PROBAT } from './tenant-db';
+import { appDb, ownerDb, asTenant, CB } from './tenant-db';
 
 afterAll(async () => {
   await Promise.all([appDb.$disconnect(), ownerDb.$disconnect()]);
@@ -20,7 +20,7 @@ const dec = (v: string) => new Prisma.Decimal(v);
 
 describe('prix total acte = prix du lot + Σ prix des parkings', () => {
   it('lot A02 : 815 000 + box 35 000 = 850 000 CHF', async () => {
-    const lot = await asTenant(PROBAT, (tx) =>
+    const lot = await asTenant(CB, (tx) =>
       tx.lot.findFirstOrThrow({
         where: { reference: 'A02' },
         include: { parkings: true, reservations: true },
@@ -45,7 +45,7 @@ describe('prix total acte = prix du lot + Σ prix des parkings', () => {
 
 describe('appel de fonds = pourcentage de l’étape × prix total acte', () => {
   it('5 % = 42 500 et 15 % = 127 500 sur le lot A02', async () => {
-    const appels = await asTenant(PROBAT, (tx) =>
+    const appels = await asTenant(CB, (tx) =>
       tx.appelDeFonds.findMany({
         where: { reservation: { lot: { reference: 'A02' } } },
         orderBy: { pourcentage: 'asc' },
@@ -62,12 +62,12 @@ describe('appel de fonds = pourcentage de l’étape × prix total acte', () => 
   });
 
   it('idempotence : un couple (réservation, étape) est unique', async () => {
-    const appel = await asTenant(PROBAT, (tx) =>
+    const appel = await asTenant(CB, (tx) =>
       tx.appelDeFonds.findFirstOrThrow({ where: { pourcentage: dec('5.00') } }),
     );
 
     await expect(
-      asTenant(PROBAT, (tx) =>
+      asTenant(CB, (tx) =>
         tx.appelDeFonds.create({
           data: {
             reservationId: appel.reservationId,
@@ -83,7 +83,7 @@ describe('appel de fonds = pourcentage de l’étape × prix total acte', () => 
 
 describe('échéancier', () => {
   it('Σ des pourcentages non nuls = 100 %', async () => {
-    const etapes = await asTenant(PROBAT, (tx) =>
+    const etapes = await asTenant(CB, (tx) =>
       tx.echeancierEtape.findMany({ orderBy: { ordre: 'asc' } }),
     );
 
@@ -95,14 +95,14 @@ describe('échéancier', () => {
   });
 
   it("la première étape est la signature de l'acte", async () => {
-    const premiere = await asTenant(PROBAT, (tx) =>
+    const premiere = await asTenant(CB, (tx) =>
       tx.echeancierEtape.findFirstOrThrow({ orderBy: { ordre: 'asc' } }),
     );
     expect(premiere.libelle).toContain("Signature de l'acte");
   });
 
   it("un jalon sans pourcentage n'a généré aucun appel de fonds", async () => {
-    const suivi = await asTenant(PROBAT, (tx) =>
+    const suivi = await asTenant(CB, (tx) =>
       tx.echeancierEtape.findFirstOrThrow({
         where: { pourcentage: null },
         include: { appelsDeFonds: true },
@@ -114,7 +114,7 @@ describe('échéancier', () => {
 
 describe('registre PPE', () => {
   it('Immeuble A (12 lots) + Immeuble B (8 lots) = 20 lots PPE', async () => {
-    const biens = await asTenant(PROBAT, (tx) =>
+    const biens = await asTenant(CB, (tx) =>
       tx.bien.findMany({
         include: { _count: { select: { lots: true } } },
         orderBy: { nom: 'asc' },
@@ -128,7 +128,7 @@ describe('registre PPE', () => {
   });
 
   it('Σ des quotes-parts PPE = totalMillemes (1000)', async () => {
-    const { lots, ppe } = await asTenant(PROBAT, async (tx) => ({
+    const { lots, ppe } = await asTenant(CB, async (tx) => ({
       lots: await tx.lot.findMany({ select: { quotePartPPE: true } }),
       ppe: await tx.ppe.findFirstOrThrow(),
     }));
@@ -138,7 +138,7 @@ describe('registre PPE', () => {
   });
 
   it('les parcelles 2841 et 2842 sont rattachées à l’opération', async () => {
-    const parcelles = await asTenant(PROBAT, (tx) =>
+    const parcelles = await asTenant(CB, (tx) =>
       tx.parcelle.findMany({ select: { numero: true }, orderBy: { numero: 'asc' } }),
     );
     expect(parcelles.map((p) => p.numero)).toEqual(['2841', '2842']);
@@ -147,7 +147,7 @@ describe('registre PPE', () => {
 
 describe('arbre CFC', () => {
   it('le poste 232.1 référencé par le prototype existe et est bien un niveau 4', async () => {
-    const node = await asTenant(PROBAT, (tx) =>
+    const node = await asTenant(CB, (tx) =>
       tx.cfcNode.findFirstOrThrow({ where: { code: '232.1' }, include: { parent: true } }),
     );
     expect(node.niveau).toBe(4);
@@ -155,14 +155,14 @@ describe('arbre CFC', () => {
   });
 
   it('une seule version de budget est courante', async () => {
-    const courantes = await asTenant(PROBAT, (tx) =>
+    const courantes = await asTenant(CB, (tx) =>
       tx.budgetVersion.count({ where: { isCourant: true } }),
     );
     expect(courantes).toBe(1);
   });
 
   it('la provision pour imprévus est marquée comme réserve', async () => {
-    const reserves = await asTenant(PROBAT, (tx) =>
+    const reserves = await asTenant(CB, (tx) =>
       tx.ligneBudget.findMany({ where: { estReserve: true } }),
     );
     expect(reserves).toHaveLength(1);

@@ -7,7 +7,7 @@
  * acquéreurs, échéancier — pour ne rien devoir aux données du seed.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { API, COMPTES, PROBAT, apiDisponible, appel, jetonPourEspace } from './api-client';
+import { API, COMPTES, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
@@ -30,7 +30,7 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Démarrer « npm run dev:api » puis relancer.`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
     token: christophe,
@@ -384,8 +384,8 @@ describe('cohérence avec le seed et les droits', () => {
     expect(res.body.message).toContain('APPELS_FONDS');
   });
 
-  it("l'intervenant externe de Probat n'y accède pas non plus", async () => {
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+  it("l'intervenant externe de CB Promotions n'y accède pas non plus", async () => {
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel(`/operations/${operationSeed}/appels-de-fonds`, { token: marc });
     expect(res.status).toBe(403);
   });

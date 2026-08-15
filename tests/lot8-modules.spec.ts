@@ -9,7 +9,7 @@
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { API, COMPTES, PROBAT, apiDisponible, appel, jetonPourEspace } from './api-client';
+import { API, COMPTES, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
@@ -53,7 +53,7 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Lancer « npm run verifier ».`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
     token: christophe,
@@ -244,7 +244,7 @@ describe('Séances, points et procès-verbal', () => {
     await appel(`/operations/${bac}/seances/${contexte.seanceId}/participants`, {
       methode: 'POST',
       token: christophe,
-      corps: { nom: 'Julie Renaud', organisation: 'Probat', present: true },
+      corps: { nom: 'Julie Renaud', organisation: 'CB Promotions', present: true },
     });
     await appel(`/operations/${bac}/seances/${contexte.seanceId}/participants`, {
       methode: 'POST',
@@ -302,7 +302,7 @@ describe('Séances, points et procès-verbal', () => {
     expect(res.body.document.version).toBe(1);
     expect(res.body.texte).toContain('Étanchéité toiture');
     expect(res.body.texte).toContain('## Points restant ouverts');
-    expect(res.body.texte).toContain('- Julie Renaud (Probat)');
+    expect(res.body.texte).toContain('- Julie Renaud (CB Promotions)');
   });
 
   it('regénéré, il produit une version, jamais un second document', async () => {

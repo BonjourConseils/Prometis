@@ -9,21 +9,13 @@
  * bonne opération.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  API,
-  COMPTES,
-  CONSTRUCTA,
-  PROBAT,
-  apiDisponible,
-  appel,
-  jetonPourEspace,
-} from './api-client';
+import { API, COMPTES, CONSTRUCTA, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
 let christophe: string;
 let marcChezConstructa: string;
 let julie: string;
-let operationProbat: number;
+let operationCb: number;
 
 /**
  * Opérations créées par cette suite, à effacer ensuite.
@@ -38,14 +30,14 @@ beforeAll(async () => {
   if (!(await apiDisponible())) {
     throw new Error(`API injoignable sur ${API}. Démarrer « npm run dev:api » puis relancer.`);
   }
-  christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+  christophe = await jetonPourEspace(COMPTES.christophe, CB);
   marcChezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
-  julie = await jetonPourEspace(COMPTES.julie, PROBAT);
+  julie = await jetonPourEspace(COMPTES.julie, CB);
 
   const operations = await appel<{ id: number; nom: string }[]>('/operations', {
     token: christophe,
   });
-  operationProbat = operations.body.find((o) => o.nom === 'Les Jardins de Prilly')!.id;
+  operationCb = operations.body.find((o) => o.nom === 'Les Jardins de Prilly')!.id;
 });
 
 afterAll(async () => {
@@ -69,7 +61,7 @@ describe('DoD — bilan promoteur', () => {
       marge: string;
       tauxMargePct: string;
       budgetVersion: { libelle: string };
-    }>(`/operations/${operationProbat}/bilan`, { token: christophe });
+    }>(`/operations/${operationCb}/bilan`, { token: christophe });
 
     expect(res.status).toBe(200);
     expect(res.body.couts.total).toBe('12180000');
@@ -84,7 +76,7 @@ describe('DoD — bilan promoteur', () => {
 
   it('utilise la version de budget courante, pas la somme des versions', async () => {
     const res = await appel<{ budgetVersion: { libelle: string } }>(
-      `/operations/${operationProbat}/bilan`,
+      `/operations/${operationCb}/bilan`,
       { token: christophe },
     );
     expect(res.body.budgetVersion.libelle).toBe('Budget initial');
@@ -92,7 +84,7 @@ describe('DoD — bilan promoteur', () => {
 
   it('ventile les coûts par groupe principal CFC', async () => {
     const res = await appel<{ couts: { parGroupeCfc: { groupe: string; montant: string }[] } }>(
-      `/operations/${operationProbat}/bilan`,
+      `/operations/${operationCb}/bilan`,
       { token: christophe },
     );
     const parGroupe = Object.fromEntries(
@@ -126,7 +118,7 @@ describe('registre PPE', () => {
         coherent: boolean;
         nombreLots: number;
       };
-    }>(`/operations/${operationProbat}/registre-ppe`, { token: christophe });
+    }>(`/operations/${operationCb}/registre-ppe`, { token: christophe });
 
     expect(res.status).toBe(200);
     expect(res.body.parcelles.map((p) => p.numero)).toEqual(['2841', '2842']);
@@ -139,7 +131,7 @@ describe('registre PPE', () => {
     const res = await appel<{
       biens: { nom: string; sommeMillemes: string }[];
       controle: { sommeMillemes: string };
-    }>(`/operations/${operationProbat}/registre-ppe`, { token: christophe });
+    }>(`/operations/${operationCb}/registre-ppe`, { token: christophe });
 
     const somme = res.body.biens.reduce((total, b) => total + Number(b.sommeMillemes), 0);
     expect(somme).toBeCloseTo(Number(res.body.controle.sommeMillemes), 3);
@@ -237,10 +229,10 @@ describe('création et cadre d’une opération', () => {
   });
 
   it("ne laisse pas modifier un lot d'une AUTRE opération du même tenant", async () => {
-    // La RLS ne dit rien ici : les deux opérations appartiennent à Probat.
+    // La RLS ne dit rien ici : les deux opérations appartiennent à CB Promotions.
     // C'est le contrôle de cohérence parent → enfant qui doit refuser.
     const biens = await appel<{ id: number; lots: { id: number }[] }[]>(
-      `/operations/${operationProbat}/biens`,
+      `/operations/${operationCb}/biens`,
       { token: christophe },
     );
     const lotDeLAutreOperation = biens.body[0]!.lots[0]!.id;
@@ -259,12 +251,12 @@ describe('création et cadre d’une opération', () => {
 describe('prix figé après signature de l’acte', () => {
   it('refuse de modifier le prix d’un lot vendu', async () => {
     const biens = await appel<{ lots: { id: number; reference: string }[] }[]>(
-      `/operations/${operationProbat}/biens`,
+      `/operations/${operationCb}/biens`,
       { token: christophe },
     );
     const a02 = biens.body.flatMap((b) => b.lots).find((l) => l.reference === 'A02')!;
 
-    const res = await appel<{ message: string }>(`/operations/${operationProbat}/lots/${a02.id}`, {
+    const res = await appel<{ message: string }>(`/operations/${operationCb}/lots/${a02.id}`, {
       methode: 'PATCH',
       token: christophe,
       corps: { prixVente: '900000' },
@@ -276,12 +268,12 @@ describe('prix figé après signature de l’acte', () => {
 
   it('mais laisse modifier les autres champs du même lot', async () => {
     const biens = await appel<{ lots: { id: number; reference: string }[] }[]>(
-      `/operations/${operationProbat}/biens`,
+      `/operations/${operationCb}/biens`,
       { token: christophe },
     );
     const a02 = biens.body.flatMap((b) => b.lots).find((l) => l.reference === 'A02')!;
 
-    const res = await appel(`/operations/${operationProbat}/lots/${a02.id}`, {
+    const res = await appel(`/operations/${operationCb}/lots/${a02.id}`, {
       methode: 'PATCH',
       token: christophe,
       corps: { etage: 0 },
@@ -295,7 +287,7 @@ describe('prix figé après signature de l’acte', () => {
 describe('annuaire des acteurs', () => {
   it("liste l'équipe de l'opération avec les rôles", async () => {
     const res = await appel<{ role: string; acteur: { societeNom: string } }[]>(
-      `/operations/${operationProbat}/acteurs`,
+      `/operations/${operationCb}/acteurs`,
       { token: christophe },
     );
 
@@ -323,7 +315,7 @@ describe('annuaire des acteurs', () => {
     const architecte = acteurs.body.find((a) => a.type === 'ARCHITECTE')!;
     const geometre = acteurs.body.find((a) => a.type === 'GEOMETRE')!;
 
-    const premier = await appel(`/operations/${operationProbat}/acteurs/${architecte.id}`, {
+    const premier = await appel(`/operations/${operationCb}/acteurs/${architecte.id}`, {
       methode: 'POST',
       token: christophe,
       corps: { role: 'ARCHITECTE', estMandataireGeneral: true },
@@ -331,7 +323,7 @@ describe('annuaire des acteurs', () => {
     expect(premier.status).toBe(201);
 
     const second = await appel<{ message: string }>(
-      `/operations/${operationProbat}/acteurs/${geometre.id}`,
+      `/operations/${operationCb}/acteurs/${geometre.id}`,
       {
         methode: 'POST',
         token: christophe,
@@ -342,7 +334,7 @@ describe('annuaire des acteurs', () => {
     expect(second.body.message).toContain('mandataire général');
 
     // On repose l'état pour ne pas polluer les exécutions suivantes.
-    await appel(`/operations/${operationProbat}/acteurs/${architecte.id}`, {
+    await appel(`/operations/${operationCb}/acteurs/${architecte.id}`, {
       methode: 'POST',
       token: christophe,
       corps: { role: 'ARCHITECTE', estMandataireGeneral: false },
@@ -353,21 +345,21 @@ describe('annuaire des acteurs', () => {
 // =====================================================================
 
 describe('accès scopé par module sur le foncier', () => {
-  it("l'entreprise générale externe n'atteint pas le foncier de Probat", async () => {
+  it("l'entreprise générale externe n'atteint pas le foncier de CB Promotions", async () => {
     // Marc a OPERATE sur l'opération, mais son accès est restreint à
     // SOUMISSIONS, CONTRATS et DOCUMENTS.
-    const marcChezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
-    const res = await appel<{ message: string }>(`/operations/${operationProbat}/parcelles`, {
-      token: marcChezProbat,
+    const marcChezCb = await jetonPourEspace(COMPTES.marc, CB);
+    const res = await appel<{ message: string }>(`/operations/${operationCb}/parcelles`, {
+      token: marcChezCb,
     });
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('FONCIER');
   });
 
   it('ni les lots', async () => {
-    const marcChezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
-    const res = await appel(`/operations/${operationProbat}/registre-ppe`, {
-      token: marcChezProbat,
+    const marcChezCb = await jetonPourEspace(COMPTES.marc, CB);
+    const res = await appel(`/operations/${operationCb}/registre-ppe`, {
+      token: marcChezCb,
     });
     expect(res.status).toBe(403);
   });

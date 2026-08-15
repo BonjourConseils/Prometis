@@ -90,7 +90,7 @@ const seanceExemple = {
   ordreDuJour: null,
   notes: null,
   operationNom: 'Les Jardins de Prilly',
-  societeNom: 'Probat Promotions SA',
+  societeNom: 'CB Promotions SA',
 };
 
 describe('Rédaction du procès-verbal', () => {
@@ -98,14 +98,14 @@ describe('Rédaction du procès-verbal', () => {
     const pv = redigerPv(
       seanceExemple,
       [
-        { nom: 'Julie Renaud', organisation: 'Probat', present: true },
+        { nom: 'Julie Renaud', organisation: 'CB Promotions', present: true },
         { nom: 'Marc Girard', organisation: 'Constructa', present: false },
       ],
       [],
     );
     expect(pv).toContain('# Chantier #12 — Séance de chantier');
     expect(pv).toContain('12.08.2026');
-    expect(pv).toContain('- Julie Renaud (Probat)');
+    expect(pv).toContain('- Julie Renaud (CB Promotions)');
     expect(pv).toContain('**Excusés**');
     expect(pv).toContain('- Marc Girard (Constructa)');
   });

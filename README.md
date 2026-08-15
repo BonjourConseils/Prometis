@@ -29,9 +29,9 @@ commun `Prometis!2026` :
 
 | Compte | Ce qu'il montre |
 |---|---|
-| `christophe@probat.ch` | propriétaire : toutes les opérations, les droits d'accès, l'audit |
-| `julie@probat.ch` | cheffe de projet : une seule opération, confiée explicitement |
-| `m.girard@constructa.ch` | **deux sociétés** : propriétaire chez Constructa, externe scopé chez Probat |
+| `christophe@cbpromotions.ch` | propriétaire : toutes les opérations, les droits d'accès, l'audit |
+| `julie@cbpromotions.ch` | cheffe de projet : une seule opération, confiée explicitement |
+| `m.girard@constructa.ch` | **deux sociétés** : propriétaire chez Constructa, externe scopé chez CB Promotions |
 
 Vérification en ligne de commande :
 

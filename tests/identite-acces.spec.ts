@@ -1,6 +1,6 @@
 /**
  * Lot 1 — Definition of Done :
- *   « un compte Probat bascule entre deux sociétés isolées ;
+ *   « un compte CB Promotions bascule entre deux sociétés isolées ;
  *     une EG a un accès scopé par module. »
  *
  * Tests de bout en bout sur l'API HTTP réelle, adossée à la vraie base.
@@ -11,7 +11,7 @@ import {
   API,
   COMPTES,
   CONSTRUCTA,
-  PROBAT,
+  CB,
   apiDisponible,
   appel,
   connexion,
@@ -91,36 +91,36 @@ describe("le jeton d'identité seul n'ouvre aucune donnée métier", () => {
 describe('DoD — un compte bascule entre deux sociétés isolées', () => {
   it('Marc est membre de deux sociétés', async () => {
     const { workspaces } = await connexion(COMPTES.marc);
-    expect(workspaces.map((w) => w.societeId).sort()).toEqual([PROBAT, CONSTRUCTA].sort());
+    expect(workspaces.map((w) => w.societeId).sort()).toEqual([CB, CONSTRUCTA].sort());
 
-    const probat = workspaces.find((w) => w.societeId === PROBAT);
+    const cb = workspaces.find((w) => w.societeId === CB);
     const constructa = workspaces.find((w) => w.societeId === CONSTRUCTA);
-    expect(probat?.role).toBe('EXTERNE');
+    expect(cb?.role).toBe('EXTERNE');
     expect(constructa?.role).toBe('OWNER');
   });
 
   it('chaque espace ne montre que sa propre société', async () => {
-    const chezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const chezCb = await jetonPourEspace(COMPTES.marc, CB);
     const chezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
 
     const s1 = await appel<{ raisonSociale: string; profil: string }>('/societe', {
-      token: chezProbat,
+      token: chezCb,
     });
     const s2 = await appel<{ raisonSociale: string; profil: string }>('/societe', {
       token: chezConstructa,
     });
 
-    expect(s1.body.raisonSociale).toBe('Probat Promotions SA');
+    expect(s1.body.raisonSociale).toBe('CB Promotions SA');
     expect(s1.body.profil).toBe('PROMOTEUR');
     expect(s2.body.raisonSociale).toBe('Constructa Entreprise Générale SA');
     expect(s2.body.profil).toBe('ENTREPRISE_GENERALE');
   });
 
   it('les opérations ne se mélangent pas entre les deux espaces', async () => {
-    const chezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const chezCb = await jetonPourEspace(COMPTES.marc, CB);
     const chezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
 
-    const o1 = await appel<{ id: number; nom: string }[]>('/operations', { token: chezProbat });
+    const o1 = await appel<{ id: number; nom: string }[]>('/operations', { token: chezCb });
     const o2 = await appel<{ id: number; nom: string }[]>('/operations', { token: chezConstructa });
 
     expect(o1.body.map((o) => o.nom)).toEqual(['Les Jardins de Prilly']);
@@ -129,12 +129,11 @@ describe('DoD — un compte bascule entre deux sociétés isolées', () => {
 
   it("le jeton d'un espace n'atteint pas l'opération de l'autre", async () => {
     const chezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
-    const chezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const chezCb = await jetonPourEspace(COMPTES.marc, CB);
 
-    const idProbat = (await appel<{ id: number }[]>('/operations', { token: chezProbat })).body[0]!
-      .id;
+    const idCb = (await appel<{ id: number }[]>('/operations', { token: chezCb })).body[0]!.id;
 
-    const vol = await appel(`/operations/${idProbat}`, { token: chezConstructa });
+    const vol = await appel(`/operations/${idCb}`, { token: chezConstructa });
     expect(vol.status).toBe(404);
   });
 
@@ -170,19 +169,19 @@ describe('DoD — un compte bascule entre deux sociétés isolées', () => {
 
 describe('rôles au niveau du tenant', () => {
   it('un EXTERNE ne gère pas les droits de la société', async () => {
-    const token = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const token = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel<{ message: string }>('/acces/membres', { token });
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('OWNER, ADMIN');
   });
 
   it('un CHEF_PROJET non plus', async () => {
-    const token = await jetonPourEspace(COMPTES.julie, PROBAT);
+    const token = await jetonPourEspace(COMPTES.julie, CB);
     expect((await appel('/acces/membres', { token })).status).toBe(403);
   });
 
   it('un OWNER, oui — et il voit internes et externes', async () => {
-    const token = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const token = await jetonPourEspace(COMPTES.christophe, CB);
     const res = await appel<{ estExterne: boolean; compte: { email: string } }[]>(
       '/acces/membres',
       {
@@ -196,18 +195,18 @@ describe('rôles au niveau du tenant', () => {
   });
 
   it('le même compte change de droits selon la société', async () => {
-    // Marc est EXTERNE chez Probat et OWNER chez Constructa : c'est le même
+    // Marc est EXTERNE chez CB Promotions et OWNER chez Constructa : c'est le même
     // identifiant, et pourtant deux niveaux d'autorité distincts.
-    const chezProbat = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const chezCb = await jetonPourEspace(COMPTES.marc, CB);
     const chezConstructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
 
-    expect((await appel('/acces/membres', { token: chezProbat })).status).toBe(403);
+    expect((await appel('/acces/membres', { token: chezCb })).status).toBe(403);
     expect((await appel('/acces/membres', { token: chezConstructa })).status).toBe(200);
   });
 
   it('la piste d’audit est réservée à la direction', async () => {
-    const julie = await jetonPourEspace(COMPTES.julie, PROBAT);
-    const christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const julie = await jetonPourEspace(COMPTES.julie, CB);
+    const christophe = await jetonPourEspace(COMPTES.christophe, CB);
 
     expect((await appel('/audit-logs', { token: julie })).status).toBe(403);
     expect((await appel('/audit-logs', { token: christophe })).status).toBe(200);
@@ -218,7 +217,7 @@ describe('rôles au niveau du tenant', () => {
 
 describe('droits par opération (OperationAccess)', () => {
   it('un administrateur voit toutes les opérations sans droit ligne à ligne', async () => {
-    const token = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const token = await jetonPourEspace(COMPTES.christophe, CB);
     const droits = await appel<{ estAdministrateur: boolean; operations: unknown[] }>(
       '/acces/mes-droits',
       { token },
@@ -229,7 +228,7 @@ describe('droits par opération (OperationAccess)', () => {
   });
 
   it('un non-administrateur ne voit que les opérations qui lui sont confiées', async () => {
-    const token = await jetonPourEspace(COMPTES.julie, PROBAT);
+    const token = await jetonPourEspace(COMPTES.julie, CB);
     const droits = await appel<{
       estAdministrateur: boolean;
       operations: { nom: string; accessLevel: string }[];
@@ -242,7 +241,7 @@ describe('droits par opération (OperationAccess)', () => {
   });
 
   it('OPERATE suffit pour lire, pas pour gérer les droits', async () => {
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const operationId = (await appel<{ id: number }[]>('/operations', { token: marc })).body[0]!.id;
 
     // OPERATE ≥ READ_ONLY
@@ -256,7 +255,7 @@ describe('droits par opération (OperationAccess)', () => {
   });
 
   it('MANAGE permet de consulter les droits de l’opération', async () => {
-    const julie = await jetonPourEspace(COMPTES.julie, PROBAT);
+    const julie = await jetonPourEspace(COMPTES.julie, CB);
     const operationId = (await appel<{ id: number }[]>('/operations', { token: julie })).body[0]!
       .id;
     expect((await appel(`/acces/operations/${operationId}`, { token: julie })).status).toBe(200);
@@ -266,10 +265,10 @@ describe('droits par opération (OperationAccess)', () => {
     // Révéler l'existence d'une opération à qui n'y a pas droit est déjà
     // une fuite d'information.
     const constructa = await jetonPourEspace(COMPTES.marc, CONSTRUCTA);
-    const probat = await jetonPourEspace(COMPTES.christophe, PROBAT);
-    const idProbat = (await appel<{ id: number }[]>('/operations', { token: probat })).body[0]!.id;
+    const cb = await jetonPourEspace(COMPTES.christophe, CB);
+    const idCb = (await appel<{ id: number }[]>('/operations', { token: cb })).body[0]!.id;
 
-    const res = await appel(`/operations/${idProbat}`, { token: constructa });
+    const res = await appel(`/operations/${idCb}`, { token: constructa });
     expect(res.status).toBe(404);
   });
 });
@@ -278,7 +277,7 @@ describe('droits par opération (OperationAccess)', () => {
 
 describe('DoD — une EG a un accès scopé par module', () => {
   it("l'accès de l'EG est restreint à trois modules", async () => {
-    const token = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const token = await jetonPourEspace(COMPTES.marc, CB);
     const droits = await appel<{ operations: { modules: string[] }[] }>('/acces/mes-droits', {
       token,
     });
@@ -291,7 +290,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
   });
 
   it("un module hors périmètre est refusé, même avec le bon niveau d'accès", async () => {
-    const marc = await jetonPourEspace(COMPTES.marc, PROBAT);
+    const marc = await jetonPourEspace(COMPTES.marc, CB);
     const operationId = (await appel<{ id: number }[]>('/operations', { token: marc })).body[0]!.id;
 
     // ACTEURS n'est pas dans [SOUMISSIONS, CONTRATS, DOCUMENTS] : refus, alors
@@ -304,7 +303,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
   });
 
   it('un administrateur, lui, y accède', async () => {
-    const christophe = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const christophe = await jetonPourEspace(COMPTES.christophe, CB);
     const operationId = (await appel<{ id: number }[]>('/operations', { token: christophe }))
       .body[0]!.id;
 
@@ -315,7 +314,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
 
   it('une restriction vide ne restreint rien', async () => {
     // Julie a MANAGE avec `modules: []` — aucune restriction fine.
-    const julie = await jetonPourEspace(COMPTES.julie, PROBAT);
+    const julie = await jetonPourEspace(COMPTES.julie, CB);
     const operationId = (await appel<{ id: number }[]>('/operations', { token: julie })).body[0]!
       .id;
     expect((await appel(`/operations/${operationId}/acteurs`, { token: julie })).status).toBe(200);
@@ -339,7 +338,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
 
 describe('garde-fous sur la gestion des membres', () => {
   it('on ne modifie pas son propre accès', async () => {
-    const token = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const token = await jetonPourEspace(COMPTES.christophe, CB);
     const me = await appel<{ membership: { id: number } }>('/auth/me', { token });
 
     const res = await appel<{ message: string }>(`/acces/membres/${me.body.membership.id}`, {
@@ -353,7 +352,7 @@ describe('garde-fous sur la gestion des membres', () => {
   });
 
   it('un corps vide est rejeté', async () => {
-    const token = await jetonPourEspace(COMPTES.christophe, PROBAT);
+    const token = await jetonPourEspace(COMPTES.christophe, CB);
     const res = await appel('/acces/membres/2', { methode: 'PATCH', token, corps: {} });
     expect(res.status).toBe(400);
   });

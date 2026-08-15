@@ -38,7 +38,7 @@ export async function asTenant<T>(
   });
 }
 
-export const PROBAT = 1;
+export const CB = 1;
 export const CONSTRUCTA = 2;
 
 /**

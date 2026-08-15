@@ -20,13 +20,13 @@ export default function LoginPage() {
           <tbody>
             <tr>
               <td>
-                <code>christophe@probat.ch</code>
+                <code>christophe@cbpromotions.ch</code>
               </td>
-              <td>Propriétaire chez Probat</td>
+              <td>Propriétaire chez CB Promotions</td>
             </tr>
             <tr>
               <td>
-                <code>julie@probat.ch</code>
+                <code>julie@cbpromotions.ch</code>
               </td>
               <td>Cheffe de projet, accès à une opération</td>
             </tr>
@@ -34,7 +34,7 @@ export default function LoginPage() {
               <td>
                 <code>m.girard@constructa.ch</code>
               </td>
-              <td>Deux sociétés : propriétaire chez Constructa, externe chez Probat</td>
+              <td>Deux sociétés : propriétaire chez Constructa, externe chez CB Promotions</td>
             </tr>
           </tbody>
         </table>
