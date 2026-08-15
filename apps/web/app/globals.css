@@ -1,23 +1,160 @@
-:root {
-  --bg: #fbfaf8;
-  --fg: #1c1a17;
-  --muted: #6b665e;
-  --border: #e4e0d8;
-  --accent: #8a5a2b;
-  --ok: #2f6b46;
-  --ko: #9b2c2c;
-}
+/* =====================================================================
+ *  Prometis — feuille de style, sur le design system « PropFlow »
+ *
+ *  Les tokens sont ceux du prototype Claude Design (projet PropFlow
+ *  Design System), recopiés ici plutôt qu'importés d'un CDN : l'application
+ *  doit se servir hors ligne et sans dépendre d'un service tiers. Toute
+ *  divergence de valeur se tranche en faveur du prototype.
+ *
+ *  Le parti pris du système, à ne pas défaire : back-office calme et dense,
+ *  surfaces claires, **une seule** teinte de marque (pétrole), et une
+ *  structure portée par des filets de 1 px plutôt que par des ombres.
+ * ===================================================================== */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16150f;
-    --fg: #f0ede6;
-    --muted: #a29b8e;
-    --border: #322f27;
-    --accent: #d1a06a;
-    --ok: #6cbf8e;
-    --ko: #e08585;
-  }
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- Marque : pétrole ------------------------------------------------ */
+  --petrol-50: oklch(0.974 0.013 196);
+  --petrol-100: oklch(0.942 0.028 196);
+  --petrol-200: oklch(0.89 0.05 197);
+  --petrol-300: oklch(0.815 0.072 198);
+  --petrol-400: oklch(0.715 0.088 200);
+  --petrol-500: oklch(0.61 0.09 202);
+  --petrol-600: oklch(0.52 0.082 204);
+  --petrol-700: oklch(0.438 0.068 206);
+  --petrol-800: oklch(0.36 0.052 208);
+  --petrol-900: oklch(0.292 0.038 210);
+
+  /* ---- Neutres : ardoise chaude ---------------------------------------- */
+  --slate-0: oklch(1 0 0);
+  --slate-25: oklch(0.991 0.002 240);
+  --slate-50: oklch(0.978 0.003 240);
+  --slate-100: oklch(0.957 0.004 240);
+  --slate-150: oklch(0.93 0.005 240);
+  --slate-200: oklch(0.902 0.006 240);
+  --slate-300: oklch(0.848 0.008 240);
+  --slate-400: oklch(0.715 0.012 242);
+  --slate-500: oklch(0.605 0.014 244);
+  --slate-600: oklch(0.505 0.016 246);
+  --slate-700: oklch(0.412 0.018 248);
+  --slate-800: oklch(0.32 0.02 250);
+  --slate-900: oklch(0.248 0.022 252);
+  --slate-950: oklch(0.196 0.022 254);
+
+  /* ---- Statuts --------------------------------------------------------- */
+  --green-50: oklch(0.964 0.026 158);
+  --green-100: oklch(0.922 0.052 159);
+  --green-600: oklch(0.535 0.118 160);
+  --green-700: oklch(0.452 0.098 161);
+  --amber-50: oklch(0.972 0.034 85);
+  --amber-100: oklch(0.93 0.07 84);
+  --amber-500: oklch(0.76 0.14 78);
+  --amber-700: oklch(0.545 0.115 60);
+  --red-50: oklch(0.962 0.022 22);
+  --red-100: oklch(0.918 0.044 22);
+  --red-500: oklch(0.608 0.205 25);
+  --red-700: oklch(0.462 0.17 27);
+  --blue-50: oklch(0.964 0.024 250);
+  --blue-100: oklch(0.918 0.048 252);
+  --blue-600: oklch(0.51 0.15 254);
+
+  /* ---- Alias sémantiques ----------------------------------------------- */
+  --surface-app: var(--slate-25);
+  --surface-card: var(--slate-0);
+  --surface-sunken: var(--slate-50);
+  --surface-muted: var(--slate-100);
+  --surface-hover: var(--slate-100);
+  --surface-active: var(--slate-150);
+  --surface-ink: var(--slate-900);
+  --surface-ink-hover: var(--slate-800);
+  --surface-brand: var(--petrol-500);
+  --surface-brand-hover: var(--petrol-600);
+  --surface-brand-active: var(--petrol-700);
+  --surface-brand-subtle: var(--petrol-50);
+
+  --text-strong: var(--slate-900);
+  --text-body: var(--slate-700);
+  --text-muted: var(--slate-500);
+  --text-subtle: var(--slate-400);
+  --text-on-brand: var(--slate-0);
+  --text-on-ink: var(--slate-100);
+  --text-on-ink-muted: var(--slate-400);
+  --text-link: var(--petrol-600);
+
+  --border-subtle: var(--slate-150);
+  --border-default: var(--slate-200);
+  --border-strong: var(--slate-300);
+
+  --success-fg: var(--green-700);
+  --success-bg: var(--green-50);
+  --success-border: var(--green-100);
+  --warning-fg: var(--amber-700);
+  --warning-bg: var(--amber-50);
+  --warning-border: var(--amber-100);
+  --danger-fg: var(--red-700);
+  --danger-bg: var(--red-50);
+  --danger-border: var(--red-100);
+  --info-fg: var(--blue-600);
+  --info-bg: var(--blue-50);
+  --info-border: var(--blue-100);
+
+  --ring: 0 0 0 3px oklch(0.61 0.09 202 / 0.32);
+
+  /* ---- Typographie ------------------------------------------------------ */
+  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Les références, montants et codes passent en mono : « précision
+     notariale ». C'est un signal de lecture, pas une décoration. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --tracking-tight: -0.015em;
+  --tracking-caps: 0.06em;
+
+  /* ---- Espacements : grille de 4 px ------------------------------------ */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+
+  --sidebar-width: 248px;
+  --topbar-height: 60px;
+  --content-max: 1440px;
+  --content-pad: 28px;
+
+  /* ---- Rayons, ombres, mouvement --------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px oklch(0.248 0.022 252 / 0.06);
+  --shadow-sm: 0 1px 2px oklch(0.248 0.022 252 / 0.06), 0 1px 3px oklch(0.248 0.022 252 / 0.08);
+  --shadow-md: 0 2px 4px oklch(0.248 0.022 252 / 0.06), 0 4px 12px oklch(0.248 0.022 252 / 0.08);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
 }
 
 * {
@@ -26,425 +163,770 @@
 
 body {
   margin: 0;
-  padding: 3rem 1.5rem;
-  background: var(--bg);
-  color: var(--fg);
-  font:
-    16px/1.6 ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  background: var(--surface-app);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
 }
 
+/* =====================================================================
+ *  Coquille : sidebar encre à gauche, contenu à droite
+ * ===================================================================== */
+
 main {
-  max-width: 56rem;
-  margin: 0 auto;
+  /* La sidebar est en position fixe : le contenu lui laisse sa largeur. */
+  margin-left: var(--sidebar-width);
+  padding: var(--content-pad);
+  max-width: calc(var(--content-max) - var(--sidebar-width));
+}
+
+/* Les écrans hors session (connexion, choix d'espace) n'ont pas de sidebar. */
+main.etroit,
+main.sans-nav {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 460px;
+  padding: var(--space-11) var(--space-8);
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width);
+  background: var(--surface-ink);
+  color: var(--text-on-ink);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-7) 0 var(--space-6);
+  z-index: 10;
+}
+
+.app-sidebar .marque {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-7) var(--space-8);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--slate-0);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Le repère de marque : carré arrondi pétrole, blanc sur l'encre. */
+.app-sidebar .marque .mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--surface-brand);
+  display: grid;
+  place-items: center;
+  color: var(--text-on-brand);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  flex: none;
+}
+
+.app-sidebar .societe {
+  padding: 0 var(--space-7) var(--space-7);
+  border-bottom: 1px solid oklch(1 0 0 / 0.08);
+  margin-bottom: var(--space-6);
+}
+
+.app-sidebar .societe strong {
+  display: block;
+  color: var(--slate-0);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.app-sidebar .societe .meta {
+  color: var(--text-on-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.app-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-5);
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Icône puis libellé : `flex` et non `block`, sinon le SVG et le texte ne
+   s'alignent pas sur la même ligne de base. */
+.app-sidebar nav a,
+.app-sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  color: var(--text-on-ink);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.app-sidebar nav a:hover,
+.app-sidebar nav button:hover {
+  background: oklch(1 0 0 / 0.06);
+  text-decoration: none;
+}
+
+.app-sidebar nav svg {
+  flex: none;
+  color: var(--text-on-ink-muted);
+}
+
+.app-sidebar nav a.actif svg {
+  color: var(--text-on-brand);
+}
+
+/* Le pied de barre ne défile pas avec le menu : il reste sous la main. */
+.app-sidebar .pied nav {
+  flex: none;
+  overflow: visible;
+  padding: 0;
+}
+
+/* L'élément actif prend la teinte de marque — jamais un fond de page. */
+.app-sidebar nav a.actif {
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
+  font-weight: 600;
+}
+
+.app-sidebar .rubrique {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-on-ink-muted);
+  padding: var(--space-6) var(--space-5) var(--space-2);
+}
+
+.app-sidebar .pied {
+  padding: var(--space-5) var(--space-5) 0;
+  border-top: 1px solid oklch(1 0 0 / 0.08);
+  margin-top: var(--space-5);
+}
+
+/* =====================================================================
+ *  Titres et texte
+ * ===================================================================== */
+
+/* En-tête de page : le titre, et son contexte sur la MÊME ligne. Le
+   prototype ne met pas le nom de l'opération en dessous mais à côté, en
+   gris — on lit « Budget CFC · Les Jardins de Prilly » d'un seul regard. */
+.page-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  height: var(--topbar-height);
+  margin: 0 0 var(--space-7);
 }
 
 h1 {
-  font-size: 1.75rem;
-  letter-spacing: -0.02em;
-  margin: 0 0 0.25rem;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-strong);
+  margin: 0;
+}
+
+.page-header .contexte {
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+.page-header .contexte a {
+  color: inherit;
+}
+
+/* Titre de carte : lisible, pas une micro-capitale. Les capitales espacées
+   sont réservées aux étiquettes — en-têtes de colonne et libellés de KPI. */
+h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--text-strong);
+  margin: 0 0 var(--space-6);
+}
+
+h2 a {
+  color: inherit;
+}
+
+.eyebrow {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Barre de filtres : pastilles contournées, au-dessus d'un tableau. */
+.filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-6);
+}
+
+.filtre {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.filtre strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.titre {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-strong);
 }
 
 .lede {
-  color: var(--muted);
-  margin: 0 0 2.5rem;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-8);
 }
+
+.meta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-5);
+  max-width: 78ch;
+}
+
+a {
+  color: var(--text-link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Références, montants, codes : mono. */
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--surface-muted);
+  padding: 1px var(--space-3);
+  border-radius: var(--radius-xs);
+  color: var(--text-body);
+}
+
+.ok {
+  color: var(--success-fg);
+}
+
+.ko {
+  color: var(--danger-fg);
+}
+
+/* =====================================================================
+ *  Cartes
+ * ===================================================================== */
 
 section {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 1.25rem 1.5rem;
-  margin-bottom: 1.25rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: var(--space-7);
+  margin: 0 0 var(--space-6);
 }
 
-h2 {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin: 0 0 0.75rem;
-}
+/* =====================================================================
+ *  Tableaux — denses, structurés par des filets
+ * ===================================================================== */
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9375rem;
+  font-size: var(--text-sm);
 }
 
 th {
   text-align: left;
+  font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  padding: 0 0.75rem 0.5rem 0;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
 }
 
 td {
-  padding: 0.5rem 0.75rem 0.5rem 0;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-body);
+  vertical-align: top;
+}
+
+tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+/* Un tableau occupe toute la carte : ses filets vont d'un bord à l'autre. */
+section > table,
+section > .tableau-large {
+  margin-top: var(--space-6);
 }
 
 tr:last-child td {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
-code {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.875em;
-  background: color-mix(in srgb, var(--border) 55%, transparent);
-  padding: 0.1em 0.35em;
-  border-radius: 0.25rem;
-}
-
-.ok {
-  color: var(--ok);
+td strong {
+  color: var(--text-strong);
   font-weight: 600;
 }
 
-.ko {
-  color: var(--ko);
+/* Les colonnes de chiffres s'alignent à droite, en mono : c'est ce qui
+   permet de comparer deux montants d'un coup d'œil. */
+th.droite,
+td.droite,
+.droite {
+  text-align: right;
+}
+
+td.droite {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+td.droite.meta {
+  font-family: var(--font-sans);
+}
+
+tr.total td {
+  border-top: 1.5px solid var(--border-strong);
+  border-bottom: 0;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--surface-sunken);
+}
+
+tr.groupe td {
+  background: var(--surface-sunken);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+tr.attenue td {
+  color: var(--text-subtle);
+}
+
+tr.depassement td {
+  background: var(--danger-bg);
+}
+
+.tableau-large {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--space-7));
+  padding: 0 var(--space-7);
+}
+
+.tableau-large table {
+  min-width: 900px;
+}
+
+/* =====================================================================
+ *  Badges de statut
+ * ===================================================================== */
+
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  background: var(--surface-muted);
+  color: var(--text-body);
+  border: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+
+.badge.succes {
+  background: var(--success-bg);
+  color: var(--success-fg);
+  border-color: var(--success-border);
+}
+
+.badge.alerte {
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border-color: var(--warning-border);
+}
+
+.badge.danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border-color: var(--danger-border);
+}
+
+.badge.marque {
+  background: var(--surface-brand-subtle);
+  color: var(--petrol-700);
+  border-color: var(--petrol-100);
+}
+
+.badge.info {
+  background: var(--info-bg);
+  color: var(--info-fg);
+  border-color: var(--info-border);
+}
+
+/* =====================================================================
+ *  Indicateurs chiffrés
+ * ===================================================================== */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+}
+
+.kpi {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6) var(--space-7);
+}
+
+.kpi .etiquette {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* Le chiffre porte l'écran : grand et gras, mais en SANS — le prototype
+   réserve la chasse fixe aux références et aux montants de tableau, là où
+   l'alignement colonne par colonne compte. */
+.kpi .valeur {
+  display: block;
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  /* Un montant coupé en deux lignes ne se lit plus d'un coup d'œil : la
+     colonne s'élargit, le chiffre ne se replie pas. */
+  white-space: nowrap;
+}
+
+.kpi .precision {
+  display: block;
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.kpi.positif .valeur {
+  color: var(--success-fg);
+}
+
+.kpi.negatif .valeur {
+  color: var(--danger-fg);
+}
+
+/* =====================================================================
+ *  Fiche : listes étiquette / valeur
+ * ===================================================================== */
+
+.fiche dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-6) var(--space-8);
+  margin: 0;
+}
+
+.fiche dt {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.fiche dd {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+/* =====================================================================
+ *  Fil d'Ariane, onglets, puces
+ * ===================================================================== */
+
+.fil-ariane {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-5);
+}
+
+.fil-ariane span {
+  color: var(--text-subtle);
+  margin: 0 var(--space-3);
+}
+
+.onglets {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+  margin: 0 0 var(--space-7);
+}
+
+.onglet {
+  padding: var(--space-4) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.onglet:hover {
+  color: var(--text-body);
+  text-decoration: none;
+}
+
+.onglet.actif {
+  color: var(--petrol-600);
+  border-bottom-color: var(--surface-brand);
   font-weight: 600;
 }
 
-main.etroit {
-  max-width: 32rem;
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 0.8125rem;
-}
-
-.note {
-  color: var(--muted);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-/* --- En-tête applicatif --------------------------------------------- */
-
-.app-header {
+.puces {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  align-items: baseline;
-  justify-content: space-between;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
 }
 
-.app-header .identite {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
+.puce {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
 }
 
-.app-header nav {
-  display: flex;
-  gap: 1.25rem;
-  align-items: baseline;
-  font-size: 0.9375rem;
+.puce.accent {
+  background: var(--surface-brand-subtle);
+  color: var(--petrol-700);
+  border-color: var(--petrol-100);
 }
 
-.app-header nav a,
-button.lien {
-  color: var(--muted);
-  text-decoration: none;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-}
-
-.app-header nav a:hover,
-button.lien:hover {
-  color: var(--fg);
-  text-decoration: underline;
-}
-
-.app-header nav a.actif {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-/* --- Formulaires ----------------------------------------------------- */
+/* =====================================================================
+ *  Formulaires
+ * ===================================================================== */
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-6);
 }
 
 .form label {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  color: var(--muted);
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-body);
 }
 
-.form input {
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: var(--bg);
-  color: var(--fg);
+.form input,
+.form select {
   font: inherit;
+  font-size: var(--text-base);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.form input:focus-visible,
-.espaces button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.form input:focus,
+.form select:focus {
+  outline: none;
+  border-color: var(--petrol-500);
+  box-shadow: var(--ring);
 }
 
-.form button[type='submit'] {
-  align-self: flex-start;
-  padding: 0.5rem 1.125rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.375rem;
-  background: var(--accent);
-  color: var(--bg);
-  font: inherit;
+button {
+  font-family: inherit;
+}
+
+.form button[type='submit'],
+button.principal {
+  font-size: var(--text-base);
   font-weight: 600;
+  padding: var(--space-5) var(--space-7);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-brand);
+  color: var(--text-on-brand);
   cursor: pointer;
+  align-self: flex-start;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
-.form button[type='submit']:disabled {
-  opacity: 0.6;
-  cursor: progress;
+.form button[type='submit']:hover:not(:disabled),
+button.principal:hover:not(:disabled) {
+  background: var(--surface-brand-hover);
 }
 
-/* --- Sélecteur d'espace de travail ----------------------------------- */
+.form button[type='submit']:active:not(:disabled) {
+  background: var(--surface-brand-active);
+}
+
+.form button[type='submit']:disabled,
+button.principal:disabled {
+  background: var(--surface-active);
+  color: var(--text-subtle);
+  cursor: not-allowed;
+}
+
+/* Boutons secondaires : contour, jamais un aplat concurrent de la marque. */
+section > button:not(.principal),
+.form button[type='button']:not(.lien) {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+section > button:not(.principal):hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+section > button:disabled {
+  color: var(--text-subtle);
+  cursor: not-allowed;
+}
+
+button.lien {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-link);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+button.lien:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
+/* =====================================================================
+ *  Sélecteur d'espace de travail
+ * ===================================================================== */
 
 .espaces {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-5);
 }
 
 .espaces button {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
   text-align: left;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
+  padding: var(--space-6) var(--space-7);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
   cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
 }
 
 .espaces button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--petrol-300);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .espaces .titre {
+  display: block;
+  font-size: var(--text-md);
   font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: var(--space-2);
 }
 
 .espaces .meta {
-  color: var(--muted);
-  font-size: 0.8125rem;
+  display: block;
 }
 
-/* --- Puces de modules ------------------------------------------------ */
-
-.puces {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-}
-
-.puce {
-  font-size: 0.75rem;
-  padding: 0.1875rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-}
-
-.puce.accent {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* --- Navigation et liens en tableau ---------------------------------- */
-
-.fil-ariane {
-  font-size: 0.875rem;
-  color: var(--muted);
-  margin-bottom: 1.25rem;
-}
-
-.fil-ariane a,
-td a {
-  color: var(--fg);
-  text-decoration: none;
-  border-bottom: 1px solid var(--border);
-}
-
-.fil-ariane a:hover,
-td a:hover {
-  border-bottom-color: var(--accent);
-}
-
-.fil-ariane span {
-  margin: 0 0.375rem;
-  color: var(--border);
-}
-
-th.droite,
-td.droite {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-tr.total td {
-  border-top: 1px solid var(--border);
-  border-bottom: none;
-  font-weight: 600;
-}
-
-.badge {
-  display: inline-block;
-  margin-left: 0.5rem;
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.125rem 0.4375rem;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  color: var(--accent);
-}
-
-/* --- Fiche : liste de définitions ------------------------------------ */
-
-.fiche dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.375rem 1.5rem;
-  margin: 0 0 1rem;
-  font-size: 0.9375rem;
-}
-
-.fiche dt {
-  color: var(--muted);
-}
-
-.fiche dd {
-  margin: 0;
-}
-
-/* --- Indicateurs du bilan promoteur ---------------------------------- */
-
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.kpi {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1875rem;
-  padding: 0.875rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-}
-
-.kpi .etiquette {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-
-.kpi .valeur {
-  font-size: 1.25rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.kpi.positif {
-  border-color: var(--ok);
-}
-
-.kpi.positif .valeur {
-  color: var(--ok);
-}
-
-.kpi.negatif {
-  border-color: var(--ko);
-}
-
-.kpi.negatif .valeur {
-  color: var(--ko);
-}
-
-/* --- Écran budget : arbre large et onglets de version ----------------- */
+/* =====================================================================
+ *  Largeurs
+ * ===================================================================== */
 
 main.large {
-  max-width: 72rem;
-}
-
-.tableau-large {
-  overflow-x: auto;
-}
-
-.tableau-large table {
-  min-width: 46rem;
-}
-
-tr.groupe td {
-  font-weight: 600;
-  background: color-mix(in srgb, var(--border) 22%, transparent);
-}
-
-tr.attenue td {
-  color: var(--muted);
-}
-
-tr.depassement td {
-  background: color-mix(in srgb, var(--ko) 10%, transparent);
-  font-weight: 600;
-}
-
-.onglets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.onglet {
-  padding: 0.4375rem 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  text-decoration: none;
-  color: var(--muted);
-  font-size: 0.9375rem;
-}
-
-.onglet:hover {
-  border-color: var(--accent);
-}
-
-.onglet.actif {
-  border-color: var(--accent);
-  color: var(--fg);
-  font-weight: 600;
+  max-width: none;
 }

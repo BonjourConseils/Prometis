@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { chf, montant } from '../../../../lib/format';
 
 interface Colonnes {
@@ -74,6 +75,8 @@ export default async function BudgetPage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'budget';
   const { versionId } = await searchParams;
 
   const me = await apiGet<Me>('/auth/me');
@@ -89,7 +92,7 @@ export default async function BudgetPage({
   if (vue === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Budget CFC</h2>
           <p>
@@ -106,7 +109,12 @@ export default async function BudgetPage({
 
   return (
     <main className="large">
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Budget CFC"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../lib/session';
 import { AppHeader, type Me } from '../../components/app-header';
+import { PageHeader } from '../../components/page-header';
 import { GROUPES_CFC, chf, date, lisible, montant, nombre, pourcentage } from '../../../lib/format';
 
 interface Operation {
@@ -58,6 +59,8 @@ export default async function FicheOperation({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'operations';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -76,7 +79,12 @@ export default async function FicheOperation({
 
   return (
     <main>
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Fiche opération"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span> {operation.nom}

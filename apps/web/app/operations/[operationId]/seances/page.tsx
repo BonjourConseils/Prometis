@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { date, lisible } from '../../../../lib/format';
 
 interface Seance {
@@ -55,6 +56,8 @@ export default async function SeancesPage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'seances';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -70,7 +73,7 @@ export default async function SeancesPage({
   if (seances === null || actions === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Séances &amp; PV</h2>
           <p>
@@ -84,12 +87,14 @@ export default async function SeancesPage({
 
   return (
     <main>
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Séances & PV"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <section>
-        <h2>
-          <Link href={`/operations/${operation.id}`}>{operation.nom}</Link> — séances &amp; PV
-        </h2>
         <p className="note">
           {seances.length} séance{seances.length > 1 ? 's' : ''} · {actions.total} action
           {actions.total > 1 ? 's' : ''} ouverte{actions.total > 1 ? 's' : ''}

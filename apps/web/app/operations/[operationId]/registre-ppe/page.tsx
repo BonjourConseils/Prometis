@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { lisible, nombre } from '../../../../lib/format';
 
 interface RegistrePpe {
@@ -59,6 +60,8 @@ export default async function RegistrePpePage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'ppe';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -73,7 +76,7 @@ export default async function RegistrePpePage({
   if (registre === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Registre PPE</h2>
           <p>
@@ -87,7 +90,12 @@ export default async function RegistrePpePage({
 
   return (
     <main>
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Registre PPE"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}

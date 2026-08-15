@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { chf, montant } from '../../../../lib/format';
 
 interface Colonnes {
@@ -56,6 +57,8 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'ecarts';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -68,7 +71,7 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
   if (vue === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Écarts</h2>
           <p>Votre accès à cette opération ne couvre pas le budget.</p>
@@ -84,7 +87,12 @@ export default async function EcartsPage({ params }: { params: Promise<{ operati
 
   return (
     <main className="large">
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Écarts"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}

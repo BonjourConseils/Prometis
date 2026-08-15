@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { chf, date, lisible, montant, pourcentage } from '../../../../lib/format';
 
 interface Mandat {
@@ -62,6 +63,8 @@ export default async function CourtagePage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'courtage';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -77,7 +80,7 @@ export default async function CourtagePage({
   if (mandats === null || commissions === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Courtage</h2>
           <p>
@@ -95,12 +98,14 @@ export default async function CourtagePage({
 
   return (
     <main>
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Courtage"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <section>
-        <h2>
-          <Link href={`/operations/${operation.id}`}>{operation.nom}</Link> — courtage
-        </h2>
         <p className="note">
           {mandats.length} mandat{mandats.length > 1 ? 's' : ''} · {commissions.length} commission
           {commissions.length > 1 ? 's' : ''} constatée{commissions.length > 1 ? 's' : ''} ·{' '}

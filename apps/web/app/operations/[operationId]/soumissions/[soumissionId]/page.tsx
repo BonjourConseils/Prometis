@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../../lib/session';
 import { AppHeader, type Me } from '../../../../components/app-header';
+import { PageHeader } from '../../../../components/page-header';
 import { chf, date, montant, pourcentage } from '../../../../../lib/format';
 
 interface OffreComparee {
@@ -55,6 +56,8 @@ export default async function ComparaisonPage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId, soumissionId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'soumissions';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -68,7 +71,7 @@ export default async function ComparaisonPage({
   if (c === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Comparaison des offres</h2>
           <p>Votre accès à cette opération ne couvre pas les soumissions.</p>
@@ -83,7 +86,12 @@ export default async function ComparaisonPage({
 
   return (
     <main className="large">
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Soumissions"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}

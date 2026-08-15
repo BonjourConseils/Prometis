@@ -18,18 +18,25 @@ const DECIMAL = new Intl.NumberFormat('fr-CH', {
   maximumFractionDigits: 3,
 });
 
-/** « 12180000 » → « 12 180 000 CHF ». */
+/**
+ * Montant en francs, à la suisse : « 18 420 000.— ».
+ *
+ * Le `.—` n'est pas une coquetterie : c'est la manière dont un acte, une
+ * facture et un décompte de régie écrivent un montant rond en Suisse
+ * romande. Le prototype l'emploie partout, et un promoteur le lit comme la
+ * marque d'un chiffre définitif.
+ */
 export function chf(valeur: string | number | null | undefined): string {
   if (valeur === null || valeur === undefined || valeur === '') return '—';
   const n = Number(valeur);
-  return Number.isFinite(n) ? `${CHF.format(n)} CHF` : '—';
+  return Number.isFinite(n) ? `CHF ${CHF.format(n)}.—` : '—';
 }
 
 /** Sans l'unité, pour les tableaux où la colonne la porte déjà. */
 export function montant(valeur: string | number | null | undefined): string {
   if (valeur === null || valeur === undefined || valeur === '') return '—';
   const n = Number(valeur);
-  return Number.isFinite(n) ? CHF.format(n) : '—';
+  return Number.isFinite(n) ? `${CHF.format(n)}.—` : '—';
 }
 
 /** Surfaces, millièmes, nombres de pièces. */

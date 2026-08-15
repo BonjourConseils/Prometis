@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { date, lisible, montant } from '../../../../lib/format';
 
 interface Facture {
@@ -55,6 +56,8 @@ export default async function FacturesPage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'factures';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -67,7 +70,7 @@ export default async function FacturesPage({
   if (factures === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Factures</h2>
           <p>Votre accès à cette opération ne couvre pas les factures.</p>
@@ -80,7 +83,12 @@ export default async function FacturesPage({
 
   return (
     <main className="large">
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Factures"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}

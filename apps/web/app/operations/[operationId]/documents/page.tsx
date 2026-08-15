@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { date, lisible } from '../../../../lib/format';
 
 interface Document {
@@ -51,6 +52,8 @@ export default async function DocumentsPage({
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'documents';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -63,7 +66,7 @@ export default async function DocumentsPage({
   if (documents === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Documents</h2>
           <p>
@@ -86,12 +89,14 @@ export default async function DocumentsPage({
 
   return (
     <main>
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Documents"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <section>
-        <h2>
-          <Link href={`/operations/${operation.id}`}>{operation.nom}</Link> — documents
-        </h2>
         <p className="note">
           {documents.length} document{documents.length > 1 ? 's' : ''} dans leur version courante.
           {partages.length > 0 && (

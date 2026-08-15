@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
+import { PageHeader } from '../../../components/page-header';
 import { chf, lisible, montant, nombre } from '../../../../lib/format';
 
 interface Parking {
@@ -57,6 +58,8 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
   if (!lirePayload(token)?.sid) redirect('/espaces');
 
   const { operationId } = await params;
+  // Repère de l'entrée active dans la navigation latérale.
+  const ongletActif = 'lots';
 
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
@@ -72,7 +75,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
   if (biens === null) {
     return (
       <main>
-        <AppHeader me={me} actif="operations" />
+        <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
         <section>
           <h2>Lots &amp; acquéreurs</h2>
           <p>Votre accès à cette opération ne couvre pas les lots.</p>
@@ -91,7 +94,12 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
 
   return (
     <main className="large">
-      <AppHeader me={me} actif="operations" />
+      <AppHeader me={me} actif={ongletActif} operationId={Number(operationId)} />
+
+      <PageHeader
+        titre="Lots & acquéreurs"
+        contexte={<Link href={`/operations/${operationId}`}>{operation.nom}</Link>}
+      />
 
       <div className="fil-ariane">
         <Link href="/">Opérations</Link> <span aria-hidden="true">›</span>{' '}
