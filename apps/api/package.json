@@ -27,6 +27,7 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "@types/nodemailer": "^8.0.1"
   }
 }

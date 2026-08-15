@@ -10,19 +10,22 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 7 livrés** (14 août 2026) · **327 tests verts** · dépôt
+**Lots 0 à 8 livrés — le MVP est complet** (15 août 2026) · **377 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
 poste CFC par poste CFC. Le moteur d'appels de fonds tourne, idempotent, avec référence QR suisse
 et envoi e-mail redirigé. La **passerelle Kolabimo** est en place dans les deux sens : webhooks
-entrants signés et dédoublonnés, boîte d'envoi sortante rejouable.
+entrants signés et dédoublonnés, boîte d'envoi sortante rejouable. Les modules annexes
+(GED versionnée, séances & PV, courtage, trésorerie) closent le périmètre MVP.
 
-**Prochain : Lot 8 — modules annexes** (GED, séances & PV, courtage, trésorerie).
+**Prochain : durcissement et pilotes.** Le backlog MVP est épuisé ; la suite est la V2
+(portail acquéreur, signature QES, intégrations comptables et bancaires, import CAN/NPK) —
+à n'engager qu'après les jalons de validation sur promotions réelles.
 
 `references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
 avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
-circuit multi-approbateurs, identifiants Kolabimo par société. Aucun n'est un oubli : chacun
+circuit multi-approbateurs, identifiants Kolabimo par société, object storage suisse. Aucun n'est un oubli : chacun
 attend un arbitrage, et le code est écrit pour l'accueillir. Ne pas en « débloquer » un en
 contournant le schéma.
 
@@ -383,6 +386,57 @@ message.
 et ne tente rien. C'est ce qui permet de développer et de tester la passerelle entière sans compte
 Kolabimo. Limite assumée : ces deux variables sont globales à l'instance — deux sociétés Prometis
 parlant à deux comptes Kolabimo distincts demanderont un champ de schéma ou un coffre.
+
+## 4 undecies. Modules annexes (Lot 8)
+
+**Stockage : un seul point de sortie, comme les e-mails.** `StockageService` est le seul à
+toucher un support physique. Deux transports : `local` (défaut, écrit sous
+`STOCKAGE_LOCAL_DIR`, **refusé en production** — le disque d'un conteneur n'est pas durable)
+et `s3`, déclaré mais qui lève, parce que choisir l'hébergeur engage la localisation des
+données au sens de la nLPD. En changer ne doit toucher qu'un fichier.
+
+**Le nom d'un fichier vient d'un utilisateur.** `chemin.ts` est pur et testé : le nom
+d'origine reste en base pour l'affichage (`Document.fileName`), la **clé d'objet** est
+assainie, préfixée par la société et suffixée d'un UUID. `cleObjetSure()` revérifie ce qui
+vient de la base, et le service compare en plus le chemin **résolu** à la racine — c'est la
+seule vérification qui tienne quoi qu'on ait pu écrire auparavant.
+
+**GED : une version n'écrase jamais la précédente.** Nouvelle ligne, `parentDocumentId`
+pointant sur la **racine** (jamais sur un maillon, sinon les versions forment un arbre),
+ancien `isCourant` retombé à faux. Un plan remplacé reste la pièce sur laquelle une
+entreprise a chiffré son offre. D'où aussi le refus de supprimer un maillon isolé.
+
+**Rattachements : la RLS ne suffit pas.** Un document se rattache à l'un de onze parents ;
+chacun est vérifié comme appartenant à l'opération de la route (`verifierRattachements`).
+Sans ce contrôle, une pièce atterrirait dans le dossier d'une autre promotion de la même
+société. `Acteur` fait exception : il est au niveau de la société, et c'est voulu.
+
+**Téléchargement en `attachment`, jamais `inline`** : un SVG ou un HTML déposé par un tiers
+exécuterait son script dans l'origine de l'application.
+
+**PV : le service ne réécrit pas la GED.** `genererPv()` passe par `GedService`, donc mêmes
+droits, même versionnage, même audit. Rejouer produit une **version**, jamais un second
+document — un PV corrigé remplace le précédent, qui reste consultable parce qu'il a peut-être
+déjà été diffusé.
+
+**Courtage — deux pièges chiffrés** (`commission.ts`, pur) :
+- l'**assiette** : les prix de vente sont tenus hors taxe dans tout le produit ; un mandat
+  « sur le prix TTC » porte sur une assiette à reconstituer (× 1,081), pas sur le chiffre
+  stocké. Sur 850 000 à 3 %, l'oubli coûte 2 065.50 CHF au courtier ;
+- le **forfait ignore l'assiette** — 15 000 restent 15 000 quel que soit le prix du lot.
+
+Autres règles : une liste de lots vide ne couvre **rien** (pas « tout ») ; deux exclusivités
+sur un même lot sont refusées à la signature — c'est une commission payée deux fois ; une
+commission ne naît que sur une réservation **engagée**, et pas deux fois pour le même couple
+(mandat, réservation) — l'unicité n'est pas au schéma, elle est tenue par le service et par
+un test.
+
+**Trésorerie — la seule vue qui mélange HT et TTC, et c'est correct.** Elle additionne des
+**mouvements de caisse** (`Encaissement`, `PaiementFournisseur`), et un virement bancaire ne
+connaît pas la TVA. Elle ne se compare donc PAS à l'écran Écarts : elle répond à « ai-je de
+quoi payer la prochaine situation ? », lui à « suis-je dans mon budget ? ». Les engagements
+fournisseurs sont rendus à part, hors taxe, explicitement non additionnables aux flux.
+Les mois sans mouvement sont **comblés** : sauter de mars à juillet masquerait le creux.
 
 ## 4 quater. E-mails : un seul point de sortie
 

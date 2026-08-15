@@ -115,10 +115,16 @@ export default async function FicheOperation({
             <>
               {' '}
               · <Link href={`/operations/${operation.id}/lots`}>Lots &amp; acquéreurs</Link> ·{' '}
-              <Link href={`/operations/${operation.id}/appels-de-fonds`}>Appels de fonds</Link>
+              <Link href={`/operations/${operation.id}/appels-de-fonds`}>Appels de fonds</Link> ·{' '}
+              {/* Courtage et trésorerie relèvent de la surcouche promoteur :
+                  ils n'ont pas de sens sur un chantier piloté pour un tiers. */}
+              <Link href={`/operations/${operation.id}/courtage`}>Courtage</Link> ·{' '}
+              <Link href={`/operations/${operation.id}/tresorerie`}>Trésorerie</Link>
             </>
           )}{' '}
-          · <Link href={`/operations/${operation.id}/registre-ppe`}>Registre PPE</Link>
+          · <Link href={`/operations/${operation.id}/registre-ppe`}>Registre PPE</Link> ·{' '}
+          <Link href={`/operations/${operation.id}/documents`}>Documents</Link> ·{' '}
+          <Link href={`/operations/${operation.id}/seances`}>Séances &amp; PV</Link>
         </p>
       </section>
 

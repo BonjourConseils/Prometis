@@ -93,6 +93,38 @@ const LIBELLES: Record<string, string> = {
   MAITRE_OUVRAGE: "maître d'ouvrage",
   PILOTE: 'pilote',
   AUTRE: 'autre',
+  // Catégories de documents — la GED les affiche en titre de section.
+  ACTE_VENTE: 'acte de vente',
+  EXTRAIT_RF: 'extrait du registre foncier',
+  PPE_ACTE_CONSTITUTIF: 'acte constitutif de PPE',
+  PPE_REGLEMENT: 'règlement de PPE',
+  PPE_PLAN: 'plan de PPE',
+  MANDAT_COURTAGE: 'mandat de courtage',
+  PV_RECEPTION: 'PV de réception',
+  PV_SEANCE: 'PV de séance',
+  PHOTO_CHANTIER: 'photo de chantier',
+  // Types et statuts de séance
+  COPIL: 'comité de pilotage',
+  CLIENT_ACQUEREUR: 'client acquéreur',
+  PLANIFIEE: 'planifiée',
+  TENUE: 'tenue',
+  ANNULEE: 'annulée',
+  OUVERT: 'ouvert',
+  EN_COURS: 'en cours',
+  CLOS: 'clos',
+  // Courtage
+  TOUTE_OPERATION: "toute l'opération",
+  LOTS_SELECTIONNES: 'lots sélectionnés',
+  POURCENTAGE: 'pourcentage',
+  FORFAIT: 'forfait',
+  BROUILLON: 'brouillon',
+  SIGNE: 'signé',
+  ACTIF: 'actif',
+  TERMINE: 'terminé',
+  RESILIE: 'résilié',
+  DUE: 'due',
+  FACTUREE: 'facturée',
+  PAYEE: 'payée',
 };
 
 /** ENTREPRISE_GENERALE → « entreprise générale », CORPS_DETAT_SEPARES → « corps d'état séparés ». */

@@ -14,6 +14,9 @@ import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
 import { VentesModule } from './ventes/ventes.module';
 import { PasserelleModule } from './passerelle/passerelle.module';
+import { GedModule } from './ged/ged.module';
+import { SeancesModule } from './seances/seances.module';
+import { CourtageModule } from './courtage/courtage.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
@@ -32,6 +35,9 @@ import {
   PasserelleController,
   WebhooksKolabimoController,
 } from './passerelle/passerelle.controller';
+import { DocumentsController } from './ged/ged.controller';
+import { SeancesController } from './seances/seances.controller';
+import { CourtageController, TresorerieController } from './courtage/courtage.controller';
 
 @Module({
   imports: [
@@ -53,6 +59,9 @@ import {
     FacturesModule,
     VentesModule,
     PasserelleModule,
+    GedModule,
+    SeancesModule,
+    CourtageModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -88,6 +97,10 @@ export class AppModule implements NestModule {
       WebhooksKolabimoController,
       PasserelleController,
       OperationPasserelleController,
+      DocumentsController,
+      SeancesController,
+      CourtageController,
+      TresorerieController,
       AccesController,
       AuditController,
       MailController,

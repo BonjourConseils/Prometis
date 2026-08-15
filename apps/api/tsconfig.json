@@ -10,7 +10,10 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": "./",
-    "types": ["node"]
+    // `multer` déclare `Express.Multer.File` en ambiant : sans l'inscrire ici,
+    // la liste blanche des types le laisserait dehors et le dépôt de fichiers
+    // de la GED ne compilerait pas.
+    "types": ["node", "multer"]
   },
   "include": ["src/**/*.ts"]
 }

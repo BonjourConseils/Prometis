@@ -20,6 +20,9 @@
  *   · Immeuble A (12 lots) + Immeuble B (8 lots) = 20 lots PPE
  *   · parcelles 2841 / 2842
  */
+import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { config as loadDotenv } from 'dotenv';
@@ -46,6 +49,49 @@ if (!directUrl) {
 const prisma = new PrismaClient({ datasourceUrl: directUrl });
 
 const chf = (v: string | number) => new Prisma.Decimal(v);
+
+/**
+ * Dépose une pièce de démonstration : le fichier ET sa fiche.
+ *
+ * Le seed écrit vraiment sur le support de développement (`STOCKAGE_LOCAL_DIR`),
+ * en reproduisant la convention de clé de `apps/api/src/stockage/chemin.ts` :
+ * une fiche sans pièce donnerait une GED dont le téléchargement échoue, ce qui
+ * est pire qu'une GED vide.
+ */
+async function deposerDocumentDeDemo(
+  societeId: number,
+  operationId: number,
+  document: {
+    titre: string;
+    categorie: 'PLAN' | 'CONTRAT' | 'PV_SEANCE';
+    fileName: string;
+    contenu: string;
+    lotId?: number;
+    contratId?: number;
+    seanceId?: number;
+  },
+): Promise<void> {
+  const cle = `societes/${societeId}/operations/${operationId}/2026/${randomUUID()}-${document.fileName}`;
+  const chemin = resolve(process.env.STOCKAGE_LOCAL_DIR ?? './var/documents', cle);
+  await mkdir(dirname(chemin), { recursive: true });
+  await writeFile(chemin, document.contenu, 'utf8');
+
+  await prisma.document.create({
+    data: {
+      societeId,
+      operationId,
+      titre: document.titre,
+      categorie: document.categorie,
+      fileName: document.fileName,
+      filePath: cle,
+      mimeType: 'text/markdown',
+      fileSize: Buffer.byteLength(document.contenu, 'utf8'),
+      lotId: document.lotId ?? null,
+      contratId: document.contratId ?? null,
+      seanceId: document.seanceId ?? null,
+    },
+  });
+}
 
 // =====================================================================
 //  Remise à zéro
@@ -1107,6 +1153,144 @@ async function seedProbat(): Promise<void> {
       });
     }
   }
+
+  // --- Courtage --------------------------------------------------------
+  // Un mandat exclusif à 3 % sur le prix hors taxe. Sur le lot A02 vendu
+  // 850 000, la commission due est donc de 25 500 — le chiffre que l'écran
+  // Courtage doit afficher.
+  const courtier = await prisma.acteur.create({
+    data: {
+      societeId: societe.id,
+      type: 'COURTIER',
+      societeNom: 'Régie Lémanique SA',
+      nom: 'Perret',
+      prenom: 'Sandrine',
+      localite: 'Lausanne',
+      email: 's.perret@regie-lemanique.ch',
+      telephone: '+41 21 555 44 33',
+    },
+  });
+
+  const mandat = await prisma.mandatCourtage.create({
+    data: {
+      operationId: operation.id,
+      courtierActeurId: courtier.id,
+      commissionType: 'POURCENTAGE',
+      commissionPct: chf('3'),
+      assietteTtc: false,
+      perimetre: 'TOUTE_OPERATION',
+      exclusif: true,
+      dateSignature: new Date('2026-01-15'),
+      statut: 'ACTIF',
+      notes: 'Commercialisation des 20 lots PPE. Exclusivité jusqu’à la livraison.',
+    },
+  });
+
+  await prisma.commissionCourtage.create({
+    data: {
+      mandatCourtageId: mandat.id,
+      reservationId: reservationA02.id,
+      montant: prixTotalActeA02.times(3).dividedBy(100),
+      statut: 'DUE',
+      dateDue: new Date('2026-05-15'),
+      note: '3.00 % de 850000.00 CHF (prix total acte hors taxe)',
+    },
+  });
+
+  // --- Séance de chantier et points de suivi ---------------------------
+  const seance = await prisma.seance.create({
+    data: {
+      societeId: societe.id,
+      operationId: operation.id,
+      type: 'CHANTIER',
+      numero: 'Chantier #12',
+      titre: 'Séance de chantier hebdomadaire',
+      statut: 'TENUE',
+      date: new Date('2026-08-05'),
+      lieu: 'Prilly, bureau de chantier',
+      ordreDuJour: 'Avancement gros œuvre · étanchéité toiture · choix des revêtements.',
+      participants: {
+        create: [
+          { nom: 'Julie Favre', organisation: 'Probat Promotions SA', present: true },
+          {
+            acteurId: architecte.id,
+            nom: 'Léa Berger',
+            organisation: 'Atelier Berger',
+            present: true,
+          },
+          {
+            acteurId: acteurEg.id,
+            nom: 'Marc Girard',
+            organisation: 'Constructa EG SA',
+            present: false,
+          },
+        ],
+      },
+      points: {
+        create: [
+          {
+            ordre: 1,
+            titre: 'Étanchéité de la toiture',
+            contenu: 'Reprise du relevé en angle nord-est avant la pose des ferblanteries.',
+            responsable: 'Currat SA',
+            // Échéance dépassée : c'est le point qui doit ressortir « en
+            // retard » dans la vue des actions ouvertes.
+            echeance: new Date('2026-08-12'),
+            statut: 'OUVERT',
+          },
+          {
+            ordre: 2,
+            titre: 'Choix des revêtements de sol',
+            contenu: 'Trois échantillons présentés ; arbitrage attendu du promoteur.',
+            responsable: 'Probat',
+            echeance: new Date('2026-09-30'),
+            statut: 'EN_COURS',
+          },
+          {
+            ordre: 3,
+            titre: 'Raccordement provisoire du chantier',
+            contenu: 'Effectué le 2 août, conforme.',
+            statut: 'CLOS',
+          },
+        ],
+      },
+    },
+  });
+
+  // --- GED : deux pièces, fichier compris ------------------------------
+  // Le stockage local est le transport de développement : le seed y écrit
+  // vraiment, sinon l'écran afficherait des fiches sans pièce et le
+  // téléchargement échouerait.
+  await deposerDocumentDeDemo(societe.id, operation.id, {
+    titre: 'Plan du rez — Immeuble A',
+    categorie: 'PLAN',
+    fileName: 'plan-rez-immeuble-a.md',
+    lotId: lotsCrees.get('A02')!,
+    contenu:
+      '# Plan du rez — Immeuble A\n\n' +
+      'Pièce de démonstration. Un vrai plan serait ici un PDF ou un DWG.\n',
+  });
+
+  await deposerDocumentDeDemo(societe.id, operation.id, {
+    titre: 'Contrat de plâtrerie C-2026-014',
+    categorie: 'CONTRAT',
+    fileName: 'contrat-c-2026-014.md',
+    contratId: contratPlatrerie.id,
+    contenu:
+      '# Contrat C-2026-014 — Plâtrerie\n\n' +
+      'Entreprise : Currat SA · Montant : 372 500 CHF HT · SIA 118.\n',
+  });
+
+  await deposerDocumentDeDemo(societe.id, operation.id, {
+    titre: 'PV — Chantier #12',
+    categorie: 'PV_SEANCE',
+    fileName: 'pv-chantier-12.md',
+    seanceId: seance.id,
+    contenu:
+      '# Chantier #12 — Séance de chantier hebdomadaire\n\n' +
+      'Procès-verbal de démonstration. Le régénérer depuis l’écran Séances\n' +
+      'produira une version 2 rédigée par l’application.\n',
+  });
 
   // --- Comptes et droits ----------------------------------------------
   const empreinte = await hash(MOT_DE_PASSE_DEV, ARGON2);

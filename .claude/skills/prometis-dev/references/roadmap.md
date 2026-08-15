@@ -1,6 +1,6 @@
 # Roadmap, lots et versions
 
-## Où en est le développement (14 août 2026)
+## Où en est le développement (15 août 2026)
 
 | Lot | État | Ce qui existe |
 |---|---|---|
@@ -12,9 +12,10 @@
 | **5** Factures & écarts | ✅ livré | lecture des champs, rapprochement CFC, contrôle du cumul, écran Écarts |
 | **6** Ventes & appels de fonds | ✅ livré | réservations à prix figé, échéancier, **moteur idempotent + QR + e-mail** |
 | **7** Passerelle Kolabimo | ✅ livré | webhooks signés + dédoublonnés, boîte d'envoi rejouable, journal étanche |
-| **8** Modules annexes | ⬜ à faire | GED, séances & PV, courtage, trésorerie |
+| **8** Modules annexes | ✅ livré | GED versionnée, séances & PV, courtage, trésorerie |
 
-**327 tests verts**, suite idempotente (elle peut être relancée sans reseed).
+**377 tests verts**, suite idempotente (elle peut être relancée sans reseed).
+**Le périmètre MVP est épuisé** : la suite est la V2, à n'engager qu'après les jalons pilotes.
 Dépôt : https://github.com/BonjourConseils/Prometis — un commit par lot, message détaillé.
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -37,6 +38,8 @@ l'accueillir sans réécriture.
 | **Identifiants Kolabimo par société** | une seule paire URL/clé par instance ; il faudrait un champ de schéma ou un coffre | `KOLABIMO_API_URL` / `KOLABIMO_API_KEY` |
 | **Séparation identifiant / secret de signature** | `ApiKey` ne porte qu'un champ `key`, qui sert des deux côtés | `signature.ts`, un seul secret à échanger |
 | **`GET /promotions/:id/echeancier` côté Kolabimo** | endpoint à écrire dans l'autre dépôt | `KolabimoClient.lireEcheancier()` prêt à l'appeler |
+| **Object storage suisse (S3)** | choix de l'hébergeur — engage la localisation des données (nLPD) | `STOCKAGE_TRANSPORT=local`, un seul fichier à changer |
+| **PV en PDF mis en page** | choix d'un moteur de rendu, même décision que la QR-facture | `pv.ts` produit du Markdown, lisible tel quel |
 
 Ne pas « débloquer » l'un de ces points en contournant le schéma ou en branchant un fournisseur
 sans arbitrage : c'est précisément ce que ces lignes servent à empêcher.
@@ -121,9 +124,17 @@ livrée après le commit ; reprise tirée `POST /operations/:id/passerelle/impor
 d'un rejeu et l'étanchéité du journal entre tenants) ; un jalon terminé dépose son événement pour
 la trésorerie Kolabimo, même passerelle non configurée.
 
-### Lot 8 — Modules annexes
+### Lot 8 — Modules annexes ✅
 GED (`Document` versionnée), Séances & PV, Courtage, Trésorerie.
-**Done** : chaque écran restant du prototype est fonctionnel.
+**Done, vérifié** : les quatre écrans restants du prototype sont fonctionnels et alimentés par
+le seed. 50 tests, dont l'assainissement des chemins de fichier, le versionnage qui n'écrase
+jamais, l'assiette TTC d'une commission, et le comblement des mois sans mouvement.
+
+Livré : `StockageService` à point de sortie unique (transport `local` en développement, refusé
+en production) ; GED versionnée avec rattachement à l'un des onze parents, contrôlé contre
+l'opération de la route ; séances, participants, points d'action et **génération du PV déposée
+en GED** ; mandats de courtage avec périmètre, exclusivité contrôlée et calcul de commission
+pur ; trésorerie consolidée mois par mois avec position, creux et créances attendues.
 
 ## V2 / V3
 

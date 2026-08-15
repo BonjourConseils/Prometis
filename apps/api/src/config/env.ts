@@ -76,6 +76,19 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
 
+  // --- Stockage des documents (GED) ------------------------------------
+  /**
+   * `local` écrit sous `STOCKAGE_LOCAL_DIR` — le défaut, et le seul
+   * implémenté : il permet de développer et de tester la GED sans compte
+   * object storage. Refusé en production, où le disque d'un conteneur n'est
+   * pas un stockage durable.
+   *
+   * `s3` est déclaré mais lève : choisir l'hébergeur (Exoscale, Infomaniak)
+   * engage la localisation des données au sens de la nLPD.
+   */
+  STOCKAGE_TRANSPORT: z.enum(['local', 's3']).default('local'),
+  STOCKAGE_LOCAL_DIR: z.string().default('./var/documents'),
+
   // --- Passerelle Kolabimo ---------------------------------------------
   /**
    * Base de l'API v1 de Kolabimo, par exemple `https://app.kolabimo.ch`.

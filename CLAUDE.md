@@ -94,15 +94,19 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 
 ## 8 bis. Où en est le développement
 
-**Lots 0 à 7 livrés** (14 août 2026) — 327 tests verts — dépôt
-[BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
-Le fil rouge financier est complet, le moteur d'appels de fonds tourne, et la passerelle
-Kolabimo circule dans les deux sens (webhooks signés et dédoublonnés, boîte d'envoi rejouable).
-**Prochain : Lot 8, modules annexes — GED, séances & PV, courtage, trésorerie.**
+**Lots 0 à 8 livrés — le périmètre MVP est complet** (15 août 2026) — 377 tests verts —
+dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
+Le fil rouge financier est complet, le moteur d'appels de fonds tourne, la passerelle
+Kolabimo circule dans les deux sens, et les modules annexes (GED versionnée, séances & PV,
+courtage, trésorerie) closent le backlog.
+**Prochain : durcissement et jalons pilotes**, puis la V2 (portail acquéreur, signature QES,
+intégrations comptables et bancaires) — à n'engager qu'après validation sur des promotions
+réelles.
 
 État détaillé lot par lot, et surtout **la liste des sujets non livrés avec leur cause**
 (OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère, identifiants
-Kolabimo par société) : `.claude/skills/prometis-dev/references/roadmap.md`.
+Kolabimo par société, object storage suisse) :
+`.claude/skills/prometis-dev/references/roadmap.md`.
 
 Reprendre sur une machine propre :
 `npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier`.
