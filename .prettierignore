@@ -4,3 +4,6 @@ dist/
 coverage/
 prisma/migrations/
 *.md
+
+# Généré par Next à chaque build : son formatage ne nous appartient pas.
+apps/web/next-env.d.ts
