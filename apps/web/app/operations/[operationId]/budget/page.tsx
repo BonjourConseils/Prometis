@@ -116,11 +116,10 @@ export default async function BudgetPage({
 
   // Liste plate des postes, pour les listes déroulantes de saisie : on ne
   // choisit pas un poste CFC dans un arbre replié.
-  const postes = lignes.map(({ noeud, profondeur }) => ({
+  const postes = lignes.map(({ noeud }) => ({
     id: noeud.id,
     code: noeud.code,
     libelle: noeud.libelle,
-    niveau: profondeur + 1,
   }));
 
   return (

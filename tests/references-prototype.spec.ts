@@ -158,11 +158,22 @@ describe('arbre CFC', () => {
     expect(node.parent?.code).toBe('232');
   });
 
-  it('une seule version de budget est courante', async () => {
-    const courantes = await asTenant(CB, (tx) =>
-      tx.budgetVersion.count({ where: { isCourant: true } }),
+  // L'invariant est « une version courante **par promotion** » : deux
+  // promotions ont chacune la leur. Compter à l'échelle de la société ferait
+  // échouer ce test au premier budget adopté sur une seconde opération —
+  // c'est-à-dire à l'usage normal du produit.
+  it('chaque promotion a au plus une version de budget courante', async () => {
+    const parOperation = await asTenant(CB, (tx) =>
+      tx.budgetVersion.groupBy({
+        by: ['operationId'],
+        where: { isCourant: true },
+        _count: { _all: true },
+      }),
     );
-    expect(courantes).toBe(1);
+    expect(parOperation.length).toBeGreaterThan(0);
+    for (const groupe of parOperation) {
+      expect(groupe._count._all).toBe(1);
+    }
   });
 
   it('la provision pour imprévus est marquée comme réserve', async () => {

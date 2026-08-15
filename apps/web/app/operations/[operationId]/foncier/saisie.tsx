@@ -1,8 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { appelApi, champ } from '../../../../lib/api-client';
+import { type FormEvent } from 'react';
+import { champ } from '../../../../lib/api-client';
+import { Repliable, useEnvoi } from '../../../components/formulaire';
 
 /**
  * Formulaires de saisie du foncier.
@@ -17,54 +17,6 @@ import { appelApi, champ } from '../../../../lib/api-client';
  * donc l'écran montre ce que la base contient réellement — pas un état
  * local qu'on croirait à jour.
  */
-function Repliable({
-  libelle,
-  children,
-}: {
-  libelle: string;
-  children: (fermer: () => void) => ReactNode;
-}) {
-  const [ouvert, setOuvert] = useState(false);
-
-  if (!ouvert) {
-    return (
-      <button type="button" onClick={() => setOuvert(true)}>
-        {libelle}
-      </button>
-    );
-  }
-  return (
-    <div className="saisie">
-      {children(() => setOuvert(false))}
-      <button type="button" className="lien" onClick={() => setOuvert(false)}>
-        Annuler
-      </button>
-    </div>
-  );
-}
-
-function useEnvoi(fermer: () => void) {
-  const router = useRouter();
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [enCours, setEnCours] = useState(false);
-
-  const envoyer = async (chemin: string, corps: unknown) => {
-    setErreur(null);
-    setEnCours(true);
-    const res = await appelApi(chemin, { methode: 'POST', corps });
-    setEnCours(false);
-
-    if (!res.ok) {
-      setErreur(res.erreur ?? 'Création impossible.');
-      return;
-    }
-    fermer();
-    router.refresh();
-  };
-
-  return { envoyer, erreur, enCours };
-}
-
 // ---------------------------------------------------------------------
 //  Parcelle
 // ---------------------------------------------------------------------
@@ -78,12 +30,12 @@ export function AjouterParcelle({ operationId }: { operationId: number }) {
 }
 
 function FormulaireParcelle({ operationId, fermer }: { operationId: number; fermer: () => void }) {
-  const { envoyer, erreur, enCours } = useEnvoi(fermer);
+  const { envoyer, erreur, enCours } = useEnvoi();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
-    await envoyer(`/operations/${operationId}/parcelles`, {
+    const ok = await envoyer(`/operations/${operationId}/parcelles`, {
       numero: champ(d.get('numero')),
       egrid: champ(d.get('egrid')),
       commune: champ(d.get('commune')),
@@ -91,6 +43,7 @@ function FormulaireParcelle({ operationId, fermer }: { operationId: number; ferm
       affectationZone: champ(d.get('affectationZone')),
       registreFoncier: champ(d.get('registreFoncier')),
     });
+    if (ok) fermer();
   }
 
   return (
@@ -144,19 +97,20 @@ export function AjouterBien({ operationId }: { operationId: number }) {
 }
 
 function FormulaireBien({ operationId, fermer }: { operationId: number; fermer: () => void }) {
-  const { envoyer, erreur, enCours } = useEnvoi(fermer);
+  const { envoyer, erreur, enCours } = useEnvoi();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
     const etages = champ(d.get('nbEtages'));
-    await envoyer(`/operations/${operationId}/biens`, {
+    const ok = await envoyer(`/operations/${operationId}/biens`, {
       nom: champ(d.get('nom')),
       nature: champ(d.get('nature')),
       // `nbEtages` est un entier côté API : une chaîne serait refusée.
       nbEtages: etages === undefined ? undefined : Number(etages),
       description: champ(d.get('description')),
     });
+    if (ok) fermer();
   }
 
   return (
@@ -213,13 +167,13 @@ function FormulaireLot({
   bienId: number;
   fermer: () => void;
 }) {
-  const { envoyer, erreur, enCours } = useEnvoi(fermer);
+  const { envoyer, erreur, enCours } = useEnvoi();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
     const etage = champ(d.get('etage'));
-    await envoyer(`/operations/${operationId}/biens/${bienId}/lots`, {
+    const ok = await envoyer(`/operations/${operationId}/biens/${bienId}/lots`, {
       reference: champ(d.get('reference')),
       etage: etage === undefined ? undefined : Number(etage),
       nombrePieces: champ(d.get('nombrePieces')),
@@ -228,6 +182,7 @@ function FormulaireLot({
       // Les montants restent des CHAÎNES jusqu'au Decimal côté serveur.
       prixVente: champ(d.get('prixVente')),
     });
+    if (ok) fermer();
   }
 
   return (
@@ -306,16 +261,17 @@ function FormulaireParking({
   referenceLot: string;
   fermer: () => void;
 }) {
-  const { envoyer, erreur, enCours } = useEnvoi(fermer);
+  const { envoyer, erreur, enCours } = useEnvoi();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
-    await envoyer(`/operations/${operationId}/lots/${lotId}/parkings`, {
+    const ok = await envoyer(`/operations/${operationId}/lots/${lotId}/parkings`, {
       reference: champ(d.get('reference')),
       type: champ(d.get('type')),
       prix: champ(d.get('prix')),
     });
+    if (ok) fermer();
   }
 
   return (

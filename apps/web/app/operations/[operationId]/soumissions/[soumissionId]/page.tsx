@@ -4,6 +4,20 @@ import { apiGet, getToken, lirePayload } from '../../../../../lib/session';
 import { AppHeader, type Me } from '../../../../components/app-header';
 import { PageHeader } from '../../../../components/page-header';
 import { chf, date, montant, pourcentage } from '../../../../../lib/format';
+import { Adjuger, CreerContrat, EnregistrerOffre, InviterEntreprise } from './saisie';
+
+interface Entreprise {
+  id: number;
+  nom: string;
+  corpsMetier: string | null;
+}
+
+interface Contrat {
+  id: number;
+  reference: string | null;
+  statut: string;
+  adjudication: { id: number; montantAdjuge: string } | null;
+}
 
 interface OffreComparee {
   id: number;
@@ -62,9 +76,11 @@ export default async function ComparaisonPage({
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const [operation, c] = await Promise.all([
+  const [operation, c, entreprises, contrats] = await Promise.all([
     apiGet<Operation>(`/operations/${operationId}`),
     apiGet<Comparaison>(`/operations/${operationId}/soumissions/${soumissionId}/comparaison`),
+    apiGet<Entreprise[]>('/entreprises'),
+    apiGet<Contrat[]>(`/operations/${operationId}/contrats`),
   ]);
 
   if (!operation) notFound();
@@ -83,6 +99,17 @@ export default async function ComparaisonPage({
   const classees = [...c.offres].sort(
     (a, b) => (a.rang ?? Number.MAX_SAFE_INTEGER) - (b.rang ?? Number.MAX_SAFE_INTEGER),
   );
+
+  const id = Number(operationId);
+  // Le contrat de cette adjudication, s'il a déjà été généré.
+  const contrat =
+    c.adjudication === null
+      ? null
+      : ((contrats ?? []).find((k) => k.adjudication?.id === c.adjudication?.id) ?? null);
+
+  // Seules les offres chiffrées sont adjugeables : l'API refuse les autres,
+  // autant ne pas les proposer.
+  const adjugeables = classees.filter((o) => o.montantNet !== null && Number(o.montantNet) > 0);
 
   return (
     <main className="large">
@@ -213,6 +240,55 @@ export default async function ComparaisonPage({
           (références, délais) demanderait des champs que le modèle de données ne porte pas encore —
           c&apos;est une décision à prendre, pas à improviser.
         </p>
+      </section>
+
+      <section>
+        <h2>Conduire la consultation</h2>
+        {c.adjudication === null ? (
+          <>
+            <div className="actions">
+              <InviterEntreprise
+                operationId={id}
+                soumissionId={Number(soumissionId)}
+                entreprises={entreprises ?? []}
+              />
+              <EnregistrerOffre
+                operationId={id}
+                soumissionId={Number(soumissionId)}
+                entreprises={entreprises ?? []}
+              />
+              {adjugeables.length > 0 && (
+                <Adjuger
+                  operationId={id}
+                  soumissionId={Number(soumissionId)}
+                  offres={adjugeables}
+                />
+              )}
+            </div>
+            {adjugeables.length === 0 && (
+              <p className="note">
+                Aucune offre chiffrée : il n&apos;y a rien à adjuger. Enregistrez au moins un
+                montant.
+              </p>
+            )}
+          </>
+        ) : contrat === null ? (
+          <>
+            <p className="note">
+              Soumission adjugée. Le contrat d&apos;entreprise reste à générer : c&apos;est lui qui
+              porte le montant <strong>commandé</strong> auquel les factures seront confrontées.
+            </p>
+            <div className="actions">
+              <CreerContrat operationId={id} adjudicationId={c.adjudication.id} />
+            </div>
+          </>
+        ) : (
+          <p className="note">
+            Contrat <strong>{contrat.reference ?? `n° ${contrat.id}`}</strong> généré pour{' '}
+            {chf(c.adjudication.montantAdjuge)}. Les factures de cette entreprise s&apos;imputeront
+            dessus, avec le contrôle « facturé cumulé ≤ commandé ».
+          </p>
+        )}
       </section>
     </main>
   );

@@ -1,40 +1,21 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { appelApi, champ } from '../../../../lib/api-client';
+import { champ } from '../../../../lib/api-client';
+import { useEnvoi } from '../../../components/formulaire';
 
+/**
+ * Poste CFC tel qu'il apparaît dans les listes déroulantes.
+ *
+ * Volontairement sans indentation par espaces : elle casserait la recherche
+ * au clavier, qui compare depuis le premier caractère. Sur soixante-neuf
+ * postes, taper « 211 » est le geste utile — et la hiérarchie se lit déjà
+ * dans le code, c'est à cela que sert la numérotation CFC.
+ */
 interface NoeudPlat {
   id: number;
   code: string;
   libelle: string;
-  niveau: number;
-}
-
-function useEnvoi() {
-  const router = useRouter();
-  const [erreur, setErreur] = useState<string | null>(null);
-  const [enCours, setEnCours] = useState(false);
-
-  const envoyer = async (
-    chemin: string,
-    corps?: unknown,
-    methode: string = 'POST',
-  ): Promise<boolean> => {
-    setErreur(null);
-    setEnCours(true);
-    const res = await appelApi(chemin, { methode, corps });
-    setEnCours(false);
-
-    if (!res.ok) {
-      setErreur(res.erreur ?? 'Opération impossible.');
-      return false;
-    }
-    router.refresh();
-    return true;
-  };
-
-  return { envoyer, erreur, enCours };
 }
 
 /**
@@ -115,7 +96,6 @@ export function AjouterPoste({
               <option value="">— racine —</option>
               {noeuds.map((n) => (
                 <option key={n.id} value={n.id}>
-                  {' '.repeat((n.niveau - 1) * 2)}
                   {n.code} · {n.libelle}
                 </option>
               ))}
@@ -300,7 +280,6 @@ export function AjouterLigne({
               </option>
               {noeuds.map((n) => (
                 <option key={n.id} value={n.id}>
-                  {' '.repeat((n.niveau - 1) * 2)}
                   {n.code} · {n.libelle}
                 </option>
               ))}

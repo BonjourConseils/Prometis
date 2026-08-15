@@ -4,6 +4,25 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { date, lisible, montant } from '../../../../lib/format';
+import { AjouterEntreprise, AjouterSoumission } from './saisie';
+
+interface Entreprise {
+  id: number;
+  nom: string;
+  corpsMetier: string | null;
+  contactNom: string | null;
+  email: string | null;
+  telephone: string | null;
+  _count: { offres: number; contrats: number };
+}
+
+/** Vue budget, réduite à ce dont la liste déroulante des postes a besoin. */
+interface NoeudBudget {
+  id: number;
+  code: string;
+  libelle: string;
+  enfants: NoeudBudget[];
+}
 
 interface Soumission {
   id: number;
@@ -37,6 +56,14 @@ const LIBELLE_STATUT: Record<string, string> = {
   ANNULEE: 'annulée',
 };
 
+/** Aplatit l'arbre CFC : on ne choisit pas un poste dans un arbre replié. */
+function aplatirPostes(noeuds: NoeudBudget[]): { id: number; code: string; libelle: string }[] {
+  return noeuds.flatMap((n) => [
+    { id: n.id, code: n.code, libelle: n.libelle },
+    ...aplatirPostes(n.enfants),
+  ]);
+}
+
 export default async function SoumissionsPage({
   params,
 }: {
@@ -56,7 +83,13 @@ export default async function SoumissionsPage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const soumissions = await apiGet<Soumission[]>(`/operations/${operationId}/soumissions`);
+  // Le budget n'est lu que pour la liste des postes CFC ; s'il est refusé
+  // (module absent, accès partiel), la soumission reste créable sans poste.
+  const [soumissions, entreprises, budget] = await Promise.all([
+    apiGet<Soumission[]>(`/operations/${operationId}/soumissions`),
+    apiGet<Entreprise[]>('/entreprises'),
+    apiGet<{ arbre: NoeudBudget[] }>(`/operations/${operationId}/budget`),
+  ]);
 
   if (soumissions === null) {
     return (
@@ -88,7 +121,11 @@ export default async function SoumissionsPage({
       <section>
         <h2>Appels d&apos;offres</h2>
         {soumissions.length === 0 ? (
-          <p>Aucune soumission sur cette promotion.</p>
+          <p className="note">
+            Aucune soumission sur cette promotion. Un appel d&apos;offres se rattache à un poste du
+            budget CFC : c&apos;est ce rattachement qui permettra de comparer les offres au montant
+            chiffré, puis de reporter l&apos;adjudication dans la colonne « adjugé ».
+          </p>
         ) : (
           <table>
             <thead>
@@ -147,6 +184,59 @@ export default async function SoumissionsPage({
               ))}
             </tbody>
           </table>
+        )}
+        <AjouterSoumission
+          operationId={Number(operationId)}
+          postes={aplatirPostes(budget?.arbre ?? [])}
+        />
+      </section>
+
+      <section>
+        <h2>Répertoire des entreprises</h2>
+        <p className="note">
+          Le répertoire appartient à la société, pas à la promotion : une entreprise consultée ici
+          le reste sur les chantiers suivants, avec son historique d&apos;offres.
+        </p>
+        {entreprises === null ? (
+          <p className="note">Le module Soumissions n&apos;est pas activé sur cette société.</p>
+        ) : (
+          <>
+            {entreprises.length > 0 && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Entreprise</th>
+                    <th>Corps de métier</th>
+                    <th>Contact</th>
+                    <th className="droite">Offres</th>
+                    <th className="droite">Contrats</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entreprises.map((e) => (
+                    <tr key={e.id}>
+                      <td>
+                        <strong>{e.nom}</strong>
+                      </td>
+                      <td>{e.corpsMetier ?? '—'}</td>
+                      <td>
+                        {e.contactNom ?? '—'}
+                        {e.email && (
+                          <>
+                            <br />
+                            <span className="meta">{e.email}</span>
+                          </>
+                        )}
+                      </td>
+                      <td className="droite">{e._count.offres}</td>
+                      <td className="droite">{e._count.contrats}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <AjouterEntreprise />
+          </>
         )}
       </section>
     </main>

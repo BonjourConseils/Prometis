@@ -483,6 +483,41 @@ auraient pu partir chez un prestataire ; elles ne partent pas. Le binaire est ap
 `execFile`, **jamais via un shell**, et le PDF transite par un répertoire temporaire effacé
 quoi qu'il arrive. `pdftotext` par défaut ; `ocrmypdf` ou `tesseract` pour des scans.
 
+## 4 terdecies. Saisie depuis l'interface web
+
+Les écrans ont longtemps été en lecture seule ; ils saisissent désormais le fil rouge —
+promotion, foncier, budget CFC, soumissions. Quatre pièces, toujours les mêmes :
+
+**Le relais générique — `apps/web/app/api/prometis/[...chemin]/route.ts`.** Un seul point de
+passage du navigateur vers l'API, qui rattache le jeton stocké en cookie `httpOnly`. Il ne
+valide **rien** : la validation appartient à l'API, la dupliquer côté web ferait diverger deux
+sources de vérité. La protection CSRF repose sur `SameSite=lax`.
+
+**Le client — `apps/web/lib/api-client.ts`.** `appelApi<T>()` rend `{ ok, erreur }` plutôt que
+de lever. `champ()` traduit une chaîne vide en `undefined` : zod doit voir une **absence**, pas
+un vide — sinon un champ facultatif laissé blanc devient une erreur de validation.
+
+**Le formulaire — `apps/web/app/components/formulaire.tsx`.** `Repliable` (bouton → formulaire
+déplié) et `useEnvoi()` (envoi, erreur, `router.refresh()`). Le hook rend `false` en cas
+d'échec, ce qui laisse le formulaire ouvert **avec la saisie de l'utilisateur** : elle n'est
+jamais jetée au premier refus de l'API. Ce module existe parce que la troisième copie du même
+code aurait été celle de trop.
+
+**Les montants restent des chaînes** jusqu'au `Decimal` côté serveur. Les convertir en `number`
+dans le navigateur ferait passer les prix par un flottant.
+
+Deux pièges vérifiés :
+
+- **Pas d'indentation par espaces dans les listes déroulantes CFC.** Elle casse la recherche au
+  clavier, qui compare depuis le premier caractère — et l'ancienne version utilisait des espaces
+  **insécables**, ce qui la cassait définitivement. Sur soixante-neuf postes, taper « 211 » est
+  le geste utile ; la hiérarchie se lit déjà dans le code, c'est à cela que sert la numérotation.
+- **Un test qui compte des lignes à l'échelle de la société casse dès qu'on saisit depuis
+  l'interface.** C'est arrivé quatre fois (`identite-acces`, `rls-isolation` ×2,
+  `references-prototype`). Portez l'assertion sur la promotion du seed, ou sur l'invariant réel :
+  « une version courante **par opération** », pas « une pour toute la société ». Une suite qui
+  punit l'usage normal du produit finit par être désactivée.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,
