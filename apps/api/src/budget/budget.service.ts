@@ -173,10 +173,12 @@ export class BudgetService {
    *   · la version **courante** est la référence vivante de l'opération —
    *     écarts, comparaison des offres et bilan la lisent en continu ;
    *   · une version **validée** l'a été à un moment donné, et des décisions
-   *     ont pu s'y appuyer. Elle s'archive, elle ne s'efface pas ;
-   *   · une version **unique** ne se supprime pas non plus : une opération
-   *     sans aucun budget n'a pas d'état intermédiaire utile, et l'écran
-   *     n'aurait plus rien à proposer que de la recréer.
+   *     ont pu s'y appuyer. Elle s'archive, elle ne s'efface pas.
+   *
+   * Rien n'interdit en revanche de supprimer la **dernière** version : une
+   * promotion sans budget est l'état normal juste après sa création, et
+   * l'écran sait déjà le présenter. Refuser ici obligerait à créer une
+   * seconde version pour pouvoir jeter la première.
    *
    * Reste le cas légitime : le brouillon créé par erreur ou abandonné. Ses
    * lignes partent avec lui — la cascade est portée par le schéma — et
@@ -196,13 +198,6 @@ export class BudgetService {
         throw new BadRequestException(
           'Cette version a été validée : elle s’archive, elle ne se supprime pas. ' +
             'Des décisions ont pu s’appuyer dessus.',
-        );
-      }
-
-      const total = await tx.budgetVersion.count({ where: { operationId } });
-      if (total <= 1) {
-        throw new BadRequestException(
-          'C’est la seule version de budget de la promotion. En créer une autre avant de supprimer celle-ci.',
         );
       }
 

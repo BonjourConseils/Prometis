@@ -226,6 +226,116 @@ export function AdopterVersion({
 }
 
 /**
+ * Modifie une ligne de budget.
+ *
+ * Le formulaire est pré-rempli avec l'existant : corriger un montant ne doit
+ * pas obliger à resaisir le poste et la désignation. Changer le poste CFC est
+ * permis — une ligne mal imputée se déplace, elle ne se supprime pas pour
+ * être recréée ailleurs.
+ */
+export function ModifierLigne({
+  operationId,
+  ligne,
+  noeuds,
+}: {
+  operationId: number;
+  ligne: {
+    id: number;
+    cfcNodeId: number;
+    designation: string | null;
+    montant: string;
+    estReserve: boolean;
+  };
+  noeuds: NoeudPlat[];
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const d = new FormData(event.currentTarget);
+    const ok = await envoyer(
+      `/operations/${operationId}/budget/lignes/${ligne.id}`,
+      {
+        cfcNodeId: Number(d.get('cfcNodeId')),
+        designation: champ(d.get('designation')) ?? null,
+        montant: champ(d.get('montant')),
+        estReserve: d.get('estReserve') === 'on',
+      },
+      'PATCH',
+    );
+    if (ok) setOuvert(false);
+  }
+
+  if (!ouvert) {
+    return (
+      <button type="button" className="lien" onClick={() => setOuvert(true)}>
+        modifier
+      </button>
+    );
+  }
+
+  return (
+    <div className="saisie">
+      <form onSubmit={onSubmit} className="form">
+        <div className="grille-3">
+          <label>
+            Poste CFC
+            <select name="cfcNodeId" required defaultValue={String(ligne.cfcNodeId)}>
+              {noeuds.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.code} · {n.libelle}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Désignation
+            <input name="designation" defaultValue={ligne.designation ?? ''} />
+          </label>
+          <label>
+            Montant HT
+            <input name="montant" required inputMode="decimal" defaultValue={ligne.montant} />
+          </label>
+        </div>
+        <label className="case">
+          <input name="estReserve" type="checkbox" defaultChecked={ligne.estReserve} />
+          <span>Réserve pour imprévus</span>
+        </label>
+        {erreur && <p className="ko">{erreur}</p>}
+        <button type="submit" disabled={enCours}>
+          {enCours ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </form>
+      <button type="button" className="lien" onClick={() => setOuvert(false)}>
+        Annuler
+      </button>
+    </div>
+  );
+}
+
+/** Supprime une ligne. Une ligne de budget n'engage rien : pas de confirmation. */
+export function SupprimerLigne({ operationId, ligneId }: { operationId: number; ligneId: number }) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  return (
+    <>
+      <button
+        type="button"
+        className="lien"
+        disabled={enCours}
+        onClick={() =>
+          void envoyer(`/operations/${operationId}/budget/lignes/${ligneId}`, undefined, 'DELETE')
+        }
+      >
+        {enCours ? '…' : 'supprimer'}
+      </button>
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}
+
+/**
  * Supprime une version de budget.
  *
  * N'apparaît que pour un **brouillon non courant** : l'API refuse le reste,

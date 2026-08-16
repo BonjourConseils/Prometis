@@ -7,9 +7,11 @@ import {
   AdopterVersion,
   AjouterLigne,
   ArchiverVersion,
+  ModifierLigne,
   AjouterPoste,
   AjouterVersion,
   ImporterTrame,
+  SupprimerLigne,
   SupprimerVersion,
 } from './saisie';
 import { chf, montant } from '../../../../lib/format';
@@ -55,6 +57,15 @@ interface VueBudget {
     resteADepenser: string;
     ecartRevisionInitial: string;
   };
+}
+
+interface LigneBudget {
+  id: number;
+  cfcNodeId: number;
+  designation: string | null;
+  montant: string;
+  estReserve: boolean;
+  cfcNode: { code: string; libelle: string } | null;
 }
 
 interface Operation {
@@ -116,10 +127,12 @@ export default async function BudgetPage({
   // Combien de lignes porte la version affichée : la suppression doit
   // annoncer ce qu'elle emporte, pas le découvrir après coup.
   const lignesVersion = vue.versionAffichee
-    ? ((await apiGet<unknown[]>(
+    ? ((await apiGet<LigneBudget[]>(
         `/operations/${operationId}/budget/versions/${vue.versionAffichee.id}/lignes`,
       )) ?? [])
     : [];
+
+  const totalLignes = lignesVersion.reduce((t, l) => t + Number(l.montant), 0);
 
   const lignes = aplatir(vue.arbre);
   const ecart = Number(vue.total.ecartRevisionInitial);
@@ -187,14 +200,12 @@ export default async function BudgetPage({
               {/* Un brouillon se supprime, une version validée s'archive :
                   ce qui a servi de référence garde sa trace. */}
               {vue.versionAffichee.statut === 'BROUILLON' ? (
-                vue.versions.length > 1 && (
-                  <SupprimerVersion
-                    operationId={Number(operationId)}
-                    versionId={vue.versionAffichee.id}
-                    libelle={vue.versionAffichee.libelle}
-                    nombreLignes={lignesVersion.length}
-                  />
-                )
+                <SupprimerVersion
+                  operationId={Number(operationId)}
+                  versionId={vue.versionAffichee.id}
+                  libelle={vue.versionAffichee.libelle}
+                  nombreLignes={lignesVersion.length}
+                />
               ) : (
                 <ArchiverVersion
                   operationId={Number(operationId)}
@@ -204,12 +215,6 @@ export default async function BudgetPage({
             </>
           )}
         </div>
-        {vue.versionAffichee?.statut === 'BROUILLON' && vue.versions.length === 1 && (
-          <p className="note">
-            C&apos;est la seule version de budget : elle ne peut pas être supprimée. Créez-en une
-            autre d&apos;abord, ou videz ses lignes.
-          </p>
-        )}
       </section>
 
       <section>
@@ -319,6 +324,78 @@ export default async function BudgetPage({
           )}
         </div>
       </section>
+
+      {/* L'arborescence ci-dessus montre des TOTAUX par poste. Ce sont les
+          lignes qui se saisissent et se corrigent : sans cette liste, une
+          erreur de montant n'a aucun endroit où se rattraper. */}
+      {vue.versionAffichee && (
+        <section>
+          <h2>Lignes de {vue.versionAffichee.libelle}</h2>
+          {lignesVersion.length === 0 ? (
+            <p className="note">
+              Aucune ligne dans cette version. Les montants se saisissent poste par poste avec «
+              Ajouter une ligne de budget » ci-dessus ; l&apos;arborescence en fait les totaux.
+            </p>
+          ) : (
+            <>
+              <p className="note">
+                {lignesVersion.length} ligne{lignesVersion.length > 1 ? 's' : ''} · total{' '}
+                <strong>{chf(String(totalLignes))}</strong>. Plusieurs lignes peuvent viser le même
+                poste : elles s&apos;additionnent.
+              </p>
+              <div className="tableau-large">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Poste CFC</th>
+                      <th>Désignation</th>
+                      <th className="droite">Montant HT</th>
+                      <th>Nature</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lignesVersion.map((l) => (
+                      <tr key={l.id}>
+                        <td>
+                          {l.cfcNode ? (
+                            <>
+                              <code>{l.cfcNode.code}</code> {l.cfcNode.libelle}
+                            </>
+                          ) : (
+                            <span className="meta">poste supprimé</span>
+                          )}
+                        </td>
+                        <td>{l.designation ?? <span className="meta">—</span>}</td>
+                        <td className="droite">
+                          <strong>{montant(l.montant)}</strong>
+                        </td>
+                        <td>
+                          {l.estReserve ? (
+                            <span className="badge">réserve</span>
+                          ) : (
+                            <span className="meta">travaux</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="actions-cellule">
+                            <ModifierLigne
+                              operationId={Number(operationId)}
+                              ligne={l}
+                              noeuds={postes}
+                            />
+                            <SupprimerLigne operationId={Number(operationId)} ligneId={l.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      )}
     </main>
   );
 }

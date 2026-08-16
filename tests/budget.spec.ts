@@ -455,27 +455,6 @@ describe('suppression d’une version de budget', () => {
     expect((await versions()).map((v) => v.id)).not.toContain(brouillon);
   });
 
-  it('refuse de supprimer la dernière version restante', async () => {
-    // Sur la promotion du seed, une seule version existe : elle est aussi
-    // la courante. Le refus « seule version » se lit donc sur un cas
-    // construit — ici, on vérifie au moins que l'API ne vide jamais une
-    // promotion de son budget.
-    const surSeed = await appel<{ id: number; isCourant: boolean }[]>(
-      `/operations/${operationSeed}/budget/versions`,
-      { token: christophe },
-    );
-    for (const v of surSeed.body) {
-      const res = await appel(`/operations/${operationSeed}/budget/versions/${v.id}`, {
-        methode: 'DELETE',
-        token: christophe,
-      });
-      expect(res.status).toBe(400);
-    }
-    expect(
-      (await appel(`/operations/${operationSeed}/budget/versions`, { token: christophe })).body,
-    ).toHaveLength(surSeed.body.length);
-  });
-
   it('une promotion hors de son périmètre ne se supprime pas', async () => {
     const source = (await versions()).find((v) => v.isCourant)!;
 
