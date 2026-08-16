@@ -6,9 +6,11 @@ import { PageHeader } from '../../../components/page-header';
 import {
   AdopterVersion,
   AjouterLigne,
+  ArchiverVersion,
   AjouterPoste,
   AjouterVersion,
   ImporterTrame,
+  SupprimerVersion,
 } from './saisie';
 import { chf, montant } from '../../../../lib/format';
 
@@ -111,6 +113,14 @@ export default async function BudgetPage({
     );
   }
 
+  // Combien de lignes porte la version affichée : la suppression doit
+  // annoncer ce qu'elle emporte, pas le découvrir après coup.
+  const lignesVersion = vue.versionAffichee
+    ? ((await apiGet<unknown[]>(
+        `/operations/${operationId}/budget/versions/${vue.versionAffichee.id}/lignes`,
+      )) ?? [])
+    : [];
+
   const lignes = aplatir(vue.arbre);
   const ecart = Number(vue.total.ecartRevisionInitial);
 
@@ -169,9 +179,37 @@ export default async function BudgetPage({
             versions={vue.versions.map((v) => ({ id: v.id, libelle: v.libelle }))}
           />
           {vue.versionAffichee && !vue.versionAffichee.isCourant && (
-            <AdopterVersion operationId={Number(operationId)} versionId={vue.versionAffichee.id} />
+            <>
+              <AdopterVersion
+                operationId={Number(operationId)}
+                versionId={vue.versionAffichee.id}
+              />
+              {/* Un brouillon se supprime, une version validée s'archive :
+                  ce qui a servi de référence garde sa trace. */}
+              {vue.versionAffichee.statut === 'BROUILLON' ? (
+                vue.versions.length > 1 && (
+                  <SupprimerVersion
+                    operationId={Number(operationId)}
+                    versionId={vue.versionAffichee.id}
+                    libelle={vue.versionAffichee.libelle}
+                    nombreLignes={lignesVersion.length}
+                  />
+                )
+              ) : (
+                <ArchiverVersion
+                  operationId={Number(operationId)}
+                  versionId={vue.versionAffichee.id}
+                />
+              )}
+            </>
           )}
         </div>
+        {vue.versionAffichee?.statut === 'BROUILLON' && vue.versions.length === 1 && (
+          <p className="note">
+            C&apos;est la seule version de budget : elle ne peut pas être supprimée. Créez-en une
+            autre d&apos;abord, ou videz ses lignes.
+          </p>
+        )}
       </section>
 
       <section>

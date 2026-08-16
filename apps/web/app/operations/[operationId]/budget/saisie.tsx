@@ -226,6 +226,104 @@ export function AdopterVersion({
 }
 
 /**
+ * Supprime une version de budget.
+ *
+ * N'apparaît que pour un **brouillon non courant** : l'API refuse le reste,
+ * et proposer un bouton qui répond « non » est une façon de faire perdre son
+ * temps. La confirmation est explicite parce que les lignes partent avec.
+ */
+export function SupprimerVersion({
+  operationId,
+  versionId,
+  libelle,
+  nombreLignes,
+}: {
+  operationId: number;
+  versionId: number;
+  libelle: string;
+  nombreLignes: number;
+}) {
+  const [confirme, setConfirme] = useState(false);
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  if (!confirme) {
+    return (
+      <button type="button" onClick={() => setConfirme(true)}>
+        Supprimer cette version
+      </button>
+    );
+  }
+
+  return (
+    <div className="saisie">
+      <p className="ko">
+        Supprimer « {libelle} » ?{' '}
+        {nombreLignes > 0
+          ? `Ses ${nombreLignes} ligne${nombreLignes > 1 ? 's' : ''} de budget ${nombreLignes > 1 ? 'partent' : 'part'} avec elle.`
+          : 'Elle ne contient aucune ligne.'}{' '}
+        L&apos;opération est définitive.
+      </p>
+      {erreur && <p className="ko">{erreur}</p>}
+      <div className="actions">
+        <button
+          type="button"
+          className="principal"
+          disabled={enCours}
+          onClick={() =>
+            void envoyer(
+              `/operations/${operationId}/budget/versions/${versionId}`,
+              undefined,
+              'DELETE',
+            )
+          }
+        >
+          {enCours ? 'Suppression…' : 'Supprimer définitivement'}
+        </button>
+        <button type="button" className="lien" onClick={() => setConfirme(false)}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Archive une version validée.
+ *
+ * Le pendant de la suppression pour ce qui a servi : la version sort de la
+ * vue courante sans que sa trace disparaisse. C'est ce que le modèle prévoit,
+ * et ce qu'on doit à quiconque a pris une décision sur ce budget.
+ */
+export function ArchiverVersion({
+  operationId,
+  versionId,
+}: {
+  operationId: number;
+  versionId: number;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={enCours}
+        onClick={() =>
+          void envoyer(
+            `/operations/${operationId}/budget/versions/${versionId}`,
+            { statut: 'ARCHIVE' },
+            'PATCH',
+          )
+        }
+      >
+        {enCours ? 'Archivage…' : 'Archiver'}
+      </button>
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}
+
+/**
  * Saisie d'une ligne de budget.
  *
  * Tous les montants sont **hors taxe**, comme partout dans le fil rouge :

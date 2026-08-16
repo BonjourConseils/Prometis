@@ -18,6 +18,20 @@ import {
   jetonPourEspace,
 } from './api-client';
 
+/**
+ * Résout la promotion du seed par son NOM, jamais par sa position.
+ *
+ * `body[0]` a cassé cette suite dès qu'une promotion a été créée depuis
+ * l'interface : l'ordre de la liste n'est pas un contrat, et un test qui
+ * s'appuie dessus punit l'usage normal du produit.
+ */
+async function promotionDeReference(token: string): Promise<number> {
+  const res = await appel<{ id: number; nom: string }[]>('/operations', { token });
+  const seed = res.body.find((o) => o.nom === 'Les Jardins de Prilly');
+  if (!seed) throw new Error('Promotion « Les Jardins de Prilly » absente : relancer le seed.');
+  return seed.id;
+}
+
 beforeAll(async () => {
   if (!(await apiDisponible())) {
     // On échoue bruyamment plutôt que d'ignorer : une suite « verte » qui a
@@ -247,7 +261,7 @@ describe('droits par opération (OperationAccess)', () => {
 
   it('OPERATE suffit pour lire, pas pour gérer les droits', async () => {
     const marc = await jetonPourEspace(COMPTES.marc, CB);
-    const operationId = (await appel<{ id: number }[]>('/operations', { token: marc })).body[0]!.id;
+    const operationId = await promotionDeReference(marc);
 
     // OPERATE ≥ READ_ONLY
     expect((await appel(`/operations/${operationId}`, { token: marc })).status).toBe(200);
@@ -261,8 +275,7 @@ describe('droits par opération (OperationAccess)', () => {
 
   it('MANAGE permet de consulter les droits de l’opération', async () => {
     const julie = await jetonPourEspace(COMPTES.julie, CB);
-    const operationId = (await appel<{ id: number }[]>('/operations', { token: julie })).body[0]!
-      .id;
+    const operationId = await promotionDeReference(julie);
     expect((await appel(`/acces/operations/${operationId}`, { token: julie })).status).toBe(200);
   });
 
@@ -296,7 +309,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
 
   it("un module hors périmètre est refusé, même avec le bon niveau d'accès", async () => {
     const marc = await jetonPourEspace(COMPTES.marc, CB);
-    const operationId = (await appel<{ id: number }[]>('/operations', { token: marc })).body[0]!.id;
+    const operationId = await promotionDeReference(marc);
 
     // ACTEURS n'est pas dans [SOUMISSIONS, CONTRATS, DOCUMENTS] : refus, alors
     // même que Marc a OPERATE sur cette opération.
@@ -309,8 +322,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
 
   it('un administrateur, lui, y accède', async () => {
     const christophe = await jetonPourEspace(COMPTES.christophe, CB);
-    const operationId = (await appel<{ id: number }[]>('/operations', { token: christophe }))
-      .body[0]!.id;
+    const operationId = await promotionDeReference(christophe);
 
     const res = await appel<unknown[]>(`/operations/${operationId}/acteurs`, { token: christophe });
     expect(res.status).toBe(200);
@@ -320,8 +332,7 @@ describe('DoD — une EG a un accès scopé par module', () => {
   it('une restriction vide ne restreint rien', async () => {
     // Julie a MANAGE avec `modules: []` — aucune restriction fine.
     const julie = await jetonPourEspace(COMPTES.julie, CB);
-    const operationId = (await appel<{ id: number }[]>('/operations', { token: julie })).body[0]!
-      .id;
+    const operationId = await promotionDeReference(julie);
     expect((await appel(`/operations/${operationId}/acteurs`, { token: julie })).status).toBe(200);
   });
 

@@ -164,6 +164,61 @@ export class BudgetService {
     });
   }
 
+  /**
+   * Supprime une version de budget.
+   *
+   * Trois refus, et chacun protège une trace qu'on ne saurait pas
+   * reconstituer :
+   *
+   *   · la version **courante** est la référence vivante de l'opération —
+   *     écarts, comparaison des offres et bilan la lisent en continu ;
+   *   · une version **validée** l'a été à un moment donné, et des décisions
+   *     ont pu s'y appuyer. Elle s'archive, elle ne s'efface pas ;
+   *   · une version **unique** ne se supprime pas non plus : une opération
+   *     sans aucun budget n'a pas d'état intermédiaire utile, et l'écran
+   *     n'aurait plus rien à proposer que de la recréer.
+   *
+   * Reste le cas légitime : le brouillon créé par erreur ou abandonné. Ses
+   * lignes partent avec lui — la cascade est portée par le schéma — et
+   * l'audit garde combien il en emportait.
+   */
+  async supprimerVersion(operationId: number, versionId: number) {
+    return this.db.run(async (tx) => {
+      const version = await this.versionDeLOperation(tx, operationId, versionId);
+
+      if (version.isCourant) {
+        throw new BadRequestException(
+          'Cette version est le budget courant de la promotion : elle ne peut pas être supprimée. ' +
+            'Adopter une autre version d’abord.',
+        );
+      }
+      if (version.statut !== 'BROUILLON') {
+        throw new BadRequestException(
+          'Cette version a été validée : elle s’archive, elle ne se supprime pas. ' +
+            'Des décisions ont pu s’appuyer dessus.',
+        );
+      }
+
+      const total = await tx.budgetVersion.count({ where: { operationId } });
+      if (total <= 1) {
+        throw new BadRequestException(
+          'C’est la seule version de budget de la promotion. En créer une autre avant de supprimer celle-ci.',
+        );
+      }
+
+      const lignes = await tx.ligneBudget.count({ where: { budgetVersionId: versionId } });
+      await tx.budgetVersion.delete({ where: { id: versionId } });
+
+      await this.audit.enregistrer(tx, {
+        action: 'budget_version.supprimee',
+        entite: 'BudgetVersion',
+        entiteId: versionId,
+        donnees: { operationId, libelle: version.libelle, lignesSupprimees: lignes },
+      });
+      return { supprimee: true, lignesSupprimees: lignes };
+    });
+  }
+
   // ===================================================================
   //  Lignes
   // ===================================================================

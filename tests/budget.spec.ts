@@ -390,6 +390,107 @@ describe('DoD — versions de budget', () => {
 
 // =====================================================================
 
+/**
+ * La suppression d'une version est irréversible : ce sont ses REFUS qui la
+ * rendent utilisable. Chaque cas ci-dessous protège une trace qu'on ne
+ * saurait pas reconstituer.
+ */
+describe('suppression d’une version de budget', () => {
+  /** Les versions du bac à sable, relues à chaque fois : ce bloc ne dépend
+   *  d'aucune variable des describe précédents. */
+  const versions = async () =>
+    (
+      await appel<{ id: number; libelle: string; statut: string; isCourant: boolean }[]>(
+        `/operations/${bacASable}/budget/versions`,
+        { token: christophe },
+      )
+    ).body;
+
+  it('refuse de supprimer la version courante', async () => {
+    const courante = (await versions()).find((v) => v.isCourant)!;
+
+    const res = await appel<{ message: string }>(
+      `/operations/${bacASable}/budget/versions/${courante.id}`,
+      { methode: 'DELETE', token: christophe },
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('budget courant');
+  });
+
+  it('refuse de supprimer une version validée : elle s’archive', async () => {
+    const validee = (await versions()).find((v) => v.statut === 'VALIDE' && !v.isCourant)!;
+    expect(validee).toBeDefined();
+
+    const res = await appel<{ message: string }>(
+      `/operations/${bacASable}/budget/versions/${validee.id}`,
+      { methode: 'DELETE', token: christophe },
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('archive');
+  });
+
+  it('supprime un brouillon, et emporte ses lignes', async () => {
+    const source = (await versions()).find((v) => v.isCourant)!;
+    const creee = await appel<{ id: number }>(`/operations/${bacASable}/budget/versions`, {
+      methode: 'POST',
+      token: christophe,
+      corps: { libelle: 'Brouillon à jeter', copierDepuisId: source.id },
+    });
+    const brouillon = creee.body.id;
+
+    const avant = await appel<unknown[]>(
+      `/operations/${bacASable}/budget/versions/${brouillon}/lignes`,
+      { token: christophe },
+    );
+    expect(avant.body.length).toBeGreaterThan(0);
+
+    const res = await appel<{ supprimee: boolean; lignesSupprimees: number }>(
+      `/operations/${bacASable}/budget/versions/${brouillon}`,
+      { methode: 'DELETE', token: christophe },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.supprimee).toBe(true);
+    expect(res.body.lignesSupprimees).toBe(avant.body.length);
+
+    expect((await versions()).map((v) => v.id)).not.toContain(brouillon);
+  });
+
+  it('refuse de supprimer la dernière version restante', async () => {
+    // Sur la promotion du seed, une seule version existe : elle est aussi
+    // la courante. Le refus « seule version » se lit donc sur un cas
+    // construit — ici, on vérifie au moins que l'API ne vide jamais une
+    // promotion de son budget.
+    const surSeed = await appel<{ id: number; isCourant: boolean }[]>(
+      `/operations/${operationSeed}/budget/versions`,
+      { token: christophe },
+    );
+    for (const v of surSeed.body) {
+      const res = await appel(`/operations/${operationSeed}/budget/versions/${v.id}`, {
+        methode: 'DELETE',
+        token: christophe,
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(
+      (await appel(`/operations/${operationSeed}/budget/versions`, { token: christophe })).body,
+    ).toHaveLength(surSeed.body.length);
+  });
+
+  it('une promotion hors de son périmètre ne se supprime pas', async () => {
+    const source = (await versions()).find((v) => v.isCourant)!;
+
+    // Marc est propriétaire chez Constructa : le bac à sable de CB Promotions
+    // ne lui est pas visible, et sa version encore moins supprimable.
+    const res = await appel(`/operations/${bacASable}/budget/versions/${source.id}`, {
+      methode: 'DELETE',
+      token: marcChezConstructa,
+    });
+    expect([403, 404]).toContain(res.status);
+  });
+});
+
+// =====================================================================
+
 describe('ventilation du budget sur les lots', () => {
   it('la somme des parts retombe exactement sur le budget', async () => {
     const res = await appel<{

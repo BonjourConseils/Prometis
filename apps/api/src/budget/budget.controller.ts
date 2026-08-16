@@ -148,6 +148,16 @@ export class BudgetController {
     return this.budget.modifierVersion(operationId, versionId, body);
   }
 
+  // Supprimer un budget est irréversible : même niveau que l'adoption.
+  @RequireOperationAccess({ level: 'MANAGE', module: 'BUDGET_CFC' })
+  @Delete('budget/versions/:versionId')
+  supprimerVersion(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+  ) {
+    return this.budget.supprimerVersion(operationId, versionId);
+  }
+
   // --- Lignes ------------------------------------------------------------
 
   @RequireOperationAccess({ level: 'READ_ONLY', module: 'BUDGET_CFC' })
