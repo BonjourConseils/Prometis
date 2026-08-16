@@ -1070,3 +1070,25 @@ fieldset legend {
   color: var(--text-muted);
   padding: 0 var(--space-3);
 }
+
+/* Saisie de montants dans un tableau : alignée à droite et en chiffres à
+   chasse fixe, comme les montants qu'elle produira. Une colonne de nombres
+   ne se lit qu'alignée sur les unités. */
+input.montant {
+  width: 100%;
+  max-width: 160px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-strong);
+}
+
+input.montant:focus {
+  outline: none;
+  border-color: var(--surface-brand);
+  box-shadow: var(--ring);
+}

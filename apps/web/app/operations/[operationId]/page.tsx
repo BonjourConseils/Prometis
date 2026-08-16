@@ -20,6 +20,8 @@ interface Operation {
 }
 
 interface Bilan {
+  /** Recettes issues d'une estimation, faute de lots saisis. */
+  recettesEstimees: boolean;
   couts: {
     total: string;
     reserves: string;
@@ -162,7 +164,9 @@ export default async function FicheOperation({
               <span className="etiquette">Recettes</span>
               <span className="valeur">{chf(bilan.recettes.total)}</span>
               <span className="meta">
-                {montant(bilan.recettes.lots)} lots + {montant(bilan.recettes.parkings)} parkings
+                {bilan.recettesEstimees
+                  ? 'estimation — aucun lot saisi'
+                  : `${montant(bilan.recettes.lots)} lots + ${montant(bilan.recettes.parkings)} parkings`}
               </span>
             </div>
             <div className={`kpi ${margePositive ? 'positif' : 'negatif'}`}>

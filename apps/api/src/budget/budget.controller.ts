@@ -48,6 +48,21 @@ const modifierVersionSchema = z
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Aucun changement fourni.' });
 
+/** Saisie groupée d'un estimatif : un montant par grand poste, en une fois. */
+const estimatifSchema = z.object({
+  lignes: z
+    .array(
+      z.object({
+        cfcNodeId: z.number().int().positive(),
+        // `null` efface la ligne du poste — c'est ainsi qu'on le retire.
+        montant: montant.nullish(),
+        designation: texteOptionnel,
+      }),
+    )
+    .min(1, 'Aucun poste fourni.')
+    .max(200),
+});
+
 const ligneSchema = z.object({
   cfcNodeId: z.number().int().positive(),
   designation: texteOptionnel,
@@ -177,6 +192,26 @@ export class BudgetController {
     @Body(new ZodBody(ligneSchema)) body: z.infer<typeof ligneSchema>,
   ) {
     return this.budget.creerLigne(operationId, versionId, body);
+  }
+
+  // Saisie d'un estimatif : remplace d'un coup les lignes des postes fournis.
+  @RequireOperationAccess({ level: 'OPERATE', module: 'BUDGET_CFC' })
+  @Post('budget/versions/:versionId/estimatif')
+  @HttpCode(200)
+  saisirEstimatif(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Body(new ZodBody(estimatifSchema)) body: z.infer<typeof estimatifSchema>,
+  ) {
+    return this.budget.remplacerLignes(
+      operationId,
+      versionId,
+      body.lignes.map((l) => ({
+        cfcNodeId: l.cfcNodeId,
+        montant: l.montant ?? null,
+        designation: l.designation,
+      })),
+    );
   }
 
   @RequireOperationAccess({ level: 'OPERATE', module: 'BUDGET_CFC' })

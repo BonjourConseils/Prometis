@@ -16,7 +16,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Rôle APPLICATIF (prometis_app) : soumis aux policies RLS.
   url       = env("DATABASE_URL")
   // Rôle PROPRIÉTAIRE (prometis) : utilisé par `prisma migrate` et le seed,
@@ -294,6 +294,13 @@ model Operation {
   statut              OperationStatut @default(MONTAGE)
   dateDebut           DateTime?       @map("date_debut")
   dateLivraisonPrevue DateTime?       @map("date_livraison_prevue")
+
+  /// Recettes attendues, saisies AVANT le plan de vente.
+  ///
+  /// À l'étude de faisabilité, les lots n'existent pas encore : le promoteur
+  /// raisonne sur un total de ventes estimé. Dès qu'un lot est saisi, ce sont
+  /// les prix réels qui priment — ce champ ne sert plus que de repère.
+  recettesPrevisionnelles Decimal? @map("recettes_previsionnelles") @db.Decimal(12, 2)
 
   // Foncier (CFC 0) — synthèse ; le détail chiffré vit dans les lignes de budget.
   prixTerrain         Decimal? @map("prix_terrain") @db.Decimal(12, 2)

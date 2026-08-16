@@ -26,6 +26,8 @@ const operationSchema = z.object({
     .optional(),
   dateDebut: z.coerce.date().nullish(),
   dateLivraisonPrevue: z.coerce.date().nullish(),
+  /** Total des ventes attendu, tant que le plan de vente n'existe pas. */
+  recettesPrevisionnelles: montantPositif.nullish(),
   prixTerrain: montantPositif.nullish(),
   fraisNotaireTerrain: montantPositif.nullish(),
   droitsMutation: montantPositif.nullish(),

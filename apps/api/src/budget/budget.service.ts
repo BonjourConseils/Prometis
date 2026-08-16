@@ -229,6 +229,70 @@ export class BudgetService {
     });
   }
 
+  /**
+   * Remplace en une fois les lignes d'une version — la saisie d'un estimatif.
+   *
+   * À l'étude de faisabilité, on pose un chiffre par grand poste et on les
+   * reprend tous ensemble jusqu'à ce que le bilan tombe juste. Enregistrer
+   * poste par poste ferait de chaque correction une transaction séparée, et
+   * laisserait un budget à moitié révisé si l'une échoue.
+   *
+   * Un montant **nul ou absent** efface la ligne du poste : c'est ainsi qu'on
+   * retire un poste de l'estimatif sans avoir à le supprimer à la main.
+   */
+  async remplacerLignes(
+    operationId: number,
+    versionId: number,
+    lignes: { cfcNodeId: number; montant: Prisma.Decimal | null; designation?: string | null }[],
+  ) {
+    return this.db.run(async (tx) => {
+      const version = await this.versionDeLOperation(tx, operationId, versionId);
+
+      const postes = await tx.cfcNode.findMany({
+        where: { operationId, id: { in: lignes.map((l) => l.cfcNodeId) } },
+        select: { id: true },
+      });
+      const connus = new Set(postes.map((p) => p.id));
+      const inconnu = lignes.find((l) => !connus.has(l.cfcNodeId));
+      if (inconnu) {
+        throw new NotFoundException(`Poste CFC ${inconnu.cfcNodeId} introuvable dans l’opération.`);
+      }
+
+      // On ne touche qu'aux postes présentés : une ligne saisie ailleurs,
+      // sur un sous-poste détaillé, n'a pas à disparaître parce qu'un écran
+      // de synthèse ne la connaît pas.
+      await tx.ligneBudget.deleteMany({
+        where: { budgetVersionId: versionId, cfcNodeId: { in: lignes.map((l) => l.cfcNodeId) } },
+      });
+
+      const aCreer = lignes.filter((l) => l.montant !== null && !l.montant.isZero());
+      if (aCreer.length > 0) {
+        await tx.ligneBudget.createMany({
+          data: aCreer.map((l) => ({
+            budgetVersionId: versionId,
+            cfcNodeId: l.cfcNodeId,
+            montant: l.montant!,
+            designation: l.designation ?? null,
+          })),
+        });
+      }
+
+      await this.audit.enregistrer(tx, {
+        action: 'budget_version.estimatif_saisi',
+        entite: 'BudgetVersion',
+        entiteId: versionId,
+        donnees: {
+          operationId,
+          libelle: version.libelle,
+          postesTouches: lignes.length,
+          lignesEcrites: aCreer.length,
+        },
+      });
+
+      return { postesTouches: lignes.length, lignesEcrites: aCreer.length };
+    });
+  }
+
   async creerLigne(operationId: number, versionId: number, donnees: DonneesLigne) {
     return this.db.run(async (tx) => {
       const version = await this.versionDeLOperation(tx, operationId, versionId);

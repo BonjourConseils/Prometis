@@ -118,6 +118,10 @@ export function AppHeader({
           <>
             <div className="rubrique">Chantier</div>
             {moduleActif('FONCIER') && lien('foncier', op('/foncier'), 'Foncier', IconePpe)}
+            {/* L'estimatif précède le budget : c'est l'ordre dans lequel une
+                promotion se monte — on chiffre grossièrement avant de détailler. */}
+            {moduleActif('BUDGET_CFC') &&
+              lien('estimatif', op('/estimatif'), 'Budget estimatif', IconeBudget)}
             {moduleActif('BUDGET_CFC') && lien('budget', op('/budget'), 'Budget CFC', IconeBudget)}
             {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SOUMISSIONS') &&
