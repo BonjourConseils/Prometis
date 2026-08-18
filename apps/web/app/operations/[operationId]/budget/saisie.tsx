@@ -226,6 +226,46 @@ export function AdopterVersion({
 }
 
 /**
+ * Supprime un poste CFC.
+ *
+ * L'API refuse dès que quoi que ce soit y est rattaché — sous-poste, ligne de
+ * budget, soumission, contrat, facture, avenant — et dit lequel. On ne
+ * pré-teste donc rien ici : reproduire ces six conditions côté écran
+ * donnerait deux règles à maintenir, et c'est celle de l'API qui compte.
+ *
+ * Pas de confirmation : un poste supprimable est par construction un poste
+ * vide, et se recrée en deux champs.
+ */
+export function SupprimerPoste({
+  operationId,
+  cfcNodeId,
+  code,
+}: {
+  operationId: number;
+  cfcNodeId: number;
+  code: string;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  return (
+    <>
+      <button
+        type="button"
+        className="lien"
+        title={`Supprimer le poste ${code}`}
+        disabled={enCours}
+        onClick={() =>
+          void envoyer(`/operations/${operationId}/cfc/${cfcNodeId}`, undefined, 'DELETE')
+        }
+      >
+        {enCours ? '…' : 'supprimer'}
+      </button>
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}
+
+/**
  * Modifie une ligne de budget.
  *
  * Le formulaire est pré-rempli avec l'existant : corriger un montant ne doit

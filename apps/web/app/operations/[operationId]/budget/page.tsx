@@ -12,6 +12,7 @@ import {
   AjouterVersion,
   ImporterTrame,
   SupprimerLigne,
+  SupprimerPoste,
   SupprimerVersion,
 } from './saisie';
 import { chf, montant } from '../../../../lib/format';
@@ -272,6 +273,7 @@ export default async function BudgetPage({
                   <th className="droite">Adjugé</th>
                   <th className="droite">Facturé</th>
                   <th className="droite">Reste à engager</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -290,6 +292,20 @@ export default async function BudgetPage({
                       <td className="droite">{montant(noeud.total.adjuge)}</td>
                       <td className="droite">{montant(noeud.total.facture)}</td>
                       <td className="droite">{montant(noeud.resteAEngager)}</td>
+                      <td>
+                        {/* Le bouton n'apparaît que sur un poste sans montant :
+                            l'API refuserait les autres, et proposer un geste
+                            qui répond « non » fait perdre du temps. Les autres
+                            rattachements — soumission, facture — restent
+                            contrôlés par l'API, qui dira lequel bloque. */}
+                        {vide && (
+                          <SupprimerPoste
+                            operationId={Number(operationId)}
+                            cfcNodeId={noeud.id}
+                            code={noeud.code}
+                          />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -300,6 +316,7 @@ export default async function BudgetPage({
                   <td className="droite">{montant(vue.total.adjuge)}</td>
                   <td className="droite">{montant(vue.total.facture)}</td>
                   <td className="droite">{montant(vue.total.resteAEngager)}</td>
+                  <td></td>
                 </tr>
               </tbody>
             </table>

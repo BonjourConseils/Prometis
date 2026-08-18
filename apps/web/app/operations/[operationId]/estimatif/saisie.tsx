@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { appelApi, champ } from '../../../../lib/api-client';
 import { chf } from '../../../../lib/format';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
+import { SupprimerPoste } from '../budget/saisie';
 
 export interface PosteEstimatif {
   id: number;
@@ -11,6 +12,10 @@ export interface PosteEstimatif {
   libelle: string;
   /** Montant déjà saisi sur CE poste, hors sous-postes. */
   montant: string;
+  /** Profondeur dans l'arbre CFC : 0 pour un grand poste. */
+  profondeur: number;
+  /** Vrai si le poste ne porte ni sous-poste ni montant : supprimable. */
+  supprimable: boolean;
 }
 
 /**
@@ -104,12 +109,13 @@ export function SaisieEstimatif({
           <tr>
             <th>Poste</th>
             <th className="droite">Montant estimé</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {postes.map((p) => (
-            <tr key={p.id}>
-              <td>
+            <tr key={p.id} className={p.profondeur === 0 ? 'groupe' : ''}>
+              <td style={{ paddingLeft: `${p.profondeur * 1.25}rem` }}>
                 <code>{p.code}</code> {p.libelle}
               </td>
               <td className="droite">
@@ -121,6 +127,13 @@ export function SaisieEstimatif({
                   onChange={(e) => setMontants({ ...montants, [p.id]: e.target.value })}
                 />
               </td>
+              <td>
+                {/* Un poste chiffré ou porteur de sous-postes n'est pas
+                    supprimable : videz d'abord son montant et enregistrez. */}
+                {p.supprimable && (
+                  <SupprimerPoste operationId={operationId} cfcNodeId={p.id} code={p.code} />
+                )}
+              </td>
             </tr>
           ))}
           <tr className="groupe">
@@ -130,6 +143,7 @@ export function SaisieEstimatif({
             <td className="droite">
               <strong>{chf(String(coutTotal))}</strong>
             </td>
+            <td></td>
           </tr>
           <tr>
             <td>Total des ventes</td>
@@ -142,6 +156,7 @@ export function SaisieEstimatif({
                 onChange={(e) => setRecettes(e.target.value)}
               />
             </td>
+            <td></td>
           </tr>
           <tr className={benefice < 0 ? 'depassement' : 'groupe'}>
             <td>
@@ -156,6 +171,7 @@ export function SaisieEstimatif({
                 </>
               )}
             </td>
+            <td></td>
           </tr>
         </tbody>
       </table>

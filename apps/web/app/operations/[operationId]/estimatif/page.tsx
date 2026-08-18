@@ -82,19 +82,54 @@ export default async function EstimatifPage({
     );
   }
 
-  // Les postes de premier niveau : c'est la maille de l'estimatif. Le montant
-  // proposé est celui déjà porté par le poste LUI-MÊME, pas ses sous-postes —
-  // sinon la saisie écraserait un détail chiffré ailleurs.
-  const postes = vue.arbre.map((n) => ({
-    id: n.id,
-    code: n.code,
-    libelle: n.libelle,
-    montant: n.propre.budgeteRevise,
-  }));
+  /**
+   * La maille de l'estimatif : les deux premiers niveaux, plus tout poste
+   * plus profond qui porte déjà un montant.
+   *
+   * Deux niveaux parce que c'est la forme d'un bilan de faisabilité — des
+   * grands postes, et sous « taxes » le détail des cédules et du permis.
+   * Descendre plus bas donnerait soixante-neuf champs de saisie pour un
+   * exercice qui en demande huit ; s'arrêter au premier niveau, comme le
+   * faisait cet écran, rendait invisible tout poste rattaché à un parent.
+   *
+   * L'exception — garder ce qui est chiffré, quelle que soit la profondeur —
+   * existe pour qu'un montant saisi ne disparaisse jamais de la vue où on
+   * l'a saisi.
+   *
+   * Le montant proposé est celui du poste LUI-MÊME (`propre`), pas de ses
+   * sous-postes : sinon la saisie écraserait un détail chiffré ailleurs, et
+   * le total compterait deux fois.
+   */
+  const aplatirEstimatif = (
+    noeuds: Noeud[],
+    profondeur = 0,
+  ): {
+    id: number;
+    code: string;
+    libelle: string;
+    montant: string;
+    profondeur: number;
+    supprimable: boolean;
+  }[] =>
+    noeuds.flatMap((n) => {
+      const chiffre = Number(n.total.budgeteRevise) !== 0;
+      const visible = profondeur < 2 || chiffre;
+      const ligne = {
+        id: n.id,
+        code: n.code,
+        libelle: n.libelle,
+        montant: n.propre.budgeteRevise,
+        profondeur,
+        // Un poste vide et sans sous-poste. Les autres rattachements —
+        // soumission, contrat, facture — restent contrôlés par l'API, qui
+        // dira lequel bloque.
+        supprimable: n.enfants.length === 0 && !chiffre,
+      };
+      const enfants = aplatirEstimatif(n.enfants, profondeur + 1);
+      return visible ? [ligne, ...enfants] : enfants;
+    });
 
-  const detailAilleurs = vue.arbre.filter(
-    (n) => Number(n.total.budgeteRevise) !== Number(n.propre.budgeteRevise),
-  );
+  const postes = aplatirEstimatif(vue.arbre);
 
   return (
     <main>
@@ -136,15 +171,9 @@ export default async function EstimatifPage({
             <h2>{vue.versionAffichee.libelle}</h2>
             <p className="note">
               Un montant par grand poste, <strong>hors taxe</strong>. Le total et le bénéfice se
-              recalculent à mesure que vous tapez ; rien n&apos;est enregistré avant le bouton.
-              {detailAilleurs.length > 0 && (
-                <>
-                  {' '}
-                  Attention : {detailAilleurs.map((n) => n.code).join(', ')} porte
-                  {detailAilleurs.length > 1 ? 'nt' : ''} déjà des lignes sur des sous-postes — la
-                  saisie ci-dessous ne les touche pas, elle s&apos;y ajoute.
-                </>
-              )}
+              recalculent à mesure que vous tapez ; rien n&apos;est enregistré avant le bouton. Les
+              deux premiers niveaux CFC sont proposés — pour descendre plus bas, passez par{' '}
+              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>.
             </p>
 
             <SaisieEstimatif
