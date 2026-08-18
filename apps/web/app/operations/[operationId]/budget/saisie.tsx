@@ -126,19 +126,24 @@ export function AjouterVersion({
   versions,
 }: {
   operationId: number;
-  versions: { id: number; libelle: string }[];
+  versions: { id: number; libelle: string; isCourant: boolean }[];
 }) {
   const [ouvert, setOuvert] = useState(false);
   const { envoyer, erreur, enCours } = useEnvoi();
 
+  // Copier est le geste normal : on part du budget en vigueur et on affine.
+  // Partir d'une page blanche existe, mais ce n'est pas ce qu'on fait en
+  // passant de l'estimatif au budget détaillé.
+  const source = versions.find((v) => v.isCourant) ?? versions[versions.length - 1];
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
-    const source = champ(d.get('copierDepuisId'));
+    const choisie = champ(d.get('copierDepuisId'));
     const ok = await envoyer(`/operations/${operationId}/budget/versions`, {
       libelle: champ(d.get('libelle')),
       commentaire: champ(d.get('commentaire')),
-      copierDepuisId: source === undefined ? undefined : Number(source),
+      copierDepuisId: choisie === undefined ? undefined : Number(choisie),
     });
     if (ok) setOuvert(false);
   }
@@ -168,13 +173,14 @@ export function AjouterVersion({
           {versions.length > 0 && (
             <label>
               Copier les lignes depuis
-              <select name="copierDepuisId" defaultValue="">
-                <option value="">— partir d&apos;un budget vide —</option>
+              <select name="copierDepuisId" defaultValue={source ? String(source.id) : ''}>
                 {versions.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.libelle}
+                    {v.isCourant ? ' (courant)' : ''}
                   </option>
                 ))}
+                <option value="">— partir d&apos;un budget vide —</option>
               </select>
             </label>
           )}

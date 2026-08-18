@@ -187,10 +187,27 @@ export default async function BudgetPage({
           </div>
         )}
 
+        {/* Le passage de l'estimatif au budget détaillé est le geste suivant
+            d'une promotion, et rien ne le disait. On ne supprime pas
+            l'estimatif : on le copie, et l'écart entre les deux devient la
+            mesure de ce qu'on avait mal estimé. */}
+        {vue.versions.length === 1 && (
+          <p className="note">
+            Une seule version. Pour passer au budget détaillé, créez une <strong>révision</strong>{' '}
+            en copiant celle-ci — vos montants estimés servent de point de départ, et la colonne «
+            écart » dira ensuite poste par poste ce que les soumissions ont démenti. Ne supprimez
+            pas l&apos;estimatif : c&apos;est lui la référence.
+          </p>
+        )}
+
         <div className="actions">
           <AjouterVersion
             operationId={Number(operationId)}
-            versions={vue.versions.map((v) => ({ id: v.id, libelle: v.libelle }))}
+            versions={vue.versions.map((v) => ({
+              id: v.id,
+              libelle: v.libelle,
+              isCourant: v.isCourant,
+            }))}
           />
           {vue.versionAffichee && !vue.versionAffichee.isCourant && (
             <>
