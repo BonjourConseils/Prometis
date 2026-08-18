@@ -478,14 +478,18 @@ model Parking {
 /// Nœud de l'arborescence CFC de l'opération (arbre à N niveaux, adjacency list).
 /// Ex. 2 → 27 → 271 → 271.0. Agrège budgété / adjugé / commandé / facturé.
 model CfcNode {
-  id          Int      @id @default(autoincrement())
-  operationId Int      @map("operation_id")
-  parentId    Int?     @map("parent_id")
-  code        String // "2", "27", "271", "271.0"
-  libelle     String
-  niveau      Int // profondeur (1 = groupe principal)
-  ordre       Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            Int      @id @default(autoincrement())
+  operationId   Int      @map("operation_id")
+  parentId      Int?     @map("parent_id")
+  code          String // "2", "27", "271", "271.0"
+  libelle       String
+  niveau        Int // profondeur (1 = groupe principal)
+  ordre         Int      @default(0)
+  /// Posé par l'import de la trame de départ. Un poste créé à la main par le
+  /// promoteur reste à `false` : c'est ce qui permet de replier la trame sans
+  /// jamais masquer ce qu'il a ajouté lui-même.
+  issuDeLaTrame Boolean  @default(false) @map("issu_de_la_trame")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
   parent    CfcNode?  @relation("CfcHierarchie", fields: [parentId], references: [id])

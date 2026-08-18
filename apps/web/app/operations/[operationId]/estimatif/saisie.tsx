@@ -16,6 +16,8 @@ export interface PosteEstimatif {
   montant: string;
   /** Profondeur dans l'arbre CFC : 0 pour un grand poste. */
   profondeur: number;
+  /** Créé par le promoteur, hors trame importée. */
+  ajoutManuel: boolean;
   /** Vrai si le poste ne porte ni sous-poste ni montant : supprimable. */
   supprimable: boolean;
 }
@@ -87,7 +89,17 @@ export function SaisieEstimatif({
 
   // Replié, on garde les grands postes et tout ce qui porte un montant : un
   // chiffre saisi ne doit jamais disparaître de la vue où on l'a tapé.
-  const visibles = detail ? postes : postes.filter((p) => p.profondeur === 0 || totalDe(p) !== 0);
+  /**
+   * Replié, la feuille garde trois choses : les grands postes, ce qui porte un
+   * montant, et ce que le promoteur a ajouté lui-même.
+   *
+   * Ce dernier point n'est pas du confort. Sans lui, un poste créé depuis cet
+   * écran disparaissait aussitôt faute de montant, et l'écran donnait à croire
+   * que la création avait échoué.
+   */
+  const visibles = detail
+    ? postes
+    : postes.filter((p) => p.profondeur === 0 || p.ajoutManuel || totalDe(p) !== 0);
   const totalVentes = nombre(recettes);
   const benefice = totalVentes - coutTotal;
   const marge = totalVentes > 0 ? (benefice / totalVentes) * 100 : 0;
@@ -140,7 +152,7 @@ export function SaisieEstimatif({
           Afficher le détail des sous-postes
           <span className="meta">
             {postes.length - visibles.length > 0
-              ? `${postes.length - visibles.length} poste(s) replié(s) — leurs montants restent comptés.`
+              ? `${postes.length - visibles.length} poste(s) de la trame replié(s) — leurs montants restent comptés. Vos propres postes restent visibles.`
               : 'Tous les postes sont affichés.'}
           </span>
         </span>

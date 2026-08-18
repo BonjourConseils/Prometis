@@ -64,9 +64,12 @@ export default async function EstimatifPage({
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const [operation, vue] = await Promise.all([
+  const [operation, vue, tousLesPostes] = await Promise.all([
     apiGet<Operation>(`/operations/${operationId}`),
     apiGet<VueBudget>(`/operations/${operationId}/budget`),
+    // L'arbre consolidé n'expose pas l'origine des postes : on la lit sur la
+    // liste plate, qui rend les colonnes brutes.
+    apiGet<{ id: number; issuDeLaTrame: boolean }[]>(`/operations/${operationId}/cfc`),
   ]);
 
   if (!operation) notFound();
@@ -100,6 +103,13 @@ export default async function EstimatifPage({
    * sous-postes : sinon la saisie écraserait un détail chiffré ailleurs, et
    * le total compterait deux fois.
    */
+  // Ce que le promoteur a ajouté lui-même reste visible même feuille repliée :
+  // masquer un poste sur l'écran qui vient de le créer est le contraire d'une
+  // aide. La trame, elle, se replie.
+  const ajoutesALaMain = new Set(
+    (tousLesPostes ?? []).filter((n) => !n.issuDeLaTrame).map((n) => n.id),
+  );
+
   const aplatirEstimatif = (
     noeuds: Noeud[],
     profondeur = 0,
@@ -111,6 +121,7 @@ export default async function EstimatifPage({
     libelle: string;
     montant: string;
     profondeur: number;
+    ajoutManuel: boolean;
     supprimable: boolean;
   }[] =>
     noeuds.flatMap((n) => {
@@ -123,6 +134,7 @@ export default async function EstimatifPage({
         libelle: n.libelle,
         montant: n.propre.budgeteRevise,
         profondeur,
+        ajoutManuel: ajoutesALaMain.has(n.id),
         // Un poste vide et sans sous-poste. Les autres rattachements —
         // soumission, contrat, facture — restent contrôlés par l'API, qui
         // dira lequel bloque.

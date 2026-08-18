@@ -183,7 +183,15 @@ export class CfcService {
         ordre: number,
       ) => {
         const noeud = await tx.cfcNode.create({
-          data: { operationId, parentId, code: spec.code, libelle: spec.libelle, niveau, ordre },
+          data: {
+            operationId,
+            parentId,
+            code: spec.code,
+            libelle: spec.libelle,
+            niveau,
+            ordre,
+            issuDeLaTrame: true,
+          },
         });
         crees += 1;
         let i = 0;
