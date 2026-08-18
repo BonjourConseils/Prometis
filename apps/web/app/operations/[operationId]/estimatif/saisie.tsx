@@ -8,6 +8,8 @@ import { SupprimerPoste } from '../budget/saisie';
 
 export interface PosteEstimatif {
   id: number;
+  /** Poste parent dans l'arbre CFC, `null` pour un grand poste. */
+  parentId: number | null;
   code: string;
   libelle: string;
   /** Montant déjà saisi sur CE poste, hors sous-postes. */
@@ -46,6 +48,10 @@ export function SaisieEstimatif({
     Object.fromEntries(postes.map((p) => [p.id, p.montant === '0' ? '' : p.montant])),
   );
   const [recettes, setRecettes] = useState(recettesInitiales === '0' ? '' : recettesInitiales);
+  // Feuille courte par défaut : une faisabilité tient en huit lignes. Le
+  // détail des sous-postes se déplie à la demande — plutôt que de faire
+  // supprimer la trame, dont le budget détaillé aura besoin.
+  const [detail, setDetail] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [enregistre, setEnregistre] = useState(false);
@@ -57,7 +63,31 @@ export function SaisieEstimatif({
     return Number.isFinite(n) ? n : 0;
   };
 
+  /**
+   * Le total d'un poste : son propre montant, plus celui de ses sous-postes.
+   *
+   * C'est la règle du CFC — un groupe vaut la somme de ce qu'il porte — et
+   * elle se calcule ici pour la même raison que le reste de l'écran : voir
+   * « taxes » se remplir en saisissant les cédules, sans attendre un
+   * aller-retour serveur.
+   */
+  const enfantsDe = new Map<number, PosteEstimatif[]>();
+  for (const p of postes) {
+    if (p.parentId === null) continue;
+    enfantsDe.set(p.parentId, [...(enfantsDe.get(p.parentId) ?? []), p]);
+  }
+
+  const totalDe = (p: PosteEstimatif): number =>
+    nombre(montants[p.id] ?? '') + (enfantsDe.get(p.id) ?? []).reduce((t, e) => t + totalDe(e), 0);
+
+  // Le coût de l'opération est la somme des montants PROPRES, pas des totaux :
+  // additionner les totaux compterait chaque sous-poste deux fois. Il porte
+  // sur TOUS les postes, y compris ceux que l'affichage replie.
   const coutTotal = postes.reduce((t, p) => t + nombre(montants[p.id] ?? ''), 0);
+
+  // Replié, on garde les grands postes et tout ce qui porte un montant : un
+  // chiffre saisi ne doit jamais disparaître de la vue où on l'a tapé.
+  const visibles = detail ? postes : postes.filter((p) => p.profondeur === 0 || totalDe(p) !== 0);
   const totalVentes = nombre(recettes);
   const benefice = totalVentes - coutTotal;
   const marge = totalVentes > 0 ? (benefice / totalVentes) * 100 : 0;
@@ -104,16 +134,29 @@ export function SaisieEstimatif({
 
   return (
     <form onSubmit={onSubmit} className="form">
+      <label className="case">
+        <input type="checkbox" checked={detail} onChange={(e) => setDetail(e.target.checked)} />
+        <span>
+          Afficher le détail des sous-postes
+          <span className="meta">
+            {postes.length - visibles.length > 0
+              ? `${postes.length - visibles.length} poste(s) replié(s) — leurs montants restent comptés.`
+              : 'Tous les postes sont affichés.'}
+          </span>
+        </span>
+      </label>
+
       <table>
         <thead>
           <tr>
             <th>Poste</th>
             <th className="droite">Montant estimé</th>
+            <th className="droite">Total du poste</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {postes.map((p) => (
+          {visibles.map((p) => (
             <tr key={p.id} className={p.profondeur === 0 ? 'groupe' : ''}>
               <td style={{ paddingLeft: `${p.profondeur * 1.25}rem` }}>
                 <code>{p.code}</code> {p.libelle}
@@ -126,6 +169,13 @@ export function SaisieEstimatif({
                   placeholder="—"
                   onChange={(e) => setMontants({ ...montants, [p.id]: e.target.value })}
                 />
+              </td>
+              <td className="droite">
+                {/* La colonne n'a de sens que sur un poste qui en agrège
+                    d'autres : sur une feuille, elle répéterait la saisie. */}
+                {(enfantsDe.get(p.id)?.length ?? 0) > 0 && (
+                  <strong>{chf(String(totalDe(p)))}</strong>
+                )}
               </td>
               <td>
                 {/* Un poste chiffré ou porteur de sous-postes n'est pas
@@ -140,6 +190,7 @@ export function SaisieEstimatif({
             <td>
               <strong>Coût total</strong>
             </td>
+            <td className="droite"></td>
             <td className="droite">
               <strong>{chf(String(coutTotal))}</strong>
             </td>
@@ -157,11 +208,13 @@ export function SaisieEstimatif({
               />
             </td>
             <td></td>
+            <td></td>
           </tr>
           <tr className={benefice < 0 ? 'depassement' : 'groupe'}>
             <td>
               <strong>Bénéfice sur la vente</strong>
             </td>
+            <td className="droite"></td>
             <td className="droite">
               <strong className={benefice < 0 ? 'ko' : 'ok'}>{chf(String(benefice))}</strong>
               {totalVentes > 0 && (

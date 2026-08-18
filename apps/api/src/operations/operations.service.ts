@@ -152,6 +152,10 @@ export class OperationsService {
           commercialisationActive: true,
           dateDebut: true,
           dateLivraisonPrevue: true,
+          // Sans ce champ, l'écran d'estimatif enregistrait le total des
+          // ventes puis le réaffichait vide : la valeur existait en base et
+          // ne revenait jamais.
+          recettesPrevisionnelles: true,
           _count: { select: { biens: true, parcelles: true, cfcNodes: true } },
         },
       }),

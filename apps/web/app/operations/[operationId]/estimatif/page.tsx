@@ -103,8 +103,10 @@ export default async function EstimatifPage({
   const aplatirEstimatif = (
     noeuds: Noeud[],
     profondeur = 0,
+    parentId: number | null = null,
   ): {
     id: number;
+    parentId: number | null;
     code: string;
     libelle: string;
     montant: string;
@@ -116,6 +118,7 @@ export default async function EstimatifPage({
       const visible = profondeur < 2 || chiffre;
       const ligne = {
         id: n.id,
+        parentId,
         code: n.code,
         libelle: n.libelle,
         montant: n.propre.budgeteRevise,
@@ -125,7 +128,9 @@ export default async function EstimatifPage({
         // dira lequel bloque.
         supprimable: n.enfants.length === 0 && !chiffre,
       };
-      const enfants = aplatirEstimatif(n.enfants, profondeur + 1);
+      // Un poste masqué ne casse pas le rattachement : ses enfants visibles
+      // remontent au grand-parent, et la somme reste juste.
+      const enfants = aplatirEstimatif(n.enfants, profondeur + 1, visible ? n.id : parentId);
       return visible ? [ligne, ...enfants] : enfants;
     });
 
