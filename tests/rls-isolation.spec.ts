@@ -289,11 +289,18 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 39 tables tenant du modèle', async () => {
+  it('couvre les 40 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(39);
+    expect(Number(rows[0]!.count)).toBe(40);
+  });
+
+  it('les taux de frais d’acquisition sont propres à chaque société', async () => {
+    // Le paramétrage d'une société ne doit pas fuir vers l'autre : deux
+    // promoteurs n'ont ni le même notaire ni la même pratique.
+    const constructa = await asTenant(CONSTRUCTA, (tx) => tx.tauxFraisAcquisition.count());
+    expect(constructa).toBe(0);
   });
 
   it('les découpages de parcelle ne traversent pas les sociétés', async () => {

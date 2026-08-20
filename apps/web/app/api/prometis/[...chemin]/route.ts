@@ -76,6 +76,10 @@ export async function PATCH(request: Request, { params }: Contexte): Promise<Res
   return relayer(request, (await params).chemin);
 }
 
+export async function PUT(request: Request, { params }: Contexte): Promise<Response> {
+  return relayer(request, (await params).chemin);
+}
+
 export async function DELETE(request: Request, { params }: Contexte): Promise<Response> {
   return relayer(request, (await params).chemin);
 }

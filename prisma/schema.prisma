@@ -118,16 +118,17 @@ model Societe {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  memberships  Membership[]
-  actionnaires Actionnaire[]
-  operations   Operation[]
-  acteurs      Acteur[]
-  entreprises  Entreprise[]
-  acquereurs   Acquereur[]
-  factures     Facture[]
-  documents    Document[]
-  apiKeys      ApiKey[]
-  auditLogs    AuditLog[]
+  memberships     Membership[]
+  actionnaires    Actionnaire[]
+  operations      Operation[]
+  acteurs         Acteur[]
+  entreprises     Entreprise[]
+  tauxAcquisition TauxFraisAcquisition[]
+  acquereurs      Acquereur[]
+  factures        Facture[]
+  documents       Document[]
+  apiKeys         ApiKey[]
+  auditLogs       AuditLog[]
 
   @@map("societes")
 }
@@ -1218,6 +1219,32 @@ model SeancePoint {
 
 /// Parcelle cadastrale de l'opération. Porte ses documents (extraits du
 /// registre foncier, plans cadastraux…). Une opération peut couvrir plusieurs parcelles.
+/// Taux de frais d'acquisition d'un terrain, par canton.
+///
+/// Notaire, registre foncier et droits de mutation varient d'un canton à
+/// l'autre — environ 3 % en Valais. Le taux sert à ESTIMER ces frais tant
+/// qu'ils ne sont pas connus ; dès qu'ils sont saisis sur la promotion, ce
+/// sont eux qui comptent et l'estimation disparaît.
+///
+/// Paramétré par société : deux promoteurs n'ont ni le même notaire ni la
+/// même pratique, et aucun barème officiel ne peut être codé en dur ici.
+model TauxFraisAcquisition {
+  id          Int      @id @default(autoincrement())
+  societeId   Int      @map("societe_id")
+  /// Sigle du canton : « VS », « VD », « GE »…
+  canton      String   @db.VarChar(2)
+  pourcentage Decimal  @db.Decimal(5, 2)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@unique([societeId, canton])
+  @@index([societeId])
+  @@map("taux_frais_acquisition")
+}
+
 /// Nature d'un découpage de parcelle, tel qu'il figure à l'extrait RDPPF.
 ///
 /// Une parcelle n'est pas homogène : elle peut porter deux zones

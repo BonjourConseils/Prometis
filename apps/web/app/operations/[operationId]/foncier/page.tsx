@@ -70,8 +70,15 @@ interface Bien {
 interface Operation {
   id: number;
   nom: string;
+  canton: string | null;
   fraisNotaireTerrain: string | null;
   droitsMutation: string | null;
+}
+
+interface TauxAcquisition {
+  id: number;
+  canton: string;
+  pourcentage: string;
 }
 
 /**
@@ -155,9 +162,11 @@ export default async function FoncierPage({
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const [parcelles, biens] = await Promise.all([
+  const [parcelles, biens, taux] = await Promise.all([
     apiGet<Parcelle[]>(`/operations/${operationId}/parcelles`),
     apiGet<Bien[]>(`/operations/${operationId}/biens`),
+    // Sert uniquement à ESTIMER les frais quand ils ne sont pas connus.
+    apiGet<TauxAcquisition[]>('/taux-acquisition'),
   ]);
 
   if (parcelles === null || biens === null) {
@@ -181,8 +190,22 @@ export default async function FoncierPage({
   const surfaceTotale = parcelles.reduce((t, p) => t + Number(p.surfaceM2 ?? 0), 0);
   const prixTotal = parcelles.reduce((t, p) => t + Number(p.prixAchat ?? 0), 0);
   const sbpTotale = parcelles.reduce((t, p) => t + (sbp(p) ?? 0), 0);
-  const fraisAcquisition =
+  /**
+   * Frais d'acquisition : le montant SAISI s'il existe, sinon une estimation
+   * au taux du canton.
+   *
+   * L'estimation s'affiche précédée d'un « ≈ ». Un chiffre calculé qui se
+   * présente comme un chiffre connu est la façon la plus sûre de faire
+   * signer un bilan faux.
+   */
+  const fraisSaisis =
     Number(operation.fraisNotaireTerrain ?? 0) + Number(operation.droitsMutation ?? 0);
+  const tauxDuCanton = (taux ?? []).find((t) => t.canton === operation.canton);
+  const estimation =
+    fraisSaisis === 0 && tauxDuCanton && prixTotal > 0
+      ? (prixTotal * Number(tauxDuCanton.pourcentage)) / 100
+      : null;
+  const fraisAcquisition = fraisSaisis > 0 ? fraisSaisis : (estimation ?? 0);
   const communes = [...new Set(parcelles.map((p) => p.commune).filter(Boolean))] as string[];
 
   return (
@@ -238,11 +261,18 @@ export default async function FoncierPage({
         </div>
         <div className="kpi">
           <span className="etiquette">Frais d&apos;acquisition</span>
-          <span className="valeur">{chf(String(fraisAcquisition))}</span>
+          <span className="valeur">
+            {estimation !== null && <span aria-label="environ">≈ </span>}
+            {chf(String(fraisAcquisition))}
+          </span>
           <span className="precision">
-            {/* Saisis à la création de la promotion : ils ne se déduisent
-                d'aucune parcelle en particulier. */}
-            {fraisAcquisition > 0 ? 'notaire et droits de mutation' : 'aucun frais saisi'}
+            {estimation !== null
+              ? `estimé à ${nombre(tauxDuCanton!.pourcentage)} % du prix — canton ${operation.canton}`
+              : fraisSaisis > 0
+                ? 'notaire et droits de mutation'
+                : operation.canton
+                  ? `aucun frais saisi, aucun taux défini pour ${operation.canton}`
+                  : 'aucun frais saisi'}
           </span>
         </div>
       </div>

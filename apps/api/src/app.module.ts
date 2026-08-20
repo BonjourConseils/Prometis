@@ -21,6 +21,7 @@ import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
 import { AccesController } from './acces/acces.controller';
 import { SocieteController } from './societe/societe.controller';
+import { TauxAcquisitionController } from './societe/taux-acquisition.controller';
 import { OperationsController } from './operations/operations.controller';
 import { AuditController } from './audit/audit.controller';
 import { MailController } from './mail/mail.controller';
@@ -81,6 +82,7 @@ export class AppModule implements NestModule {
     consumer.apply(AuthContextMiddleware).forRoutes(
       AuthController,
       SocieteController,
+      TauxAcquisitionController,
       OperationsController,
       FoncierController,
       ActeursController,

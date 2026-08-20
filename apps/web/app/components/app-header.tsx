@@ -153,6 +153,7 @@ export function AppHeader({
             <div className="rubrique">Administration</div>
             {lien('passerelle', '/passerelle', 'Passerelle', IconePasserelle)}
             {lien('droits', '/droits-acces', "Droits d'accès", IconeDroits)}
+            {lien('taux', '/taux-acquisition', "Frais d'acquisition", IconeBudget)}
           </>
         )}
       </nav>
