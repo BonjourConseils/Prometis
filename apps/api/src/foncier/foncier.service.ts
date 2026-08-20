@@ -10,6 +10,10 @@ export interface DonneesParcelle {
   surfaceM2?: Prisma.Decimal | null;
   affectationZone?: string | null;
   registreFoncier?: string | null;
+  lienGeoportail?: string | null;
+  lienRdppf?: string | null;
+  prixAchat?: Prisma.Decimal | null;
+  ibus?: Prisma.Decimal | null;
   note?: string | null;
 }
 

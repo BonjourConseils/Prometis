@@ -150,8 +150,15 @@ describe('registre PPE', () => {
   });
 
   it('les parcelles 2841 et 2842 sont rattachées à l’opération', async () => {
+    // Scopé à la promotion de référence, comme le reste du fichier : une
+    // parcelle saisie ailleurs depuis l'interface n'a pas à faire échouer un
+    // test qui verrouille les chiffres du prototype.
     const parcelles = await asTenant(CB, (tx) =>
-      tx.parcelle.findMany({ select: { numero: true }, orderBy: { numero: 'asc' } }),
+      tx.parcelle.findMany({
+        where: { operation: { nom: 'Les Jardins de Prilly' } },
+        select: { numero: true },
+        orderBy: { numero: 'asc' },
+      }),
     );
     expect(parcelles.map((p) => p.numero)).toEqual(['2841', '2842']);
   });

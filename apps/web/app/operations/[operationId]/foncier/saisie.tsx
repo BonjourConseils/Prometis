@@ -1,7 +1,8 @@
 'use client';
 
-import { type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { champ } from '../../../../lib/api-client';
+import { nombre } from '../../../../lib/format';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
 
 /**
@@ -29,20 +30,83 @@ export function AjouterParcelle({ operationId }: { operationId: number }) {
   );
 }
 
-function FormulaireParcelle({ operationId, fermer }: { operationId: number; fermer: () => void }) {
+/**
+ * Modifier une parcelle déjà saisie.
+ *
+ * Le même formulaire que la création, pré-rempli : une surface corrigée ou un
+ * prix négocié à la baisse ne doit pas obliger à tout resaisir.
+ */
+export function ModifierParcelle({
+  operationId,
+  parcelle,
+}: {
+  operationId: number;
+  parcelle: ParcelleExistante;
+}) {
+  return (
+    <Repliable libelle="Modifier">
+      {(fermer) => (
+        <FormulaireParcelle operationId={operationId} parcelle={parcelle} fermer={fermer} />
+      )}
+    </Repliable>
+  );
+}
+
+export interface ParcelleExistante {
+  id: number;
+  numero: string;
+  egrid: string | null;
+  commune: string | null;
+  surfaceM2: string | null;
+  affectationZone: string | null;
+  registreFoncier: string | null;
+  lienGeoportail: string | null;
+  lienRdppf: string | null;
+  prixAchat: string | null;
+  ibus: string | null;
+}
+
+function FormulaireParcelle({
+  operationId,
+  parcelle,
+  fermer,
+}: {
+  operationId: number;
+  parcelle?: ParcelleExistante;
+  fermer: () => void;
+}) {
   const { envoyer, erreur, enCours } = useEnvoi();
+  // Ce que la parcelle vaut au m² et ce qu'on peut y bâtir : deux chiffres
+  // qui décident d'un achat, et qu'on veut voir bouger pendant qu'on négocie.
+  const [surface, setSurface] = useState(parcelle?.surfaceM2 ?? '');
+  const [prix, setPrix] = useState(parcelle?.prixAchat ?? '');
+  const [ibus, setIbus] = useState(parcelle?.ibus ?? '');
+
+  const nb = (v: string) => {
+    const n = Number(v.replace(/[\s'\u2019]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const prixM2 = nb(surface) > 0 ? nb(prix) / nb(surface) : 0;
+  const sbp = nb(surface) * nb(ibus);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
-    const ok = await envoyer(`/operations/${operationId}/parcelles`, {
+    const corps = {
       numero: champ(d.get('numero')),
       egrid: champ(d.get('egrid')),
       commune: champ(d.get('commune')),
       surfaceM2: champ(d.get('surfaceM2')),
       affectationZone: champ(d.get('affectationZone')),
       registreFoncier: champ(d.get('registreFoncier')),
-    });
+      lienGeoportail: champ(d.get('lienGeoportail')),
+      lienRdppf: champ(d.get('lienRdppf')),
+      prixAchat: champ(d.get('prixAchat')),
+      ibus: champ(d.get('ibus')),
+    };
+    const ok = parcelle
+      ? await envoyer(`/operations/${operationId}/parcelles/${parcelle.id}`, corps, 'PATCH')
+      : await envoyer(`/operations/${operationId}/parcelles`, corps);
     if (ok) fermer();
   }
 
@@ -51,34 +115,114 @@ function FormulaireParcelle({ operationId, fermer }: { operationId: number; ferm
       <div className="grille-3">
         <label>
           Numéro
-          <input name="numero" required autoFocus placeholder="2841" />
+          <input
+            name="numero"
+            required
+            autoFocus
+            defaultValue={parcelle?.numero ?? ''}
+            placeholder="2841"
+          />
         </label>
         <label>
           Commune
-          <input name="commune" placeholder="Prilly" />
+          <input name="commune" defaultValue={parcelle?.commune ?? ''} placeholder="Prilly" />
         </label>
         <label>
           Surface (m²)
-          <input name="surfaceM2" inputMode="decimal" placeholder="2480" />
+          <input
+            name="surfaceM2"
+            inputMode="decimal"
+            value={surface}
+            onChange={(e) => setSurface(e.target.value)}
+            placeholder="2480"
+          />
         </label>
       </div>
       <div className="grille-3">
         <label>
           E-GRID
-          <input name="egrid" placeholder="CH807361283946" />
+          <input name="egrid" defaultValue={parcelle?.egrid ?? ''} placeholder="CH807361283946" />
         </label>
         <label>
           Zone d&apos;affectation
-          <input name="affectationZone" placeholder="Zone de moyenne densité" />
+          <input
+            name="affectationZone"
+            defaultValue={parcelle?.affectationZone ?? ''}
+            placeholder="Zone de moyenne densité"
+          />
         </label>
         <label>
           Registre foncier
-          <input name="registreFoncier" placeholder="RF Lausanne" />
+          <input
+            name="registreFoncier"
+            defaultValue={parcelle?.registreFoncier ?? ''}
+            placeholder="RF Lausanne"
+          />
         </label>
       </div>
+      <div className="grille-3">
+        <label>
+          Prix d&apos;achat
+          <input
+            name="prixAchat"
+            inputMode="decimal"
+            value={prix}
+            onChange={(e) => setPrix(e.target.value)}
+            placeholder="1850000"
+          />
+        </label>
+        <label>
+          IBUS
+          <input
+            name="ibus"
+            inputMode="decimal"
+            value={ibus}
+            onChange={(e) => setIbus(e.target.value)}
+            placeholder="0.6"
+          />
+        </label>
+      </div>
+      <div className="grille-2">
+        <label>
+          Lien géoportail
+          <input
+            name="lienGeoportail"
+            type="url"
+            defaultValue={parcelle?.lienGeoportail ?? ''}
+            placeholder="https://maps.mongeometre.ch/?…"
+          />
+        </label>
+        <label>
+          Extrait RDPPF
+          <input
+            name="lienRdppf"
+            type="url"
+            defaultValue={parcelle?.lienRdppf ?? ''}
+            placeholder="https://rdppf.apps.vs.ch/extract/pdf?…"
+          />
+        </label>
+      </div>
+
+      {(prixM2 > 0 || sbp > 0) && (
+        <p className="note">
+          {prixM2 > 0 && (
+            <>
+              <strong>{nombre(prixM2.toFixed(2), 'CHF/m²')}</strong> de terrain
+              {sbp > 0 ? ' · ' : '.'}
+            </>
+          )}
+          {sbp > 0 && (
+            <>
+              <strong>{nombre(sbp.toFixed(0), 'm²')}</strong> de surface brute de plancher
+              constructible ({nombre(surface, 'm²')} × {ibus}).
+            </>
+          )}
+        </p>
+      )}
+
       {erreur && <p className="ko">{erreur}</p>}
       <button type="submit" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer la parcelle'}
+        {enCours ? 'Enregistrement…' : parcelle ? 'Enregistrer' : 'Enregistrer la parcelle'}
       </button>
     </form>
   );

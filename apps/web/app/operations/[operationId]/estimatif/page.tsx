@@ -3,7 +3,6 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
-import { chf } from '../../../../lib/format';
 import { AjouterPosteEstimatif, SaisieEstimatif } from './saisie';
 import { AdopterVersion, ImporterTrame } from '../budget/saisie';
 
@@ -190,7 +189,10 @@ export default async function EstimatifPage({
               Un montant par grand poste, <strong>hors taxe</strong>. Le total et le bénéfice se
               recalculent à mesure que vous tapez ; rien n&apos;est enregistré avant le bouton. Les
               deux premiers niveaux CFC sont proposés — pour descendre plus bas, passez par{' '}
-              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>.
+              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>. Le total des
+              ventes alimente le bilan promoteur{' '}
+              <strong>tant qu&apos;aucun lot n&apos;est saisi</strong> ; dès le premier lot, ce sont
+              les prix réels qui comptent.
             </p>
 
             <SaisieEstimatif
@@ -230,24 +232,6 @@ export default async function EstimatifPage({
               operationId={id}
               parents={vue.arbre.map((n) => ({ id: n.id, code: n.code, libelle: n.libelle }))}
             />
-          </section>
-
-          <section>
-            <h2>Et ensuite</h2>
-            <p className="note">
-              Quand les vraies soumissions arrivent, ne modifiez pas cet estimatif : créez une{' '}
-              <strong>révision</strong> depuis l&apos;écran{' '}
-              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>. Les deux versions
-              cohabitent, et la colonne « écart » vous dira poste par poste où vous vous étiez
-              trompé — c&apos;est exactement ce que vous cherchez à mesurer.
-            </p>
-            {operation.recettesPrevisionnelles && (
-              <p className="note">
-                Le total des ventes saisi ici ({chf(operation.recettesPrevisionnelles)}) alimente le
-                bilan promoteur <strong>tant qu&apos;aucun lot n&apos;est saisi</strong>. Dès le
-                premier lot, ce sont les prix réels qui comptent.
-              </p>
-            )}
           </section>
         </>
       )}

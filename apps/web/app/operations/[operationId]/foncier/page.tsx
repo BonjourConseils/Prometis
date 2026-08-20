@@ -4,7 +4,13 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { chf, lisible, montant, nombre } from '../../../../lib/format';
-import { AjouterBien, AjouterLot, AjouterParcelle, AjouterParking } from './saisie';
+import {
+  AjouterBien,
+  AjouterLot,
+  AjouterParcelle,
+  AjouterParking,
+  ModifierParcelle,
+} from './saisie';
 
 interface Parcelle {
   id: number;
@@ -14,6 +20,10 @@ interface Parcelle {
   surfaceM2: string | null;
   affectationZone: string | null;
   registreFoncier: string | null;
+  lienGeoportail: string | null;
+  lienRdppf: string | null;
+  prixAchat: string | null;
+  ibus: string | null;
 }
 
 interface Parking {
@@ -48,6 +58,19 @@ interface Operation {
   id: number;
   nom: string;
 }
+
+/**
+ * Prix au m² et surface brute de plancher : deux chiffres qui décident d'un
+ * achat de terrain. Aucun des deux n'est stocké — deux champs qui doivent
+ * s'accorder finissent toujours par diverger.
+ */
+const prixAuM2 = (p: Parcelle): number | null =>
+  p.prixAchat && p.surfaceM2 && Number(p.surfaceM2) > 0
+    ? Number(p.prixAchat) / Number(p.surfaceM2)
+    : null;
+
+const sbp = (p: Parcelle): number | null =>
+  p.ibus && p.surfaceM2 ? Number(p.surfaceM2) * Number(p.ibus) : null;
 
 /** Prix total acte = prix du lot + Σ places de parc (CLAUDE.md §5). */
 function prixTotalActe(lot: Lot): number | null {
@@ -164,6 +187,10 @@ export default async function FoncierPage({
                 <th>E-GRID</th>
                 <th>Affectation</th>
                 <th className="droite">Surface</th>
+                <th className="droite">Prix</th>
+                <th className="droite">IBUS · SBP</th>
+                <th>Références</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -176,6 +203,50 @@ export default async function FoncierPage({
                   <td>{p.egrid ? <code>{p.egrid}</code> : '—'}</td>
                   <td>{p.affectationZone ?? '—'}</td>
                   <td className="droite">{p.surfaceM2 ? nombre(p.surfaceM2, 'm²') : '—'}</td>
+                  <td className="droite">
+                    {montant(p.prixAchat)}
+                    {prixAuM2(p) !== null && (
+                      <>
+                        <br />
+                        <span className="meta">{nombre(prixAuM2(p)!.toFixed(2), 'CHF/m²')}</span>
+                      </>
+                    )}
+                  </td>
+                  <td className="droite">
+                    {p.ibus ? (
+                      <>
+                        {nombre(p.ibus)}
+                        <br />
+                        {/* Surface brute de plancher : le premier chiffre qui
+                            dit si une opération tient sur un terrain. */}
+                        <span className="meta">
+                          {sbp(p) !== null ? `${nombre(sbp(p)!.toFixed(0), 'm²')} SBP` : '—'}
+                        </span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>
+                    {p.lienGeoportail && (
+                      <div>
+                        <a href={p.lienGeoportail} target="_blank" rel="noopener noreferrer">
+                          géoportail
+                        </a>
+                      </div>
+                    )}
+                    {p.lienRdppf && (
+                      <div>
+                        <a href={p.lienRdppf} target="_blank" rel="noopener noreferrer">
+                          extrait RDPPF
+                        </a>
+                      </div>
+                    )}
+                    {!p.lienGeoportail && !p.lienRdppf && <span className="meta">—</span>}
+                  </td>
+                  <td>
+                    <ModifierParcelle operationId={id} parcelle={p} />
+                  </td>
                 </tr>
               ))}
             </tbody>

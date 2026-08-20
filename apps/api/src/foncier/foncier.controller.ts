@@ -14,6 +14,34 @@ const parcelleSchema = z.object({
   surfaceM2: nombreDecimal.nullish(),
   affectationZone: texteOptionnel,
   registreFoncier: texteOptionnel,
+  /**
+   * Lien vers le géoportail cantonal — un signet, rien de plus.
+   *
+   * Validé comme URL http(s) : un champ libre finirait par recevoir des
+   * `javascript:` que l'écran rendrait cliquables.
+   */
+  lienGeoportail: z
+    .string()
+    .trim()
+    .url('Adresse invalide : elle doit commencer par http:// ou https://.')
+    .refine((u) => u.startsWith('http://') || u.startsWith('https://'), {
+      message: 'Seules les adresses http et https sont acceptées.',
+    })
+    .max(2000)
+    .nullish(),
+  /** Extrait RDPPF : ce qui grève la parcelle. Même contrôle que ci-dessus. */
+  lienRdppf: z
+    .string()
+    .trim()
+    .url('Adresse invalide : elle doit commencer par http:// ou https://.')
+    .refine((u) => u.startsWith('http://') || u.startsWith('https://'), {
+      message: 'Seules les adresses http et https sont acceptées.',
+    })
+    .max(2000)
+    .nullish(),
+  prixAchat: montantPositif.nullish(),
+  /** Indice brut d'utilisation du sol : 0,6 ou 1,2, pas 60. */
+  ibus: nombreDecimal.nullish(),
   note: texteOptionnel,
 });
 
