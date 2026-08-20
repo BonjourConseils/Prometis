@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
@@ -69,6 +70,31 @@ interface Bien {
 interface Operation {
   id: number;
   nom: string;
+  fraisNotaireTerrain: string | null;
+  droitsMutation: string | null;
+}
+
+/**
+ * Lien vers un site tiers — géoportail, extrait RDPPF.
+ *
+ * Trois choses, et aucune n'est décorative :
+ *
+ *   · `target="_blank"` ouvre dans un nouvel onglet. On ne fait pas sortir un
+ *     promoteur de sa saisie en cours pour consulter un plan ;
+ *   · `rel="noopener noreferrer"` : sans `noopener`, la page ouverte garde
+ *     une prise sur la nôtre via `window.opener` et peut la rediriger. Ces
+ *     URL viennent d'une saisie libre, on ne leur fait pas confiance ;
+ *   · le chevron ↗ annonce la sortie. Un lien qui change de contexte sans
+ *     prévenir est un lien qui surprend.
+ */
+function LienExterne({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+      <span aria-hidden="true"> ↗</span>
+      <span className="hors-ecran"> (nouvel onglet)</span>
+    </a>
+  );
 }
 
 const LIBELLE_DECOUPAGE: Record<string, string> = {
@@ -150,9 +176,14 @@ export default async function FoncierPage({
     );
   }
 
-  const tousLots = biens.flatMap((b) => b.lots);
-  const totalMillemes = tousLots.reduce((t, l) => t + Number(l.quotePartPPE ?? 0), 0);
-  const totalRecettes = tousLots.reduce((t, l) => t + (prixTotalActe(l) ?? 0), 0);
+  // L'assiette foncière, agrégée depuis les parcelles. Le prix au m² et
+  // l'indice moyen s'en déduisent : rien de tout cela n'est stocké.
+  const surfaceTotale = parcelles.reduce((t, p) => t + Number(p.surfaceM2 ?? 0), 0);
+  const prixTotal = parcelles.reduce((t, p) => t + Number(p.prixAchat ?? 0), 0);
+  const sbpTotale = parcelles.reduce((t, p) => t + (sbp(p) ?? 0), 0);
+  const fraisAcquisition =
+    Number(operation.fraisNotaireTerrain ?? 0) + Number(operation.droitsMutation ?? 0);
+  const communes = [...new Set(parcelles.map((p) => p.commune).filter(Boolean))] as string[];
 
   return (
     <main>
@@ -169,31 +200,49 @@ export default async function FoncierPage({
         <span aria-hidden="true">›</span> Foncier
       </div>
 
-      <div className="kpis">
+      {/* L'assiette foncière : ce qui rend l'opération possible. Les lots,
+          les recettes et les millièmes appartiennent à la commercialisation,
+          pas au terrain — ils se lisent sur « Lots & acquéreurs ». */}
+      <div className="kpis degrade">
         <div className="kpi">
           <span className="etiquette">Parcelles</span>
           <span className="valeur">{parcelles.length}</span>
-        </div>
-        <div className="kpi">
-          <span className="etiquette">Lots</span>
-          <span className="valeur">{tousLots.length}</span>
-          <span className="precision">dans {biens.length} bien(s)</span>
-        </div>
-        <div className="kpi">
-          <span className="etiquette">Recettes attendues</span>
-          <span className="valeur">{chf(totalRecettes)}</span>
-          <span className="precision">lots + places de parc</span>
-        </div>
-        <div className={`kpi ${totalMillemes === 1000 || totalMillemes === 0 ? '' : 'negatif'}`}>
-          <span className="etiquette">Millièmes</span>
-          <span className="valeur">{nombre(totalMillemes)}</span>
           <span className="precision">
-            {/* L'écart se voit ici, pas chez le notaire. */}
-            {totalMillemes === 0
-              ? 'aucune quote-part saisie'
-              : totalMillemes === 1000
-                ? 'réparti sur 1000'
-                : `écart de ${nombre(1000 - totalMillemes)} sur 1000`}
+            {communes.length > 0 ? communes.join(', ') : 'commune non renseignée'}
+          </span>
+        </div>
+        <div className="kpi">
+          <span className="etiquette">Surface du terrain</span>
+          <span className="valeur">{nombre(surfaceTotale, 'm²')}</span>
+          <span className="precision">
+            {parcelles.length > 1 ? `${parcelles.length} parcelles réunies` : 'assiette du projet'}
+          </span>
+        </div>
+        <div className="kpi">
+          <span className="etiquette">Surface de plancher à bâtir</span>
+          <span className="valeur">{sbpTotale > 0 ? nombre(sbpTotale, 'm²') : '—'}</span>
+          <span className="precision">
+            {sbpTotale > 0 && surfaceTotale > 0
+              ? `indice moyen ${(sbpTotale / surfaceTotale).toFixed(2)}`
+              : 'saisir l’IBUS des parcelles'}
+          </span>
+        </div>
+        <div className="kpi">
+          <span className="etiquette">Prix du terrain</span>
+          <span className="valeur">{chf(String(prixTotal))}</span>
+          <span className="precision">
+            {prixTotal > 0 && surfaceTotale > 0
+              ? `${nombre((prixTotal / surfaceTotale).toFixed(2), 'CHF/m²')}`
+              : 'prix non renseigné'}
+          </span>
+        </div>
+        <div className="kpi">
+          <span className="etiquette">Frais d&apos;acquisition</span>
+          <span className="valeur">{chf(String(fraisAcquisition))}</span>
+          <span className="precision">
+            {/* Saisis à la création de la promotion : ils ne se déduisent
+                d'aucune parcelle en particulier. */}
+            {fraisAcquisition > 0 ? 'notaire et droits de mutation' : 'aucun frais saisi'}
           </span>
         </div>
       </div>
@@ -256,16 +305,12 @@ export default async function FoncierPage({
                   <td>
                     {p.lienGeoportail && (
                       <div>
-                        <a href={p.lienGeoportail} target="_blank" rel="noopener noreferrer">
-                          géoportail
-                        </a>
+                        <LienExterne href={p.lienGeoportail}>géoportail</LienExterne>
                       </div>
                     )}
                     {p.lienRdppf && (
                       <div>
-                        <a href={p.lienRdppf} target="_blank" rel="noopener noreferrer">
-                          extrait RDPPF
-                        </a>
+                        <LienExterne href={p.lienRdppf}>extrait RDPPF</LienExterne>
                       </div>
                     )}
                     {!p.lienGeoportail && !p.lienRdppf && <span className="meta">—</span>}

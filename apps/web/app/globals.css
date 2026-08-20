@@ -621,7 +621,10 @@ tr.depassement td {
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-5);
+  /* 12 px laissaient les cartes se toucher visuellement : deux surfaces
+     bordées côte à côte ont besoin d'air pour se lire comme deux blocs. */
+  gap: var(--space-7);
+  margin-bottom: var(--space-8);
 }
 
 .kpi {
@@ -1110,4 +1113,47 @@ table.imbrique td {
 
 table.imbrique tr:last-child td {
   border-bottom: 0;
+}
+
+/* =====================================================================
+ *  Bandeau de KPI en dégradé
+ *
+ *  Une seule teinte de marque, comme partout : la progression se lit sur le
+ *  filet de gauche, du clair au foncé, et non sur quatre aplats concurrents.
+ *  L'ordre suit la lecture — combien, puis quoi, puis combien ça coûte.
+ * ===================================================================== */
+
+.kpis.degrade .kpi {
+  background: var(--surface-brand-subtle);
+  border-left: 3px solid var(--petrol-200);
+}
+
+.kpis.degrade .kpi:nth-child(2) {
+  border-left-color: var(--petrol-400);
+}
+
+.kpis.degrade .kpi:nth-child(3) {
+  border-left-color: var(--petrol-600);
+}
+
+.kpis.degrade .kpi:nth-child(4) {
+  border-left-color: var(--petrol-700);
+}
+
+.kpis.degrade .kpi:nth-child(5) {
+  border-left-color: var(--petrol-900);
+}
+
+/* Texte réservé aux lecteurs d'écran : présent dans l'arbre d'accessibilité,
+   absent de l'affichage. Sert à dire « nouvel onglet » sans encombrer. */
+.hors-ecran {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

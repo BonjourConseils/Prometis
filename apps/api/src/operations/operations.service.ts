@@ -156,6 +156,11 @@ export class OperationsService {
           // ventes puis le réaffichait vide : la valeur existait en base et
           // ne revenait jamais.
           recettesPrevisionnelles: true,
+          // L'écran Foncier récapitule l'assiette : prix des parcelles et
+          // frais d'acquisition de l'opération.
+          prixTerrain: true,
+          fraisNotaireTerrain: true,
+          droitsMutation: true,
           _count: { select: { biens: true, parcelles: true, cfcNodes: true } },
         },
       }),
