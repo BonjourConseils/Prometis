@@ -13,6 +13,7 @@ import {
   ImporterTrame,
   SupprimerLigne,
   SupprimerPoste,
+  VentilerPoste,
   SupprimerVersion,
 } from './saisie';
 import { chf, montant } from '../../../../lib/format';
@@ -83,6 +84,23 @@ function aplatir(noeuds: Noeud[], profondeur = 0): { noeud: Noeud; profondeur: n
 }
 
 const estZero = (v: string) => Number(v) === 0;
+
+/**
+ * Un poste porte-t-il une estimation NON VENTILÉE ?
+ *
+ * C'est le piège du passage de l'estimatif au budget détaillé. L'estimatif
+ * chiffre des groupes — « 2 Bâtiment : 7 800 000 » — et le budget détaillé
+ * chiffre des feuilles. Or un groupe vaut son montant propre **plus** celui
+ * de ses enfants : les deux s'additionnent, et le budget gonfle de tout le
+ * détail saisi sans que rien ne le signale.
+ *
+ * On ne peut pas trancher à la place du promoteur — un groupe peut
+ * légitimement porter un montant que ses sous-postes ne couvrent pas. Mais on
+ * peut le dire.
+ */
+const estimationNonVentilee = (noeud: Noeud): boolean =>
+  !estZero(noeud.propre.budgeteRevise) &&
+  noeud.enfants.some((e) => !estZero(e.total.budgeteRevise));
 
 export default async function BudgetPage({
   params,
@@ -303,6 +321,15 @@ export default async function BudgetPage({
                     >
                       <td style={{ paddingLeft: `${profondeur * 1.25}rem` }}>
                         <code>{noeud.code}</code> {noeud.libelle}
+                        {estimationNonVentilee(noeud) && (
+                          <>
+                            <br />
+                            <span className="ko">
+                              estimation non ventilée : {montant(noeud.propre.budgeteRevise)}{' '}
+                              s&apos;ajoutent au détail des sous-postes
+                            </span>
+                          </>
+                        )}
                       </td>
                       <td className="droite">{montant(noeud.total.budgeteInitial)}</td>
                       <td className="droite">{montant(noeud.total.budgeteRevise)}</td>
@@ -322,6 +349,28 @@ export default async function BudgetPage({
                             code={noeud.code}
                           />
                         )}
+                        {/* Ventiler n'a de sens que sur un poste qui porte un
+                            montant propre ET des sous-postes où le répartir. */}
+                        {vue.versionAffichee &&
+                          !estZero(noeud.propre.budgeteRevise) &&
+                          noeud.enfants.length > 0 && (
+                            <VentilerPoste
+                              operationId={Number(operationId)}
+                              versionId={vue.versionAffichee.id}
+                              poste={{
+                                id: noeud.id,
+                                code: noeud.code,
+                                libelle: noeud.libelle,
+                                montantPropre: noeud.propre.budgeteRevise,
+                                enfants: noeud.enfants.map((e) => ({
+                                  id: e.id,
+                                  code: e.code,
+                                  libelle: e.libelle,
+                                  montantPropre: e.propre.budgeteRevise,
+                                })),
+                              }}
+                            />
+                          )}
                       </td>
                     </tr>
                   );
@@ -338,6 +387,15 @@ export default async function BudgetPage({
               </tbody>
             </table>
           </div>
+        )}
+
+        {lignes.some(({ noeud }) => estimationNonVentilee(noeud)) && (
+          <p className="ko">
+            Des postes portent à la fois un montant propre et des sous-postes chiffrés. Les deux
+            s&apos;additionnent : le total ci-dessus compte deux fois la même dépense. Videz la
+            ligne du groupe une fois son détail saisi, ou servez-vous de « ventiler » pour la
+            répartir.
+          </p>
         )}
 
         {lignes.length > 0 && (

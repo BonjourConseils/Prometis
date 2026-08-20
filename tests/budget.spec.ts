@@ -395,6 +395,104 @@ describe('DoD — versions de budget', () => {
  * rendent utilisable. Chaque cas ci-dessous protège une trace qu'on ne
  * saurait pas reconstituer.
  */
+/**
+ * Passage de l'estimatif au budget détaillé.
+ *
+ * L'estimatif chiffre des GROUPES, le budget détaillé chiffre des FEUILLES.
+ * Comme un groupe vaut son montant propre plus celui de ses enfants, laisser
+ * les deux ferait compter deux fois la même dépense. La ventilation remplace.
+ */
+describe('ventilation d’un poste estimé', () => {
+  it('remplace l’estimation du groupe par le détail, sans gonfler le total', async () => {
+    const version = await appel<{ id: number }>(`/operations/${bacASable}/budget/versions`, {
+      methode: 'POST',
+      token: christophe,
+      corps: { libelle: 'Ventilation — essai' },
+    });
+
+    const arbre = await appel<{ id: number; code: string; parentId: number | null }[]>(
+      `/operations/${bacASable}/cfc`,
+      { token: christophe },
+    );
+    const groupe = arbre.body.find((n) => n.code === '2')!;
+    const enfants = arbre.body.filter((n) => n.parentId === groupe.id).slice(0, 2);
+    expect(enfants.length).toBe(2);
+
+    await appel(`/operations/${bacASable}/budget/versions/${version.body.id}/lignes`, {
+      methode: 'POST',
+      token: christophe,
+      corps: { cfcNodeId: groupe.id, montant: '7800000' },
+    });
+
+    const avant = await appel<{ total: { budgeteRevise: string } }>(
+      `/operations/${bacASable}/budget?versionId=${version.body.id}`,
+      { token: christophe },
+    );
+    expect(avant.body.total.budgeteRevise).toBe('7800000');
+
+    const res = await appel<{ ventile: boolean }>(
+      `/operations/${bacASable}/budget/versions/${version.body.id}/cfc/${groupe.id}/ventiler`,
+      {
+        methode: 'POST',
+        token: christophe,
+        corps: {
+          lignes: [
+            { cfcNodeId: enfants[0]!.id, montant: '3100000' },
+            { cfcNodeId: enfants[1]!.id, montant: '4700000' },
+          ],
+        },
+      },
+    );
+    expect(res.status).toBe(200);
+
+    const apres = await appel<{
+      total: { budgeteRevise: string };
+      arbre: { code: string; propre: { budgeteRevise: string } }[];
+    }>(`/operations/${bacASable}/budget?versionId=${version.body.id}`, { token: christophe });
+
+    // Le total ne bouge pas : c'est toute la promesse de la ventilation.
+    expect(apres.body.total.budgeteRevise).toBe('7800000');
+    // Et le groupe ne porte plus rien en propre.
+    expect(apres.body.arbre.find((n) => n.code === '2')!.propre.budgeteRevise).toBe('0');
+
+    await appel(`/operations/${bacASable}/budget/versions/${version.body.id}`, {
+      methode: 'DELETE',
+      token: christophe,
+    });
+  });
+
+  it('refuse de ventiler sur un poste qui n’est pas un sous-poste', async () => {
+    const version = await appel<{ id: number }>(`/operations/${bacASable}/budget/versions`, {
+      methode: 'POST',
+      token: christophe,
+      corps: { libelle: 'Ventilation — refus' },
+    });
+    const arbre = await appel<{ id: number; code: string }[]>(`/operations/${bacASable}/cfc`, {
+      token: christophe,
+    });
+    const groupe2 = arbre.body.find((n) => n.code === '2')!;
+    const groupe4 = arbre.body.find((n) => n.code === '4')!;
+
+    const res = await appel<{ message: string }>(
+      `/operations/${bacASable}/budget/versions/${version.body.id}/cfc/${groupe2.id}/ventiler`,
+      {
+        methode: 'POST',
+        token: christophe,
+        corps: { lignes: [{ cfcNodeId: groupe4.id, montant: '1000' }] },
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('sous-poste direct');
+
+    await appel(`/operations/${bacASable}/budget/versions/${version.body.id}`, {
+      methode: 'DELETE',
+      token: christophe,
+    });
+  });
+});
+
+// =====================================================================
+
 describe('suppression d’une version de budget', () => {
   /** Les versions du bac à sable, relues à chaque fois : ce bloc ne dépend
    *  d'aucune variable des describe précédents. */

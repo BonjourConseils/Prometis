@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import { champ } from '../../../../lib/api-client';
-import { useEnvoi } from '../../../components/formulaire';
+import { chf } from '../../../../lib/format';
+import { Repliable, useEnvoi } from '../../../components/formulaire';
 
 /**
  * Poste CFC tel qu'il apparaît dans les listes déroulantes.
@@ -564,5 +565,151 @@ export function AjouterLigne({
         Annuler
       </button>
     </div>
+  );
+}
+
+/**
+ * Assistant de ventilation : remplacer l'estimation d'un groupe par le détail
+ * de ses sous-postes.
+ *
+ * Le reste à ventiler se recalcule à la frappe et sert de garde-fou visuel —
+ * mais rien n'oblige à retomber pile sur le montant d'origine. Détailler,
+ * c'est justement découvrir que l'estimation était fausse ; un formulaire qui
+ * refuserait l'écart obligerait à mentir pour pouvoir enregistrer.
+ */
+export function VentilerPoste({
+  operationId,
+  versionId,
+  poste,
+}: {
+  operationId: number;
+  versionId: number;
+  poste: {
+    id: number;
+    code: string;
+    libelle: string;
+    montantPropre: string;
+    enfants: { id: number; code: string; libelle: string; montantPropre: string }[];
+  };
+}) {
+  return (
+    <Repliable libelle="ventiler">
+      {(fermer) => (
+        <FormulaireVentilation
+          operationId={operationId}
+          versionId={versionId}
+          poste={poste}
+          fermer={fermer}
+        />
+      )}
+    </Repliable>
+  );
+}
+
+function FormulaireVentilation({
+  operationId,
+  versionId,
+  poste,
+  fermer,
+}: {
+  operationId: number;
+  versionId: number;
+  poste: {
+    id: number;
+    code: string;
+    libelle: string;
+    montantPropre: string;
+    enfants: { id: number; code: string; libelle: string; montantPropre: string }[];
+  };
+  fermer: () => void;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+  const [montants, setMontants] = useState<Record<number, string>>(
+    Object.fromEntries(
+      poste.enfants.map((e) => [e.id, e.montantPropre === '0' ? '' : e.montantPropre]),
+    ),
+  );
+
+  const nb = (v: string) => {
+    const n = Number(v.replace(/[\s'\u2019]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const aVentiler = nb(poste.montantPropre);
+  const reparti = poste.enfants.reduce((t, e) => t + nb(montants[e.id] ?? ''), 0);
+  const reste = aVentiler - reparti;
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const ok = await envoyer(
+      `/operations/${operationId}/budget/versions/${versionId}/cfc/${poste.id}/ventiler`,
+      {
+        lignes: poste.enfants.map((e) => ({
+          cfcNodeId: e.id,
+          montant: String(nb(montants[e.id] ?? '')),
+        })),
+      },
+    );
+    if (ok) fermer();
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="form">
+      <p className="note">
+        Répartir <strong>{chf(poste.montantPropre)}</strong> du poste {poste.code} sur ses
+        sous-postes. La ligne du groupe sera <strong>supprimée</strong> : le détail la remplace, il
+        ne s&apos;y ajoute pas.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Sous-poste</th>
+            <th className="droite">Montant HT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {poste.enfants.map((e) => (
+            <tr key={e.id}>
+              <td>
+                <code>{e.code}</code> {e.libelle}
+              </td>
+              <td className="droite">
+                <input
+                  className="montant"
+                  inputMode="decimal"
+                  value={montants[e.id] ?? ''}
+                  placeholder="—"
+                  onChange={(evt) => setMontants({ ...montants, [e.id]: evt.target.value })}
+                />
+              </td>
+            </tr>
+          ))}
+          <tr className="groupe">
+            <td>
+              <strong>Reste à ventiler</strong>
+            </td>
+            <td className="droite">
+              <strong className={reste === 0 ? 'ok' : reste < 0 ? 'ko' : ''}>
+                {chf(String(reste))}
+              </strong>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {reste !== 0 && (
+        <p className="note">
+          {reste > 0
+            ? `Il reste ${chf(String(reste))} non répartis : le budget du poste diminuera d'autant.`
+            : `Le détail dépasse l'estimation de ${chf(String(-reste))} : le budget du poste augmentera d'autant.`}{' '}
+          C&apos;est permis — c&apos;est même ce qu&apos;on cherche à mesurer.
+        </p>
+      )}
+
+      {erreur && <p className="ko">{erreur}</p>}
+      <button type="submit" className="principal" disabled={enCours}>
+        {enCours ? 'Ventilation…' : 'Ventiler et remplacer'}
+      </button>
+    </form>
   );
 }

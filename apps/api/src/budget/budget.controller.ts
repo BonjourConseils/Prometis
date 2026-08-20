@@ -63,6 +63,20 @@ const estimatifSchema = z.object({
     .max(200),
 });
 
+/** Ventilation d'un poste sur ses sous-postes directs. */
+const ventilationSchema = z.object({
+  lignes: z
+    .array(
+      z.object({
+        cfcNodeId: z.number().int().positive(),
+        montant: montant,
+        designation: texteOptionnel,
+      }),
+    )
+    .min(1, 'Aucun sous-poste fourni.')
+    .max(200),
+});
+
 const ligneSchema = z.object({
   cfcNodeId: z.number().int().positive(),
   designation: texteOptionnel,
@@ -212,6 +226,20 @@ export class BudgetController {
         designation: l.designation,
       })),
     );
+  }
+
+  // Ventiler : remplacer l'estimation d'un groupe par le détail de ses
+  // sous-postes, en une seule transaction.
+  @RequireOperationAccess({ level: 'OPERATE', module: 'BUDGET_CFC' })
+  @Post('budget/versions/:versionId/cfc/:cfcNodeId/ventiler')
+  @HttpCode(200)
+  ventiler(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Param('cfcNodeId', ParseIntPipe) cfcNodeId: number,
+    @Body(new ZodBody(ventilationSchema)) body: z.infer<typeof ventilationSchema>,
+  ) {
+    return this.budget.ventiler(operationId, versionId, cfcNodeId, body.lignes);
   }
 
   @RequireOperationAccess({ level: 'OPERATE', module: 'BUDGET_CFC' })

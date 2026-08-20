@@ -293,6 +293,83 @@ export class BudgetService {
     });
   }
 
+  /**
+   * Ventile le montant d'un poste sur ses sous-postes.
+   *
+   * Le geste du passage de l'estimatif au budget détaillé : le groupe portait
+   * une estimation, on la **remplace** par le détail. Remplace, et non
+   * complète — c'est tout l'enjeu. Un groupe vaut son montant propre plus
+   * celui de ses enfants ; laisser les deux ferait compter deux fois la même
+   * dépense, et le budget gonflerait de tout le détail saisi.
+   *
+   * La ligne du parent est donc supprimée dans la MÊME transaction que la
+   * création des lignes filles : une ventilation à moitié faite serait pire
+   * que pas de ventilation du tout.
+   *
+   * On n'impose pas que la somme retombe sur le montant d'origine : détailler,
+   * c'est justement découvrir que l'estimation était fausse.
+   */
+  async ventiler(
+    operationId: number,
+    versionId: number,
+    cfcNodeId: number,
+    lignes: { cfcNodeId: number; montant: Prisma.Decimal; designation?: string | null }[],
+  ) {
+    return this.db.run(async (tx) => {
+      await this.versionDeLOperation(tx, operationId, versionId);
+
+      const parent = await tx.cfcNode.findFirst({
+        where: { id: cfcNodeId, operationId },
+        select: { id: true, code: true },
+      });
+      if (!parent) throw new NotFoundException(`Poste CFC ${cfcNodeId} introuvable.`);
+
+      // Les cibles doivent être des sous-postes DIRECTS : répartir un groupe
+      // sur des postes voisins déplacerait la dépense au lieu de la détailler,
+      // et l'écart avec l'estimatif deviendrait illisible.
+      const enfants = await tx.cfcNode.findMany({
+        where: { parentId: cfcNodeId },
+        select: { id: true },
+      });
+      const permis = new Set(enfants.map((e) => e.id));
+      const etranger = lignes.find((l) => !permis.has(l.cfcNodeId));
+      if (etranger) {
+        throw new BadRequestException(
+          `Le poste ${etranger.cfcNodeId} n'est pas un sous-poste direct de ${parent.code}.`,
+        );
+      }
+
+      const supprimees = await tx.ligneBudget.deleteMany({
+        where: { budgetVersionId: versionId, cfcNodeId },
+      });
+
+      const aCreer = lignes.filter((l) => !l.montant.isZero());
+      if (aCreer.length > 0) {
+        await tx.ligneBudget.createMany({
+          data: aCreer.map((l) => ({
+            budgetVersionId: versionId,
+            cfcNodeId: l.cfcNodeId,
+            montant: l.montant,
+            designation: l.designation ?? null,
+          })),
+        });
+      }
+
+      await this.audit.enregistrer(tx, {
+        action: 'budget.poste_ventile',
+        entite: 'BudgetVersion',
+        entiteId: versionId,
+        donnees: {
+          operationId,
+          poste: parent.code,
+          lignesParentSupprimees: supprimees.count,
+          lignesCreees: aCreer.length,
+        },
+      });
+      return { ventile: true, lignesCreees: aCreer.length };
+    });
+  }
+
   async creerLigne(operationId: number, versionId: number, donnees: DonneesLigne) {
     return this.db.run(async (tx) => {
       const version = await this.versionDeLOperation(tx, operationId, versionId);
