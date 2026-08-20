@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type BienNature, type LotStatut, type ParkingType } from '@prisma/client';
+import {
+  Prisma,
+  type BienNature,
+  type LotStatut,
+  type ParcelleDecoupageType,
+  type ParkingType,
+} from '@prisma/client';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -101,7 +107,11 @@ export class FoncierService {
 
   async listerParcelles(operationId: number) {
     return this.db.run((tx) =>
-      tx.parcelle.findMany({ where: { operationId }, orderBy: { numero: 'asc' } }),
+      tx.parcelle.findMany({
+        where: { operationId },
+        include: { decoupages: { orderBy: { id: 'asc' } } },
+        orderBy: { numero: 'asc' },
+      }),
     );
   }
 
@@ -137,6 +147,62 @@ export class FoncierService {
         donnees: { operationId, champs: Object.keys(donnees) },
       });
       return tx.parcelle.findUniqueOrThrow({ where: { id: parcelleId } });
+    });
+  }
+
+  /**
+   * Ajoute un découpage à une parcelle — une zone, un degré de sensibilité.
+   *
+   * La parcelle est relue dans la même transaction pour vérifier qu'elle
+   * appartient bien à l'opération : la RLS interdit déjà de sortir du tenant,
+   * mais rien n'empêcherait d'accrocher un découpage à la parcelle d'une
+   * AUTRE promotion de la même société.
+   */
+  async ajouterDecoupage(
+    operationId: number,
+    parcelleId: number,
+    donnees: {
+      type: ParcelleDecoupageType;
+      libelle: string;
+      surfaceM2?: Prisma.Decimal | null;
+      pourcentage?: Prisma.Decimal | null;
+      ibus?: Prisma.Decimal | null;
+    },
+  ) {
+    return this.db.run(async (tx) => {
+      const parcelle = await tx.parcelle.findFirst({
+        where: { id: parcelleId, operationId },
+        select: { id: true, numero: true },
+      });
+      if (!parcelle) throw new NotFoundException(`Parcelle ${parcelleId} introuvable.`);
+
+      const decoupage = await tx.parcelleDecoupage.create({ data: { parcelleId, ...donnees } });
+      await this.audit.enregistrer(tx, {
+        action: 'parcelle.decoupage_ajoute',
+        entite: 'ParcelleDecoupage',
+        entiteId: decoupage.id,
+        donnees: { operationId, parcelle: parcelle.numero, type: donnees.type },
+      });
+      return decoupage;
+    });
+  }
+
+  async supprimerDecoupage(operationId: number, decoupageId: number) {
+    return this.db.run(async (tx) => {
+      const decoupage = await tx.parcelleDecoupage.findFirst({
+        where: { id: decoupageId, parcelle: { operationId } },
+        select: { id: true },
+      });
+      if (!decoupage) throw new NotFoundException(`Découpage ${decoupageId} introuvable.`);
+
+      await tx.parcelleDecoupage.delete({ where: { id: decoupageId } });
+      await this.audit.enregistrer(tx, {
+        action: 'parcelle.decoupage_supprime',
+        entite: 'ParcelleDecoupage',
+        entiteId: decoupageId,
+        donnees: { operationId },
+      });
+      return { supprime: true };
     });
   }
 

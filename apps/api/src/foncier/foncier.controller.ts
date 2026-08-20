@@ -45,6 +45,15 @@ const parcelleSchema = z.object({
   note: texteOptionnel,
 });
 
+/** Une part de parcelle telle qu'elle figure à l'extrait RDPPF. */
+const decoupageSchema = z.object({
+  type: z.enum(['ZONE_AFFECTATION', 'DEGRE_SENSIBILITE_BRUIT', 'AUTRE']),
+  libelle: z.string().trim().min(1, 'Libellé requis.').max(200),
+  surfaceM2: nombreDecimal.nullish(),
+  pourcentage: nombreDecimal.nullish(),
+  ibus: nombreDecimal.nullish(),
+});
+
 const bienSchema = z.object({
   nature: z.enum(['LOTISSEMENT', 'VILLA', 'IMMEUBLE', 'CHALET']),
   nom: z.string().trim().min(1, 'Nom du bien requis.'),
@@ -117,6 +126,28 @@ export class FoncierController {
     @Body(new ZodBody(parcelleSchema.partial())) body: Partial<z.infer<typeof parcelleSchema>>,
   ) {
     return this.foncier.modifierParcelle(operationId, parcelleId, body);
+  }
+
+  // Un découpage se saisit en recopiant l'extrait : OPERATE suffit.
+  @RequireModule('FONCIER')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FONCIER' })
+  @Post('parcelles/:parcelleId/decoupages')
+  ajouterDecoupage(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('parcelleId', ParseIntPipe) parcelleId: number,
+    @Body(new ZodBody(decoupageSchema)) body: z.infer<typeof decoupageSchema>,
+  ) {
+    return this.foncier.ajouterDecoupage(operationId, parcelleId, body);
+  }
+
+  @RequireModule('FONCIER')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FONCIER' })
+  @Delete('decoupages/:decoupageId')
+  supprimerDecoupage(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('decoupageId', ParseIntPipe) decoupageId: number,
+  ) {
+    return this.foncier.supprimerDecoupage(operationId, decoupageId);
   }
 
   @RequireModule('FONCIER')

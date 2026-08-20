@@ -452,3 +452,142 @@ function FormulaireParking({
     </form>
   );
 }
+
+// ---------------------------------------------------------------------
+//  Découpages de parcelle — zones et degrés de sensibilité
+// ---------------------------------------------------------------------
+
+const TYPES_DECOUPAGE: [string, string][] = [
+  ['ZONE_AFFECTATION', "Zone d'affectation"],
+  ['DEGRE_SENSIBILITE_BRUIT', 'Degré de sensibilité au bruit'],
+  ['AUTRE', 'Autre thème RDPPF'],
+];
+
+/**
+ * Ajoute une part de parcelle.
+ *
+ * Une parcelle n'est pas homogène : elle porte souvent deux zones et deux
+ * degrés de sensibilité, chacun sur une fraction de sa surface. Les valeurs
+ * se recopient de l'extrait RDPPF telles quelles — surface ET pourcentage,
+ * sans recalculer l'un depuis l'autre : les deux figurent au document et
+ * peuvent différer d'un arrondi.
+ */
+export function AjouterDecoupage({
+  operationId,
+  parcelleId,
+  numero,
+}: {
+  operationId: number;
+  parcelleId: number;
+  numero: string;
+}) {
+  return (
+    <Repliable libelle="Ajouter une zone ou un degré">
+      {(fermer) => (
+        <FormulaireDecoupage
+          operationId={operationId}
+          parcelleId={parcelleId}
+          numero={numero}
+          fermer={fermer}
+        />
+      )}
+    </Repliable>
+  );
+}
+
+function FormulaireDecoupage({
+  operationId,
+  parcelleId,
+  numero,
+  fermer,
+}: {
+  operationId: number;
+  parcelleId: number;
+  numero: string;
+  fermer: () => void;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const d = new FormData(event.currentTarget);
+    const ok = await envoyer(`/operations/${operationId}/parcelles/${parcelleId}/decoupages`, {
+      type: champ(d.get('type')),
+      libelle: champ(d.get('libelle')),
+      surfaceM2: champ(d.get('surfaceM2')),
+      pourcentage: champ(d.get('pourcentage')),
+      ibus: champ(d.get('ibus')),
+    });
+    if (ok) fermer();
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="form">
+      <p className="note">
+        Parcelle <strong>{numero}</strong>. Recopiez la ligne de l&apos;extrait RDPPF telle
+        qu&apos;elle apparaît.
+      </p>
+      <div className="grille-2">
+        <label>
+          Thème
+          <select name="type" defaultValue="ZONE_AFFECTATION">
+            {TYPES_DECOUPAGE.map(([valeur, libelle]) => (
+              <option key={valeur} value={valeur}>
+                {libelle}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Désignation
+          <input name="libelle" required autoFocus placeholder="Zone d'habitat collectif B (3)" />
+        </label>
+      </div>
+      <div className="grille-3">
+        <label>
+          Surface (m²)
+          <input name="surfaceM2" inputMode="decimal" placeholder="1706" />
+        </label>
+        <label>
+          Part (%)
+          <input name="pourcentage" inputMode="decimal" placeholder="100" />
+        </label>
+        <label>
+          IBUS de la zone
+          <input name="ibus" inputMode="decimal" placeholder="0.6" />
+        </label>
+      </div>
+      {erreur && <p className="ko">{erreur}</p>}
+      <button type="submit" disabled={enCours}>
+        {enCours ? 'Enregistrement…' : 'Ajouter'}
+      </button>
+    </form>
+  );
+}
+
+/** Retire une part saisie par erreur. */
+export function SupprimerDecoupage({
+  operationId,
+  decoupageId,
+}: {
+  operationId: number;
+  decoupageId: number;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+
+  return (
+    <>
+      <button
+        type="button"
+        className="lien"
+        disabled={enCours}
+        onClick={() =>
+          void envoyer(`/operations/${operationId}/decoupages/${decoupageId}`, undefined, 'DELETE')
+        }
+      >
+        {enCours ? '…' : 'retirer'}
+      </button>
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}

@@ -9,7 +9,9 @@ import {
   AjouterLot,
   AjouterParcelle,
   AjouterParking,
+  AjouterDecoupage,
   ModifierParcelle,
+  SupprimerDecoupage,
 } from './saisie';
 
 interface Parcelle {
@@ -23,6 +25,16 @@ interface Parcelle {
   lienGeoportail: string | null;
   lienRdppf: string | null;
   prixAchat: string | null;
+  ibus: string | null;
+  decoupages: Decoupage[];
+}
+
+interface Decoupage {
+  id: number;
+  type: string;
+  libelle: string;
+  surfaceM2: string | null;
+  pourcentage: string | null;
   ibus: string | null;
 }
 
@@ -59,6 +71,12 @@ interface Operation {
   nom: string;
 }
 
+const LIBELLE_DECOUPAGE: Record<string, string> = {
+  ZONE_AFFECTATION: "Zone d'affectation",
+  DEGRE_SENSIBILITE_BRUIT: 'Degré de sensibilité au bruit',
+  AUTRE: 'Autre thème RDPPF',
+};
+
 /**
  * Prix au m² et surface brute de plancher : deux chiffres qui décident d'un
  * achat de terrain. Aucun des deux n'est stocké — deux champs qui doivent
@@ -69,8 +87,16 @@ const prixAuM2 = (p: Parcelle): number | null =>
     ? Number(p.prixAchat) / Number(p.surfaceM2)
     : null;
 
-const sbp = (p: Parcelle): number | null =>
-  p.ibus && p.surfaceM2 ? Number(p.surfaceM2) * Number(p.ibus) : null;
+const sbp = (p: Parcelle): number | null => {
+  // Une parcelle à cheval sur deux zones a deux indices : dès qu'une zone
+  // porte le sien, c'est zone par zone que la SBP se calcule. Sinon on
+  // retombe sur l'indice de la parcelle.
+  const zonesIndicees = p.decoupages.filter((d) => d.ibus && d.surfaceM2);
+  if (zonesIndicees.length > 0) {
+    return zonesIndicees.reduce((t, d) => t + Number(d.surfaceM2) * Number(d.ibus), 0);
+  }
+  return p.ibus && p.surfaceM2 ? Number(p.surfaceM2) * Number(p.ibus) : null;
+};
 
 /** Prix total acte = prix du lot + Σ places de parc (CLAUDE.md §5). */
 function prixTotalActe(lot: Lot): number | null {
@@ -194,7 +220,7 @@ export default async function FoncierPage({
               </tr>
             </thead>
             <tbody>
-              {parcelles.map((p) => (
+              {parcelles.flatMap((p) => [
                 <tr key={p.id}>
                   <td>
                     <strong>{p.numero}</strong>
@@ -247,8 +273,38 @@ export default async function FoncierPage({
                   <td>
                     <ModifierParcelle operationId={id} parcelle={p} />
                   </td>
-                </tr>
-              ))}
+                </tr>,
+                <tr key={`${p.id}-zones`}>
+                  <td colSpan={9}>
+                    {p.decoupages.length > 0 && (
+                      <table className="imbrique">
+                        <tbody>
+                          {p.decoupages.map((d) => (
+                            <tr key={d.id}>
+                              <td>
+                                <span className="meta">{LIBELLE_DECOUPAGE[d.type] ?? d.type}</span>
+                                <br />
+                                {d.libelle}
+                              </td>
+                              <td className="droite">
+                                {d.surfaceM2 ? nombre(d.surfaceM2, 'm²') : '—'}
+                              </td>
+                              <td className="droite">
+                                {d.pourcentage ? `${nombre(d.pourcentage)} %` : '—'}
+                              </td>
+                              <td className="droite">{d.ibus ? `IBUS ${nombre(d.ibus)}` : ''}</td>
+                              <td>
+                                <SupprimerDecoupage operationId={id} decoupageId={d.id} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    <AjouterDecoupage operationId={id} parcelleId={p.id} numero={p.numero} />
+                  </td>
+                </tr>,
+              ])}
             </tbody>
           </table>
         )}

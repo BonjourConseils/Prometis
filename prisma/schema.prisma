@@ -1218,6 +1218,39 @@ model SeancePoint {
 
 /// Parcelle cadastrale de l'opération. Porte ses documents (extraits du
 /// registre foncier, plans cadastraux…). Une opération peut couvrir plusieurs parcelles.
+/// Nature d'un découpage de parcelle, tel qu'il figure à l'extrait RDPPF.
+///
+/// Une parcelle n'est pas homogène : elle peut porter deux zones
+/// d'affectation et deux degrés de sensibilité au bruit, chacun sur une part
+/// de sa surface. Une seule table pour les deux — et pour les thèmes RDPPF
+/// suivants — plutôt qu'une table par couche.
+enum ParcelleDecoupageType {
+  ZONE_AFFECTATION
+  DEGRE_SENSIBILITE_BRUIT
+  AUTRE
+}
+
+/// Une part de parcelle : « Zone d'habitat collectif B (3) — 1706 m² — 100 % ».
+model ParcelleDecoupage {
+  id          Int                   @id @default(autoincrement())
+  parcelleId  Int                   @map("parcelle_id")
+  type        ParcelleDecoupageType
+  libelle     String
+  surfaceM2   Decimal?              @map("surface_m2") @db.Decimal(12, 2)
+  /// Part de la parcelle, en pour-cent. Reprise telle quelle de l'extrait :
+  /// on ne la recalcule pas depuis la surface, les deux figurent au document
+  /// et peuvent différer d'un arrondi.
+  pourcentage Decimal?              @db.Decimal(6, 2)
+  /// Indice propre à CETTE zone, quand il diffère de celui de la parcelle.
+  ibus        Decimal?              @db.Decimal(6, 3)
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  parcelle Parcelle @relation(fields: [parcelleId], references: [id], onDelete: Cascade)
+
+  @@index([parcelleId])
+  @@map("parcelle_decoupages")
+}
+
 model Parcelle {
   id              Int      @id @default(autoincrement())
   operationId     Int      @map("operation_id")
@@ -1247,8 +1280,9 @@ model Parcelle {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  operation Operation  @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  documents Document[]
+  operation  Operation           @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  documents  Document[]
+  decoupages ParcelleDecoupage[]
 
   @@index([operationId])
   @@map("parcelles")

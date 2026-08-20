@@ -286,10 +286,22 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
     expect(incompletes.map((t) => t.tablename)).toEqual([]);
   });
 
-  it('couvre les 38 tables tenant du modèle', async () => {
+  // Ce compte est un garde-fou volontaire : ajouter une table métier sans
+  // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
+  // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
+  it('couvre les 39 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(38);
+    expect(Number(rows[0]!.count)).toBe(39);
+  });
+
+  it('les découpages de parcelle ne traversent pas les sociétés', async () => {
+    const cb = await asTenant(CB, (tx) => tx.parcelleDecoupage.count());
+    const constructa = await asTenant(CONSTRUCTA, (tx) => tx.parcelleDecoupage.count());
+    // Constructa n'a pas de parcelle découpée : elle ne doit voir aucune de
+    // celles de CB Promotions, quel qu'en soit le nombre.
+    expect(constructa).toBe(0);
+    expect(cb).toBeGreaterThanOrEqual(0);
   });
 });

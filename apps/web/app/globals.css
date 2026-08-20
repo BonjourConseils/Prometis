@@ -1092,3 +1092,22 @@ input.montant:focus {
   border-color: var(--surface-brand);
   box-shadow: var(--ring);
 }
+
+/* Tableau imbriqué : le détail d'une ligne, sans le poids d'un second
+   tableau à part entière. Pas de bordures propres — c'est une continuation,
+   pas une autre lecture. */
+table.imbrique {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space-5);
+}
+
+table.imbrique td {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+table.imbrique tr:last-child td {
+  border-bottom: 0;
+}
