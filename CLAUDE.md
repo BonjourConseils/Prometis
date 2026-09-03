@@ -56,12 +56,20 @@ aucune « simulation » de promoteur.
 - **Échéancier** (`EcheancierEtape`) : jalons en % dont la somme fait **100 %**. La 1ʳᵉ étape =
   « signature de l'acte » (déclenchée lot par lot) ; les suivantes = jalons de chantier (tous les
   lots engagés). `pourcentage` est **optionnel** : un jalon sans % est un simple suivi de chantier.
-- **Déclencheur des appels de fonds** : côté **Prometis** (maître de l'échéancier). Quand un jalon
-  passe à `COMPLETED` (avec `dateCompletion`) → pour chaque réservation engagée,
-  `montant = pourcentage × prix total acte` → génération PDF + QR-facture → envoi e-mail →
-  suivi encaissement (camt.054) → push du statut vers Kolabimo.
+- **Déclencheur des appels de fonds** : le jalon est marqué **dans Kolabimo** (changé le
+  02.09.2026 — c'est ce qui informe les agences, et un promoteur n'est pas obligé d'avoir
+  Prometis). Kolabimo pousse `echeancier.etape_completed` → pour chaque réservation engagée,
+  `montant = pourcentage × prix total acte` → **deux documents** (lettre à l'acquéreur +
+  bordereau QR pour sa banque) → envoi e-mail à **toutes** les personnes du dossier → suivi
+  encaissement (camt.054) → push du statut vers Kolabimo. **Au premier appel d'un lot**, les
+  étapes déjà closes sont proposées **au choix** du promoteur : certaines figurent dans l'acte.
+- **Dossier acquéreur** : N personnes par réservation (couple, indivision, société), avec rôle
+  et quote-part **en fraction**. Kolabimo ne livre l'identité qu'au palier `FONDS_VERSES` :
+  avant, une réservation n'a qu'une référence pseudonyme et **aucun acquéreur nominatif**.
 - **Idempotence** : unicité `(reservationId, etapeId)` sur `AppelDeFonds` ; `dedupeKey` sur
   `WebhookEvent` ; `externalId` sur `Reservation` (réconciliation avec Kolabimo).
+- **Créance solidaire** : la quote-part figure à l'acte mais ne divise **pas** le montant
+  appelé. Chaque personne du dossier reçoit la totalité ; un seul versement la solde.
 - **CFC** : arbre à N niveaux (`CfcNode.parentId`). Un poste agrège budgété / adjugé / facturé.
   Une ligne de budget peut être ventilée sur plusieurs lots (quote-part PPE / surface / égalité).
 - **Factures** : OCR/IA extrait fournisseur, n°, dates, HT/TVA/TTC, réf. QR ; **propose** un CFC
@@ -73,11 +81,14 @@ aucune « simulation » de promoteur.
 - Kolabimo expose une **API v1** (clé `x-api-key` par société) : promotions, lots (avec parkings +
   prix total acte), lots réservés + client, réservations (création idempotente via `externalId`).
 - À **ajouter côté Kolabimo** : `GET /api/v1/promotions/:id/echeancier` et un webhook sortant.
-- Webhooks : Kolabimo → Prometis (`reservation.*`) ; Prometis → Kolabimo (`echeancier.etape_completed`,
-  statut des encaissements). Signés HMAC-SHA256, idempotents.
+- Webhooks : Kolabimo → Prometis (`reservation.*` **et** `echeancier.etape_completed`) ;
+  Prometis → Kolabimo (statut des encaissements). Signés HMAC-SHA256, idempotents.
+  **Deux contrats circulent** — celui de Kolabimo (en-têtes `X-Kolabimo-Event` / `-Delivery`,
+  signature hexadécimale nue) et le nôtre. Détail dans la référence du skill.
 - Mapping : `kolabimoPromotionId` (Operation), `kolabimoAppartementId` (Lot),
   `kolabimoParkingId` (Parking), `externalId` / `kolabimoReservationId` (Reservation),
-  `kolabimoEtapeId` (EcheancierEtape).
+  `kolabimoEtapeId` (EcheancierEtape), `kolabimoClientRef` + `ordre` (Acquereur — une personne
+  du dossier).
 
 ## 7. Ordre de construction
 
@@ -94,7 +105,8 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 
 ## 8 bis. Où en est le développement
 
-**Lots 0 à 9 livrés** (15 août 2026) — 427 tests verts —
+**Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
+2026 — 464 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de
