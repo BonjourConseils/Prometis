@@ -15,7 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { PasserelleService } from '../passerelle/passerelle.service';
 import { GedService } from '../ged/ged.service';
 import { QrFactureService } from './qr-facture.pdf';
-import { LettreAcquereurService } from './lettre-acquereur.pdf';
+import { LettreAcquereurService, montantSuisse } from './lettre-acquereur.pdf';
 import { calculerMontantAppel, etatAppel, numeroAppel, STATUTS_ENGAGES } from './calculs';
 import { formaterReferenceQR, genererReferenceQR } from './qr-reference';
 
@@ -865,7 +865,7 @@ export class AppelsDeFondsService {
       `l'échéancier de votre acte, nous vous prions de bien vouloir verser :`,
       '',
       `    Appel     : ${numero}`,
-      `    Montant   : ${appel.montant.toFixed(2)} CHF`,
+      `    Montant   : ${montantSuisse(appel.montant.toFixed(2))} CHF`,
       `    Lot       : ${appel.lot}`,
       `    Échéance  : ${appel.dateEcheance.toLocaleDateString('fr-CH')}`,
       `    Référence : ${formaterReferenceQR(appel.qrReference)}`,
@@ -1107,9 +1107,9 @@ export class AppelsDeFondsService {
         '',
         `Sauf erreur de notre part, l'appel de fonds ${appel.numero ?? ''} reste ouvert.`,
         '',
-        `    Montant appelé  : ${appel.montant.toFixed(2)} CHF`,
-        `    Déjà versé      : ${etat.montantEncaisse.toFixed(2)} CHF`,
-        `    Solde dû        : ${etat.solde.toFixed(2)} CHF`,
+        `    Montant appelé  : ${montantSuisse(appel.montant.toFixed(2))} CHF`,
+        `    Déjà versé      : ${montantSuisse(etat.montantEncaisse.toFixed(2))} CHF`,
+        `    Solde dû        : ${montantSuisse(etat.solde.toFixed(2))} CHF`,
         appel.dateEcheance
           ? `    Échéance        : ${appel.dateEcheance.toLocaleDateString('fr-CH')}`
           : null,

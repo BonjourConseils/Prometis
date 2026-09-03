@@ -37,7 +37,21 @@ interface Reservation {
   prixTotalActe: string | null;
   dateSignatureActe: string | null;
   lot: { id: number; reference: string };
-  acquereur: { id: number; nom: string | null; prenom: string | null; email: string | null };
+  /** Contact principal — **nul** tant que Kolabimo n'a pas livré l'identité. */
+  acquereur: { id: number; nom: string | null; prenom: string | null; email: string | null } | null;
+  /** Le dossier : N personnes depuis le 02.09.2026 (couple, indivision, société). */
+  acquereurs: {
+    role: string;
+    quotePart: string | null;
+    acquereur: {
+      id: number;
+      nom: string | null;
+      prenom: string | null;
+      raisonSociale: string | null;
+      email: string | null;
+    };
+  }[];
+  kolabimoClientRef: string | null;
   appelsDeFonds: {
     id: number;
     montant: string;
@@ -197,9 +211,26 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
                       <td>
                         {reservation ? (
                           <>
-                            {[reservation.acquereur.prenom, reservation.acquereur.nom]
-                              .filter(Boolean)
-                              .join(' ')}
+                            {reservation.acquereurs.length === 0 ? (
+                              // Normal avant `FONDS_VERSES` : Kolabimo ne
+                              // livre alors que la référence pseudonyme.
+                              <span className="meta">
+                                identité non encore livrée
+                                {reservation.kolabimoClientRef
+                                  ? ` · réf. ${reservation.kolabimoClientRef}`
+                                  : ''}
+                              </span>
+                            ) : (
+                              reservation.acquereurs.map((lien, i) => (
+                                <span key={lien.acquereur.id}>
+                                  {i > 0 && <br />}
+                                  {nomAcquereur(lien.acquereur)}
+                                  {lien.quotePart && (
+                                    <span className="meta"> · {lien.quotePart}</span>
+                                  )}
+                                </span>
+                              ))
+                            )}
                             {reservation.appelsDeFonds.length > 0 && (
                               <>
                                 <br />

@@ -32,6 +32,19 @@ export interface DonneesLettre {
 }
 
 /**
+ * Montant en francs, à la suisse : « 595 000.00 ».
+ *
+ * `toFixed(2)` suffit dans un journal ; sur un courrier qui réclame de
+ * l'argent à quelqu'un, « 595000.00 » se relit deux fois pour compter les
+ * zéros. L'espace fine insécable évite qu'un retour à la ligne coupe le
+ * nombre en deux.
+ */
+export function montantSuisse(valeur: string): string {
+  const [entiere, decimales = '00'] = Number(valeur).toFixed(2).split('.');
+  return `${entiere!.replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f')}.${decimales}`;
+}
+
+/**
  * La **lettre à l'acquéreur** — le premier des deux documents d'un appel.
  *
  * Elle existe parce que l'appel de fonds s'adresse à deux lecteurs qui n'ont
@@ -107,7 +120,7 @@ export class LettreAcquereurService {
     );
     document.moveDown(1);
 
-    ligne(`Montant dû : ${donnees.montant} CHF`, 12, true);
+    ligne(`Montant dû : ${montantSuisse(donnees.montant)} CHF`, 12, true);
     ligne(`Lot : ${donnees.lot}`);
     ligne(`Échéance : ${donnees.dateEcheance.toLocaleDateString('fr-CH')}`);
     if (donnees.referenceQR) {

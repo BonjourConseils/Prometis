@@ -35,8 +35,6 @@ const PROMOTION_BAC = 99_201;
 let christophe: string;
 let marc: string;
 let bac = 0;
-let lotBac = 0;
-let reservationBac = 0;
 let etapeBac = 0;
 let etapeBacDeux = 0;
 let lotVise: { id: number; reference: string; prixVente: string; prixParking: string };
@@ -390,8 +388,6 @@ describe('Fin de jalon', () => {
       token: christophe,
       corps: { reference: 'K01', prixVente: '800000' },
     });
-    lotBac = lot.body.id;
-
     const acquereur = await appel<{ id: number }>('/acquereurs', {
       methode: 'POST',
       token: christophe,
@@ -414,7 +410,7 @@ describe('Fin de jalon', () => {
     // Le dossier passe par la table de liaison : c'est elle qui porte les
     // destinataires depuis que Kolabimo livre N personnes. L'API la remplit
     // à la création — une réservation saisie à la main n'a qu'une personne.
-    reservationBac = reservation.body.id;
+    expect(reservation.ok).toBe(true);
 
     const etape = await appel<{ id: number }>(`/operations/${bac}/echeancier`, {
       methode: 'POST',

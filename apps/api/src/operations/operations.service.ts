@@ -161,6 +161,10 @@ export class OperationsService {
           prixTerrain: true,
           fraisNotaireTerrain: true,
           droitsMutation: true,
+          // Rattachement Kolabimo : depuis le 02.09.2026, une opération reliée
+          // ne clôt plus ses jalons depuis Prometis. L'écran doit le dire, pas
+          // laisser l'utilisateur découvrir un 409.
+          kolabimoPromotionId: true,
           _count: { select: { biens: true, parcelles: true, cfcNodes: true } },
         },
       }),

@@ -158,11 +158,19 @@ export const GROUPES_CFC: Record<string, string> = {
  * besoin aussi, et une fonction exportée d'un module client ne peut pas être
  * appelée depuis le serveur.
  */
-export function nomAcquereur(a: {
-  nom: string | null;
-  prenom: string | null;
-  email: string | null;
-}): string {
+export function nomAcquereur(
+  a: {
+    nom: string | null;
+    prenom: string | null;
+    email?: string | null;
+    /** Une société n'a ni nom ni prénom : c'est sa raison sociale qui fait foi. */
+    raisonSociale?: string | null;
+  } | null,
+): string {
+  // `null` est un état normal depuis le 02.09.2026 : Kolabimo ne livre
+  // l'identité qu'au palier FONDS_VERSES. On le dit, plutôt que d'afficher
+  // un blanc qui passerait pour un bug.
+  if (!a) return 'identité non encore livrée';
   const complet = [a.prenom, a.nom].filter(Boolean).join(' ');
-  return complet || (a.email ?? 'sans nom');
+  return complet || a.raisonSociale || a.email || 'sans nom';
 }

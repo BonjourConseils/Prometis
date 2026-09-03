@@ -959,6 +959,50 @@ label.lien-fichier:hover {
   background: var(--surface-hover);
 }
 
+/* Un lien qui conduit à une décision — « Choisir les étapes » — porte
+   l'apparence d'un bouton secondaire : c'est une action, même si la
+   navigation la réalise. Un `<a>` nu au milieu de boutons se lit comme un
+   renvoi documentaire, pas comme le geste attendu. */
+a.bouton {
+  display: inline-block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-body);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+a.bouton:hover {
+  background: var(--surface-hover);
+  text-decoration: none;
+}
+
+/* Une note qui change ce que l'utilisateur peut faire — « ce bouton n'est
+   plus là, et voici pourquoi ». Elle est encadrée parce qu'une explication
+   noyée dans la grisaille des notes se lit après avoir cherché le bouton
+   absent, jamais avant. */
+.note.avertissement {
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+}
+
+.note.avertissement code,
+.note.avertissement strong {
+  color: inherit;
+}
+
+.note.avertissement code {
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
 /* Actions empilées dans une cellule : les formulaires se déplient sous la
    ligne, donc on garde une colonne étroite plutôt qu'une rangée qui pousse
    le tableau hors de l'écran. */

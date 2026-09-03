@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SwissQRBill } from 'swissqrbill/pdf';
 import PDFDocument from 'pdfkit';
+import { montantSuisse } from './lettre-acquereur.pdf';
 import {
   adresseUtilisable,
   choisirReference,
@@ -144,7 +145,7 @@ export class QrFactureService {
     ligne(`Étape : ${donnees.etapeLibelle}`);
     ligne(`Échéance : ${donnees.dateEcheance.toLocaleDateString('fr-CH')}`);
     document.moveDown(0.5);
-    ligne(`Montant dû : ${donnees.montant.toFixed(2)} CHF`, 12, true);
+    ligne(`Montant dû : ${montantSuisse(donnees.montant.toFixed(2))} CHF`, 12, true);
 
     if (reference.type === 'AUCUNE') {
       document.moveDown(1);

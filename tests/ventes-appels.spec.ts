@@ -7,6 +7,7 @@
  * acquéreurs, échéancier — pour ne rien devoir aux données du seed.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { montantSuisse } from '../apps/api/src/appels-de-fonds/lettre-acquereur.pdf';
 import { API, COMPTES, CB, apiDisponible, appel, jetonPourEspace } from './api-client';
 import { ownerDb, supprimerOperationDeTest } from './tenant-db';
 
@@ -388,5 +389,19 @@ describe('cohérence avec le seed et les droits', () => {
     const marc = await jetonPourEspace(COMPTES.marc, CB);
     const res = await appel(`/operations/${operationSeed}/appels-de-fonds`, { token: marc });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('Lisibilité d’un montant sur un courrier', () => {
+  // « 595000.00 » se relit deux fois pour compter les zéros. Sur un document
+  // qui réclame de l'argent à quelqu'un, ce n'est pas un détail de style.
+  it('sépare les milliers par une espace fine insécable', () => {
+    expect(montantSuisse('595000')).toBe('595 000.00');
+    expect(montantSuisse('1200000.5')).toBe('1 200 000.50');
+  });
+
+  it('laisse un petit montant intact', () => {
+    expect(montantSuisse('42.5')).toBe('42.50');
+    expect(montantSuisse('0')).toBe('0.00');
   });
 });

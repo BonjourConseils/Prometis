@@ -128,6 +128,27 @@ export class VentesService {
             },
           },
           acquereur: { select: { id: true, nom: true, prenom: true, email: true } },
+          // Le dossier entier : depuis le 02.09.2026 une réservation compte N
+          // personnes, et peut n'en compter aucune tant que Kolabimo n'a pas
+          // livré l'identité au palier FONDS_VERSES.
+          acquereurs: {
+            orderBy: { ordre: 'asc' },
+            select: {
+              role: true,
+              quotePart: true,
+              signataire: true,
+              acquereur: {
+                select: {
+                  id: true,
+                  nom: true,
+                  prenom: true,
+                  raisonSociale: true,
+                  email: true,
+                  type: true,
+                },
+              },
+            },
+          },
           appelsDeFonds: {
             select: {
               id: true,

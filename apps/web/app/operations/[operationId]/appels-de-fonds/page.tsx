@@ -5,11 +5,25 @@ import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { chf, date, lisible, montant, pourcentage } from '../../../../lib/format';
 import { AjouterEtape, ChangerAvancement, DeclencherEtape, Encaisser, Relancer } from './saisie';
+import { nomAcquereur } from '../../../../lib/format';
 
-/** Réduit à ce qui sert ici : compter les réservations engagées. */
+/** Réduit à ce qui sert ici : les réservations engagées et leur dossier. */
 interface Reservation {
   id: number;
   statut: string;
+  kolabimoClientRef: string | null;
+  lot: { reference: string };
+  acquereurs: {
+    role: string;
+    quotePart: string | null;
+    acquereur: {
+      id: number;
+      nom: string | null;
+      prenom: string | null;
+      raisonSociale: string | null;
+    };
+  }[];
+  appelsDeFonds: { id: number }[];
 }
 
 /** Seuls ces statuts font naître un appel de fonds (voir `calculs.ts`). */
@@ -48,7 +62,7 @@ interface Appel {
   reservation: {
     id: number;
     lot: { reference: string };
-    acquereur: { nom: string | null; prenom: string | null };
+    acquereur: { nom: string | null; prenom: string | null } | null;
   };
   etape: { ordre: number; libelle: string };
   encaissements: { id: number; montant: string; dateValeur: string; source: string | null }[];
@@ -64,6 +78,7 @@ interface Appel {
 interface Operation {
   id: number;
   nom: string;
+  kolabimoPromotionId: number | null;
 }
 
 const LIBELLE_AVANCEMENT: Record<string, string> = {
@@ -118,7 +133,25 @@ export default async function AppelsDeFondsPage({
   const enRetard = liste.filter((a) => a.etat.enRetard);
 
   const id = Number(operationId);
-  const engagees = (reservations ?? []).filter((r) => STATUTS_ENGAGES.includes(r.statut)).length;
+  const engageesListe = (reservations ?? []).filter((r) => STATUTS_ENGAGES.includes(r.statut));
+  const engagees = engageesListe.length;
+
+  // Depuis le 02.09.2026, la fin de jalon se marque dans Kolabimo : c'est ce
+  // qui informe les agences, et cela n'oblige pas le promoteur à avoir
+  // Prometis. Nous restons maîtres de ce qui en découle.
+  const jalonMaitreKolabimo = operation.kolabimoPromotionId !== null;
+
+  // Étapes closes qui appellent : ce sont elles qui peuvent manquer à une
+  // réservation arrivée après coup.
+  const closesAppelantes = echeancier.etapes.filter(
+    (e) => e.statut === 'COMPLETED' && e.pourcentage !== null,
+  );
+  // Un lot vendu en cours de chantier n'a pas payé les tranches passées — ou
+  // les a réglées dans l'acte. Rien n'est appelé d'office : le promoteur
+  // tranche, ligne par ligne.
+  const aRattraper = engageesListe.filter((r) => r.appelsDeFonds.length < closesAppelantes.length);
+  // Un dossier sans personne : Kolabimo ne livre l'identité qu'à FONDS_VERSES.
+  const sansIdentite = engageesListe.filter((r) => r.acquereurs.length === 0);
   const ordreSuivant = echeancier.etapes.reduce((max, e) => Math.max(max, e.ordre), 0) + 1;
   // `ecart` est signé (somme − 100) : à zéro pour cent appelé il vaut −100.
   // Ce qui intéresse celui qui saisit, c'est ce qu'il RESTE à répartir.
@@ -153,6 +186,16 @@ export default async function AppelsDeFondsPage({
             {echeancier.controle.nombreJalonsSuivi} jalon
             {echeancier.controle.nombreJalonsSuivi > 1 ? 's' : ''} de suivi de chantier, sans
             pourcentage : ils ne déclenchent aucun appel de fonds.
+          </p>
+        )}
+
+        {jalonMaitreKolabimo && (
+          <p className="note avertissement">
+            Cette promotion est reliée à <strong>Kolabimo</strong> (promotion{' '}
+            {operation.kolabimoPromotionId}). Depuis le 2 septembre 2026, la{' '}
+            <strong>fin d&apos;étape s&apos;y marque</strong> — c&apos;est ce qui informe les
+            agences. Prometis la reçoit et en tire les appels de fonds. Un seul endroit déclenche
+            des factures : le bouton n&apos;est donc pas proposé ici.
           </p>
         )}
 
@@ -205,7 +248,7 @@ export default async function AppelsDeFondsPage({
                           etapeId={e.id}
                           vers={e.statut === 'IN_PROGRESS' ? 'NOT_STARTED' : 'IN_PROGRESS'}
                         />
-                        {e.pourcentage !== null && (
+                        {e.pourcentage !== null && !jalonMaitreKolabimo && (
                           <DeclencherEtape
                             operationId={id}
                             etapeId={e.id}
@@ -225,6 +268,73 @@ export default async function AppelsDeFondsPage({
 
         <AjouterEtape operationId={id} ordreSuivant={ordreSuivant} restant={pourcentage(restant)} />
       </section>
+
+      {(aRattraper.length > 0 || sansIdentite.length > 0) && (
+        <section>
+          <h2>Dossiers à trancher</h2>
+
+          {aRattraper.length > 0 && (
+            <>
+              <p className="note">
+                {aRattraper.length} lot{aRattraper.length > 1 ? 's ont' : ' a'} été vendu
+                {aRattraper.length > 1 ? 's' : ''} alors que des jalons étaient déjà terminés.{' '}
+                <strong>Rien n&apos;est appelé d&apos;office</strong> : certaines de ces tranches
+                figurent dans l&apos;acte et ont été réglées chez le notaire. Ouvrez le dossier pour
+                choisir celles à inclure dans le premier appel.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lot</th>
+                    <th>Dossier</th>
+                    <th className="droite">Appels émis</th>
+                    <th className="droite">Jalons clos</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aRattraper.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <strong>{r.lot.reference}</strong>
+                      </td>
+                      <td>
+                        {r.acquereurs.length === 0 ? (
+                          <span className="meta">
+                            identité non encore livrée
+                            {r.kolabimoClientRef ? ` · réf. ${r.kolabimoClientRef}` : ''}
+                          </span>
+                        ) : (
+                          r.acquereurs.map((l) => nomAcquereur(l.acquereur)).join(' · ')
+                        )}
+                      </td>
+                      <td className="droite">{r.appelsDeFonds.length}</td>
+                      <td className="droite">{closesAppelantes.length}</td>
+                      <td>
+                        <Link
+                          className="bouton"
+                          href={`/operations/${operationId}/appels-de-fonds/rattrapage/${r.id}`}
+                        >
+                          Choisir les étapes
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {sansIdentite.length > 0 && (
+            <p className="note">
+              {sansIdentite.length} réservation{sansIdentite.length > 1 ? 's' : ''} sans acquéreur
+              nominatif. <strong>C&apos;est normal</strong> : Kolabimo ne livre l&apos;identité
+              qu&apos;au palier <code>FONDS_VERSES</code>. Un appel de fonds ne peut pas partir
+              avant — il n&apos;aurait aucun destinataire.
+            </p>
+          )}
+        </section>
+      )}
 
       <section>
         <h2>Suivi des encaissements</h2>
@@ -282,11 +392,7 @@ export default async function AppelsDeFondsPage({
                       <span className="meta">{a.etape.libelle}</span>
                     </td>
                     <td>{a.reservation.lot.reference}</td>
-                    <td>
-                      {[a.reservation.acquereur.prenom, a.reservation.acquereur.nom]
-                        .filter(Boolean)
-                        .join(' ')}
-                    </td>
+                    <td>{nomAcquereur(a.reservation.acquereur)}</td>
                     <td className="droite">{pourcentage(a.pourcentage)}</td>
                     <td className="droite">{montant(a.montant)}</td>
                     <td className="droite">{montant(a.etat.montantEncaisse)}</td>
@@ -315,7 +421,10 @@ export default async function AppelsDeFondsPage({
         <p className="note">
           Chaque appel porte une <strong>référence QR suisse</strong> déterministe, calculée depuis
           le couple réservation × étape. Rejouer un déclenchement ne crée donc pas de seconde
-          créance. La QR-facture au format PDF est jointe à l&apos;envoi et déposée en GED.
+          créance. L&apos;envoi porte <strong>deux documents</strong> — une lettre à
+          l&apos;acquéreur, et un bordereau QR destiné à sa banque, qui paie le plus souvent à sa
+          place. Les deux sont déposés en GED. Quand le dossier compte plusieurs personnes, tous
+          reçoivent : la créance est <strong>solidaire</strong>, elle ne se divise pas.
         </p>
       </section>
     </main>
