@@ -192,6 +192,21 @@ export class VentesService {
         data: { operationId, ...donnees, prixTotalActe },
       });
 
+      // Le dossier acquéreur passe par la table de liaison : c'est elle qui
+      // porte les destinataires d'un appel de fonds. Une réservation saisie à
+      // la main n'a qu'une personne — les dossiers à plusieurs viennent de
+      // Kolabimo, au palier FONDS_VERSES. Sans ce lien, l'appel de fonds
+      // n'aurait aucun destinataire et resterait en échec d'envoi.
+      await tx.reservationAcquereur.create({
+        data: {
+          reservationId: reservation.id,
+          acquereurId: donnees.acquereurId,
+          role: 'ACQUEREUR',
+          signataire: true,
+          ordre: 0,
+        },
+      });
+
       // Le statut du lot suit celui de la réservation : un lot réservé ne
       // doit pas rester affiché « disponible » sur le plan de vente.
       if (donnees.statut && estEngagee(donnees.statut)) {
@@ -255,6 +270,21 @@ export class VentesService {
         where: { id: reservationId },
         data: donnees,
       });
+
+      // Changer l'acquéreur d'une réservation saisie à la main remplace la
+      // personne du dossier : sinon l'appel de fonds partirait au précédent.
+      if (donnees.acquereurId !== undefined && donnees.acquereurId !== avant.acquereurId) {
+        await tx.reservationAcquereur.deleteMany({ where: { reservationId } });
+        await tx.reservationAcquereur.create({
+          data: {
+            reservationId,
+            acquereurId: donnees.acquereurId,
+            role: 'ACQUEREUR',
+            signataire: true,
+            ordre: 0,
+          },
+        });
+      }
 
       if (donnees.statut) {
         const statutLot =

@@ -1052,6 +1052,24 @@ async function seedCb(): Promise<void> {
       email: 'sophie.meylan@example.ch',
       telephone: '+41 79 412 88 03',
       adresse: 'Chemin des Vignes 4, 1010 Lausanne',
+      kolabimoClientRef: 'kolabimo-cli-A02',
+      ordre: 0,
+    },
+  });
+
+  // Le lot A02 est acheté par un COUPLE : c'est le cas courant, et c'est
+  // celui que Kolabimo livre depuis le 02.09.2026 — N personnes par dossier,
+  // chacune avec son rôle et sa quote-part en fraction.
+  const acquereurMeylanConjoint = await prisma.acquereur.create({
+    data: {
+      societeId: societe.id,
+      nom: 'Meylan',
+      prenom: 'Julien',
+      email: 'julien.meylan@example.ch',
+      telephone: '+41 79 412 88 04',
+      adresse: 'Chemin des Vignes 4, 1010 Lausanne',
+      kolabimoClientRef: 'kolabimo-cli-A02',
+      ordre: 1,
     },
   });
 
@@ -1062,6 +1080,8 @@ async function seedCb(): Promise<void> {
       prenom: 'Paulo',
       email: 'paulo.dasilva@example.ch',
       telephone: '+41 78 220 14 55',
+      kolabimoClientRef: 'kolabimo-cli-A05',
+      ordre: 0,
     },
   });
 
@@ -1081,11 +1101,36 @@ async function seedCb(): Promise<void> {
       dateSignatureActe: new Date('2026-04-15'),
       notaireActeurId: notaire.id,
       externalId: 'kolabimo-res-A02-2026',
+      kolabimoClientRef: 'kolabimo-cli-A02',
     },
+  });
+
+  // Le dossier : deux personnes, quotes-parts en FRACTION (jamais en
+  // pourcentage — c'est ce que porte l'acte, et 1/3 ne s'arrondit pas).
+  // La créance reste solidaire : le montant n'est pas divisé.
+  await prisma.reservationAcquereur.createMany({
+    data: [
+      {
+        reservationId: reservationA02.id,
+        acquereurId: acquereurMeylan.id,
+        role: 'ACQUEREUR',
+        quotePart: '1/2',
+        signataire: true,
+        ordre: 0,
+      },
+      {
+        reservationId: reservationA02.id,
+        acquereurId: acquereurMeylanConjoint.id,
+        role: 'CONJOINT',
+        quotePart: '1/2',
+        signataire: true,
+        ordre: 1,
+      },
+    ],
   });
   await prisma.lot.update({ where: { id: lotsCrees.get('A02')! }, data: { statut: 'VENDU' } });
 
-  await prisma.reservation.create({
+  const reservationA05 = await prisma.reservation.create({
     data: {
       operationId: operation.id,
       lotId: lotsCrees.get('A05')!,
@@ -1094,6 +1139,16 @@ async function seedCb(): Promise<void> {
       prixTotalActe: chf('695000').plus(chf('30000')),
       dateReservation: new Date('2026-05-22'),
       externalId: 'kolabimo-res-A05-2026',
+      kolabimoClientRef: 'kolabimo-cli-A05',
+    },
+  });
+  await prisma.reservationAcquereur.create({
+    data: {
+      reservationId: reservationA05.id,
+      acquereurId: acquereurDaSilva.id,
+      role: 'ACQUEREUR',
+      signataire: true,
+      ordre: 0,
     },
   });
   await prisma.lot.update({ where: { id: lotsCrees.get('A05')! }, data: { statut: 'RESERVE' } });

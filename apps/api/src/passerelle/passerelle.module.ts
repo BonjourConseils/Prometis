@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import {
   OperationPasserelleController,
   PasserelleController,
@@ -6,15 +6,19 @@ import {
 } from './passerelle.controller';
 import { PasserelleService } from './passerelle.service';
 import { KolabimoClient } from './kolabimo.client';
+import { AppelsDeFondsModule } from '../appels-de-fonds/appels-de-fonds.module';
 
 /**
  * La passerelle Kolabimo, dans les deux sens.
  *
- * `PasserelleService` est exporté parce que le moteur d'appels de fonds y
- * dépose ses événements sortants. La dépendance ne va que dans ce sens : la
- * passerelle ne connaît pas le moteur, elle ne connaît que la boîte d'envoi.
+ * La dépendance allait autrefois dans un seul sens : le moteur d'appels de
+ * fonds déposait ses événements dans la boîte d'envoi, la passerelle ne
+ * connaissait pas le moteur. Depuis que **Kolabimo est maître de la fin de
+ * jalon** (02.09.2026), un webhook entrant déclenche les appels : le cycle est
+ * réel, et les `forwardRef` le disent plutôt que de le contourner.
  */
 @Module({
+  imports: [forwardRef(() => AppelsDeFondsModule)],
   controllers: [WebhooksKolabimoController, PasserelleController, OperationPasserelleController],
   providers: [PasserelleService, KolabimoClient],
   exports: [PasserelleService],

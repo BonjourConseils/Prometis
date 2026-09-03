@@ -16,6 +16,7 @@ import { Public, RequireModule, Roles } from '../auth/decorators';
 import { RequestContext } from '../context/request-context';
 import { PasserelleService } from './passerelle.service';
 import { ENTETE_CLE_API, ENTETE_SIGNATURE } from './signature';
+import { ENTETE_EVENEMENT, ENTETE_LIVRAISON } from './contrat-kolabimo';
 
 /**
  * Webhooks entrants de Kolabimo.
@@ -44,9 +45,14 @@ export class WebhooksKolabimoController {
       );
     }
 
+    // Le contrat Kolabimo nomme l'événement et sa clé de déduplication dans
+    // les en-têtes, pas dans le corps. Ils priment quand ils sont là : c'est
+    // `X-Kolabimo-Delivery` que Kolabimo promet unique par événement.
     return this.passerelle.recevoir({
       cleApi: requete.header(ENTETE_CLE_API),
       signature: requete.header(ENTETE_SIGNATURE),
+      evenement: requete.header(ENTETE_EVENEMENT),
+      livraison: requete.header(ENTETE_LIVRAISON),
       corpsBrut,
     });
   }

@@ -130,6 +130,19 @@ le dev local tape le PostgreSQL Homebrew (`postgresql@16`) et Redis Homebrew dé
 `npm run db:reset` détruit la base. Prisma bloque cette commande quand elle est lancée par un
 agent : c'est voulu, ne pas contourner le garde-fou — demander à l'humain.
 
+**`npm run db:seed` est tout aussi destructeur** : il `TRUNCATE` les 43 tables avant de
+réécrire la démonstration. La base de dev contient les promotions réelles saisies pendant les
+tests. Ne jamais le lancer sans le demander.
+
+**Pour CONSTATER l'état des données, se connecter avec `DIRECT_DATABASE_URL` (rôle owner),
+jamais avec `DATABASE_URL`.** `DATABASE_URL` porte le rôle `prometis_app`, qui est
+`NOBYPASSRLS` : hors transaction applicative, `app.societe_id` n'est pas posé et **toutes les
+tables tenant répondent zéro ligne**. Le 3 septembre 2026, ces zéros ont été lus comme une base
+vide ; le `db:seed` lancé pour « réparer » a détruit une promotion réelle qui était intacte.
+La preuve qu'une réinitialisation a eu lieu, ou non, est ailleurs :
+`select migration_name, finished_at from _prisma_migrations order by finished_at` — après un
+reset, toutes les lignes portent le même horodatage.
+
 ## 4 bis. Pièges d'outillage rencontrés (ne pas les redécouvrir)
 
 - **Prisma est fixé en `^6`.** Prisma 7 supprime `url` du bloc `datasource`, exige un

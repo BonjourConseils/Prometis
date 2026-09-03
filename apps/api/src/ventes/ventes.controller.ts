@@ -53,6 +53,18 @@ const declenchementSchema = z.object({
   envoyer: z.boolean().optional(),
 });
 
+/**
+ * Les étapes retenues pour le premier appel d'un lot.
+ *
+ * `etapeIds` est **exigé et non vide** : envoyer une liste vide serait
+ * ambigu — « aucune » ou « toutes » ? Le promoteur qui ne veut rien appeler
+ * ne poste rien.
+ */
+const rattrapageSchema = z.object({
+  etapeIds: z.array(z.number().int().positive()).min(1, 'Choisir au moins une étape.'),
+  envoyer: z.boolean().optional(),
+});
+
 const encaissementSchema = z.object({
   montant: montantPositif,
   dateValeur: z.coerce.date(),
@@ -188,6 +200,45 @@ export class VentesController {
     @Body(new ZodBody(declenchementSchema)) body: z.infer<typeof declenchementSchema>,
   ) {
     return this.appels.declencherEtape(operationId, etapeId, body);
+  }
+
+  // --- Rattrapage du premier appel d'un lot -----------------------------
+
+  /**
+   * Les étapes déjà closes qu'une réservation n'a pas encore payées.
+   *
+   * Lecture seule : c'est l'écran de décision. Rien n'est appelé tant que le
+   * promoteur n'a pas coché — certaines de ces tranches figurent dans l'acte
+   * et ont été réglées chez le notaire.
+   */
+  @RequireModule('APPELS_FONDS')
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'APPELS_FONDS' })
+  @Get('reservations/:reservationId/rattrapage')
+  rattrapage(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('reservationId', ParseIntPipe) reservationId: number,
+  ) {
+    return this.appels.etapesRattrapables(operationId, reservationId);
+  }
+
+  /**
+   * Émet le premier appel sur les étapes choisies.
+   *
+   * MANAGE, comme le déclenchement d'un jalon : la décision engage une
+   * créance envers un acquéreur nommé.
+   */
+  @RequireModule('APPELS_FONDS')
+  @RequireOperationAccess({ level: 'MANAGE', module: 'APPELS_FONDS' })
+  @Post('reservations/:reservationId/rattrapage')
+  @HttpCode(200)
+  rattraper(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('reservationId', ParseIntPipe) reservationId: number,
+    @Body(new ZodBody(rattrapageSchema)) body: z.infer<typeof rattrapageSchema>,
+  ) {
+    return this.appels.rattraper(operationId, reservationId, body.etapeIds, {
+      envoyer: body.envoyer,
+    });
   }
 
   // --- Appels de fonds --------------------------------------------------

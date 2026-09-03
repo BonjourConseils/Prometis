@@ -10,14 +10,18 @@ import { describe, expect, it } from 'vitest';
 import {
   TOLERANCE_SECONDES,
   construireDedupeKey,
+  empreinteNue,
   signer,
   verifier,
 } from '../apps/api/src/passerelle/signature';
+import { normaliser } from '../apps/api/src/passerelle/contrat-kolabimo';
 import {
   calculerPrixTotalDepuisLot,
+  dossierDepuisContratInterne,
+  dossierDepuisContratKolabimo,
   planifierMiseAJour,
   statutDepuisKolabimo,
-  type DonneesReservation,
+  type DossierEntrant,
 } from '../apps/api/src/passerelle/reconciliation';
 
 const SECRET = 'pk_dev_test_0123456789abcdef0123456789abcdef';
@@ -126,7 +130,7 @@ describe('Prix total acte reconstruit depuis le lot', () => {
 //  Ce que Kolabimo a le droit de changer
 // ---------------------------------------------------------------------
 
-function entrant(surcharge: Partial<DonneesReservation> = {}): DonneesReservation {
+function entrant(surcharge: Partial<DossierEntrant> = {}): DossierEntrant {
   return {
     externalId: 'kolabimo-res-001',
     reservationId: 77,
@@ -136,16 +140,10 @@ function entrant(surcharge: Partial<DonneesReservation> = {}): DonneesReservatio
     prixTotalActe: undefined,
     dateReservation: undefined,
     dateSignatureActe: undefined,
-    client: {
-      ref: 'cli-001',
-      nom: 'Testard',
-      prenom: 'Alice',
-      email: 'alice@example.ch',
-      telephone: undefined,
-      adresse: undefined,
-    },
+    clientRef: 'cli-001',
+    personnes: [{ role: 'ACQUEREUR', nom: 'Testard', prenom: 'Alice', email: 'alice@example.ch' }],
     ...surcharge,
-  } as DonneesReservation;
+  } as DossierEntrant;
 }
 
 describe('Réconciliation d’une réservation existante', () => {
@@ -218,5 +216,164 @@ describe('Réconciliation d’une réservation existante', () => {
     );
     expect(plan.champs.dateSignatureActe).toBeUndefined();
     expect(plan.refus.some((r) => r.champ === 'dateSignatureActe')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------
+//  Le contrat publié par Kolabimo (v1.3.0)
+// ---------------------------------------------------------------------
+
+describe('Contrat Kolabimo — signature hexadécimale nue', () => {
+  it('accepte l’empreinte du corps brut, sans horodatage', () => {
+    const entete = empreinteNue(SECRET, CORPS);
+    expect(verifier({ secret: SECRET, corpsBrut: CORPS, entete })).toEqual({ valide: true });
+  });
+
+  it('refuse une empreinte calculée sur un autre corps', () => {
+    const entete = empreinteNue(SECRET, '{"autre":"corps"}');
+    expect(verifier({ secret: SECRET, corpsBrut: CORPS, entete }).valide).toBe(false);
+  });
+
+  it('n’ouvre pas la porte à la forme horodatée : les deux restent distinctes', () => {
+    // Le même secret, le même corps, mais deux empreintes différentes —
+    // l'une lie l'horodatage au message, l'autre non.
+    const nue = empreinteNue(SECRET, CORPS);
+    const horodatee = signer(SECRET, CORPS);
+    expect(horodatee).not.toContain(nue);
+  });
+});
+
+describe('Contrat Kolabimo — normalisation de l’enveloppe', () => {
+  const corpsKolabimo = {
+    event: 'reservation.created',
+    delivery: 'evt-98765',
+    emisLe: '2026-09-02T10:00:00.000Z',
+    reservation: {
+      externalId: 'kolabimo-res-777',
+      appartementId: 4302,
+      statut: 'reserve',
+      client: { reference: 'cli-pseudo-777' },
+    },
+  };
+
+  it('lit l’événement et la clé de déduplication dans les EN-TÊTES', () => {
+    // Ils priment sur le corps : c'est `X-Kolabimo-Delivery` que Kolabimo
+    // promet unique par événement.
+    const e = normaliser(corpsKolabimo, {
+      evenement: 'reservation.step_changed',
+      livraison: 'entete-42',
+    });
+    expect(e.evenement).toBe('reservation.step_changed');
+    expect(e.idEvenement).toBe('entete-42');
+    expect(e.contratKolabimo).toBe(true);
+  });
+
+  it('retombe sur le corps quand les en-têtes manquent', () => {
+    const e = normaliser(corpsKolabimo);
+    expect(e.evenement).toBe('reservation.created');
+    expect(e.idEvenement).toBe('evt-98765');
+  });
+
+  it('reconnaît toujours notre propre enveloppe', () => {
+    const e = normaliser({
+      evenement: 'lot.updated',
+      idEvenement: 'interne-1',
+      donnees: { promotionId: 1, appartementId: 2 },
+    });
+    expect(e.contratKolabimo).toBe(false);
+    expect(e.evenement).toBe('lot.updated');
+  });
+
+  it('distingue une charge d’étape d’une charge de réservation', () => {
+    const e = normaliser(
+      {
+        event: 'echeancier.etape_completed',
+        promotion: { id: 4201 },
+        etape: { id: 77, statut: 'COMPLETED' },
+      },
+      { evenement: 'echeancier.etape_completed' },
+    );
+    expect(e.contratKolabimo).toBe(true);
+    expect(e.donnees).toMatchObject({ promotion: { id: 4201 } });
+  });
+});
+
+describe('L’identité n’arrive qu’à FONDS_VERSES', () => {
+  it('avant le palier : la référence seule, et AUCUNE personne', () => {
+    const dossier = dossierDepuisContratKolabimo({
+      externalId: 'res-1',
+      appartementId: 4302,
+      statut: 'reserve',
+      client: { reference: 'cli-pseudo-1' },
+    });
+    expect(dossier.clientRef).toBe('cli-pseudo-1');
+    // `undefined`, pas `[]` : un tableau vide voudrait dire « ce dossier n'a
+    // personne », ce qui effacerait l'identité au premier événement suivant.
+    expect(dossier.personnes).toBeUndefined();
+  });
+
+  it('au palier : N personnes, avec rôle et quote-part en fraction', () => {
+    const dossier = dossierDepuisContratKolabimo({
+      externalId: 'res-1',
+      appartementId: 4302,
+      statut: 'fonds_verses',
+      client: {
+        reference: 'cli-pseudo-1',
+        niveau: 'COMPLET',
+        regime: 'INDIVISION',
+        personnes: [
+          {
+            role: 'ACQUEREUR',
+            type: 'PHYSIQUE',
+            nom: 'Rossier',
+            prenom: 'Anne',
+            email: 'anne@example.ch',
+            quotePart: '1/3',
+            signataire: true,
+          },
+          { role: 'CO_ACQUEREUR', nom: 'Rossier', prenom: 'Marc', quotePart: '1/3' },
+          { role: 'SOCIETE', type: 'MORALE', raisonSociale: 'Rossier SA', quotePart: '1/3' },
+        ],
+      },
+    });
+    expect(dossier.personnes).toHaveLength(3);
+    expect(dossier.personnes![0]!.quotePart).toBe('1/3');
+    expect(dossier.personnes![2]!.raisonSociale).toBe('Rossier SA');
+  });
+
+  it('accepte une société sans nom ni prénom : elle n’en a pas', () => {
+    const dossier = dossierDepuisContratKolabimo({
+      externalId: 'res-2',
+      appartementId: 4302,
+      statut: 'fonds_verses',
+      client: {
+        reference: 'cli-2',
+        personnes: [{ role: 'ACQUEREUR', type: 'MORALE', raisonSociale: 'Immo SA', ide: 'CHE-1' }],
+      },
+    });
+    expect(dossier.personnes![0]!.raisonSociale).toBe('Immo SA');
+  });
+
+  it('notre contrat interne se traduit en une personne unique', () => {
+    const dossier = dossierDepuisContratInterne({
+      externalId: 'res-3',
+      promotionId: 4201,
+      appartementId: 4302,
+      statut: 'reserve',
+      client: { ref: 'cli-3', nom: 'Perrin', prenom: 'Camille' },
+    });
+    expect(dossier.personnes).toHaveLength(1);
+    expect(dossier.personnes![0]!.signataire).toBe(true);
+  });
+
+  it('un client interne sans aucune identité ne fabrique pas d’acquéreur vide', () => {
+    const dossier = dossierDepuisContratInterne({
+      externalId: 'res-4',
+      promotionId: 4201,
+      appartementId: 4302,
+      statut: 'reserve',
+      client: { ref: 'cli-4' },
+    });
+    expect(dossier.personnes).toBeUndefined();
   });
 });

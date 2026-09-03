@@ -1,6 +1,12 @@
 import { Prisma, type ReservationStatut } from '@prisma/client';
 import { z } from 'zod';
 import { montantPositif } from '../common/zod-decimal';
+import {
+  corpsEtapeSchema,
+  corpsReservationSchema,
+  type CorpsEtape,
+  type PersonneKolabimo,
+} from './contrat-kolabimo';
 
 /**
  * Ce que Prometis accepte de Kolabimo, et ce qu'il refuse.
@@ -29,6 +35,28 @@ export const clientSchema = z.object({
   telephone: texte,
   adresse: texte,
 });
+
+/**
+ * Ce qu'un dossier entrant apporte, quel que soit le contrat d'origine.
+ *
+ * `personnes` est **absent** — et non vide — tant que Kolabimo n'a pas livré
+ * l'identité. La distinction compte : un tableau vide voudrait dire « ce
+ * dossier n'a personne », ce qui effacerait les acquéreurs déjà connus au
+ * premier `reservation.step_changed` qui suivrait le palier.
+ */
+export interface DossierEntrant {
+  externalId: string;
+  reservationId?: number | null;
+  promotionId?: number | null;
+  appartementId: number;
+  statut: string;
+  prixTotalActe?: Prisma.Decimal | null;
+  dateReservation?: Date | null;
+  dateSignatureActe?: Date | null;
+  /** Référence pseudonyme du dossier : seule identité avant `FONDS_VERSES`. */
+  clientRef: string;
+  personnes?: PersonneKolabimo[];
+}
 
 export const reservationSchema = z.object({
   /** Identifiant stable partagé : c'est lui qui porte la réconciliation. */
@@ -67,6 +95,63 @@ export const enveloppeSchema = z.object({
 
 export type DonneesReservation = z.infer<typeof reservationSchema>;
 export type DonneesLot = z.infer<typeof lotSchema>;
+
+/**
+ * Lit un dossier dans le contrat **interne** — celui du fil sortant et des
+ * tests. Le `client` y porte l'identité directement : on la traduit en une
+ * personne unique, pour que la suite du traitement n'ait qu'une forme à
+ * connaître.
+ */
+export function dossierDepuisContratInterne(donnees: unknown): DossierEntrant {
+  const d = reservationSchema.parse(donnees);
+  const identite = d.client.nom ?? d.client.prenom ?? d.client.email ?? d.client.telephone;
+  return {
+    externalId: d.externalId,
+    reservationId: d.reservationId,
+    promotionId: d.promotionId,
+    appartementId: d.appartementId,
+    statut: d.statut,
+    prixTotalActe: d.prixTotalActe,
+    dateReservation: d.dateReservation,
+    dateSignatureActe: d.dateSignatureActe,
+    clientRef: d.client.ref,
+    personnes: identite
+      ? [
+          {
+            role: 'ACQUEREUR',
+            nom: d.client.nom ?? null,
+            prenom: d.client.prenom ?? null,
+            email: d.client.email ?? null,
+            telephone: d.client.telephone ?? null,
+            adresse: d.client.adresse ?? null,
+            signataire: true,
+          } as PersonneKolabimo,
+        ]
+      : undefined,
+  };
+}
+
+/** Lit un dossier dans le contrat **Kolabimo** (v1.3.0). */
+export function dossierDepuisContratKolabimo(donnees: unknown): DossierEntrant {
+  const d = corpsReservationSchema.parse(donnees);
+  return {
+    externalId: d.externalId,
+    reservationId: d.id,
+    promotionId: d.promotionId,
+    appartementId: d.appartementId,
+    statut: d.statut,
+    prixTotalActe: d.prixTotalActe,
+    dateReservation: d.dateReservation,
+    dateSignatureActe: d.dateSignatureActe,
+    clientRef: d.client.reference,
+    // `personnes` absent avant le palier : on ne le remplace pas par [].
+    personnes: d.client.personnes,
+  };
+}
+
+export function etapeDepuisContratKolabimo(donnees: unknown): CorpsEtape {
+  return corpsEtapeSchema.parse(donnees);
+}
 
 // =====================================================================
 //  Statuts
@@ -176,7 +261,7 @@ export interface PlanMiseAJour {
  */
 export function planifierMiseAJour(
   existante: EtatReservation,
-  entrant: DonneesReservation,
+  entrant: DossierEntrant,
 ): PlanMiseAJour {
   const plan: PlanMiseAJour = { champs: {}, refus: [] };
 

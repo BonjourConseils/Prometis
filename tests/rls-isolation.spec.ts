@@ -289,11 +289,11 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 40 tables tenant du modèle', async () => {
+  it('couvre les 41 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(40);
+    expect(Number(rows[0]!.count)).toBe(41);
   });
 
   it('les taux de frais d’acquisition sont propres à chaque société', async () => {
@@ -301,6 +301,17 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
     // promoteurs n'ont ni le même notaire ni la même pratique.
     const constructa = await asTenant(CONSTRUCTA, (tx) => tx.tauxFraisAcquisition.count());
     expect(constructa).toBe(0);
+  });
+
+  it('le dossier acquéreur ne traverse pas les sociétés', async () => {
+    // `reservation_acquereurs` porte des noms, des e-mails et des quotes-parts
+    // sans `societe_id` : son rattachement passe par la réservation. C'est la
+    // policy — et ce test — qui empêchent une fuite entre promoteurs.
+    const constructa = await asTenant(CONSTRUCTA, (tx) => tx.reservationAcquereur.count());
+    expect(constructa).toBe(0);
+
+    const cb = await asTenant(CB, (tx) => tx.reservationAcquereur.count());
+    expect(cb).toBeGreaterThan(0);
   });
 
   it('les découpages de parcelle ne traversent pas les sociétés', async () => {

@@ -47,6 +47,18 @@ export function verifier(options: {
   if (!entete) return { valide: false, raison: `En-tête ${ENTETE_SIGNATURE} absent.` };
   if (!secret) return { valide: false, raison: 'Aucun secret de signature.' };
 
+  // Contrat Kolabimo : la signature est l'empreinte hexadécimale nue du corps
+  // brut, sans horodatage. Elle n'a donc pas de fenêtre de rejeu propre —
+  // c'est `X-Kolabimo-Delivery`, et l'unicité de `dedupeKey` en base, qui
+  // rendent un rejeu inoffensif. On l'accepte parce que c'est le contrat
+  // publié ; on garde la forme horodatée ci-dessous, plus solide, pour le fil
+  // sortant et pour le jour où Kolabimo l'adoptera.
+  if (!entete.includes('=')) {
+    return egalesEnTempsConstant(entete.trim().toLowerCase(), empreinteNue(secret, corpsBrut))
+      ? { valide: true }
+      : { valide: false, raison: 'Signature invalide.' };
+  }
+
   const champs = new Map<string, string>();
   for (const morceau of entete.split(',')) {
     const separateur = morceau.indexOf('=');
@@ -72,6 +84,11 @@ export function verifier(options: {
   }
 
   return { valide: true };
+}
+
+/** Empreinte du contrat Kolabimo : HMAC-SHA256 hexadécimal du corps brut. */
+export function empreinteNue(secret: string, corpsBrut: string): string {
+  return createHmac('sha256', secret).update(corpsBrut).digest('hex');
 }
 
 function empreinte(secret: string, t: number, corpsBrut: string): string {

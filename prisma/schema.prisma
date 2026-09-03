@@ -829,23 +829,69 @@ enum ReservationStatut {
   ANNULEE
 }
 
-/// Acheteur d'un ou plusieurs lots. Mappé au client d'une réservation Kolabimo.
+/// Une **personne** d'un dossier acquéreur. Un dossier (une réservation) en
+/// compte N : couple, indivision, société. Mappé au client d'une réservation
+/// Kolabimo, qui ne livre l'identité qu'au palier FONDS_VERSES.
 model Acquereur {
-  id                Int      @id @default(autoincrement())
-  societeId         Int      @map("societe_id")
-  nom               String?
-  prenom            String?
-  email             String?
-  telephone         String?
-  adresse           String?
-  kolabimoClientRef String?  @map("kolabimo_client_ref")
-  createdAt         DateTime @default(now()) @map("created_at")
+  id        Int     @id @default(autoincrement())
+  societeId Int     @map("societe_id")
+  nom       String?
+  prenom    String?
+  email     String?
+  telephone String?
+  adresse   String?
 
-  societe      Societe       @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  // Complément d'identité livré par Kolabimo à FONDS_VERSES.
+  type          String? // PHYSIQUE, MORALE
+  dateNaissance DateTime? @map("date_naissance")
+  nationalite   String?
+  npa           String?
+  localite      String?
+  pays          String?
+  raisonSociale String?   @map("raison_sociale")
+  ide           String?
+
+  /// Référence du **dossier** Kolabimo — partagée par toutes ses personnes.
+  kolabimoClientRef String? @map("kolabimo_client_ref")
+  /// Rang de la personne dans son dossier : c'est lui qui, avec la référence,
+  /// rend l'upsert stable d'un événement à l'autre. Kolabimo ne donne pas
+  /// d'identifiant par personne.
+  ordre             Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  societe      Societe                @relation(fields: [societeId], references: [id], onDelete: Cascade)
   reservations Reservation[]
+  dossiers     ReservationAcquereur[]
 
+  @@unique([societeId, kolabimoClientRef, ordre], name: "acquereur_dossier_rang")
   @@index([societeId])
   @@map("acquereurs")
+}
+
+/// Le lien entre un dossier (réservation) et une de ses personnes.
+///
+/// La quote-part est une **fraction** — « 1/2 », « 1/3 » — et non un
+/// pourcentage : c'est ce que porte l'acte notarié, et arrondir 1/3 en 33,33 %
+/// ferait perdre la somme exacte. Les appels de fonds restent **solidaires** :
+/// le montant n'est pas divisé, tous les destinataires reçoivent la lettre.
+model ReservationAcquereur {
+  id            Int     @id @default(autoincrement())
+  reservationId Int     @map("reservation_id")
+  acquereurId   Int     @map("acquereur_id")
+  role          String
+  quotePart     String? @map("quote_part")
+  signataire    Boolean @default(false)
+  ordre         Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  acquereur   Acquereur   @relation(fields: [acquereurId], references: [id], onDelete: Cascade)
+
+  @@unique([reservationId, acquereurId])
+  @@index([reservationId])
+  @@map("reservation_acquereurs")
 }
 
 /// Réservation d'un lot par un acquéreur. Miroir d'une réservation Kolabimo
@@ -854,7 +900,10 @@ model Reservation {
   id          Int               @id @default(autoincrement())
   operationId Int               @map("operation_id")
   lotId       Int               @map("lot_id")
-  acquereurId Int               @map("acquereur_id")
+  /// Contact principal du dossier — **dérivé** de `acquereurs` (le signataire,
+  /// à défaut la première personne). Nul tant que Kolabimo n'a pas livré
+  /// l'identité : avant `FONDS_VERSES`, une réservation n'a qu'une référence.
+  acquereurId Int?              @map("acquereur_id")
   statut      ReservationStatut @default(OPTION)
 
   // Prix total acte figé au moment de la vente (prix lot + Σ parkings).
@@ -868,14 +917,17 @@ model Reservation {
   // Passerelle Kolabimo
   externalId            String? @unique @map("external_id")
   kolabimoReservationId Int?    @map("kolabimo_reservation_id")
+  /// Référence pseudonyme du dossier — seule identité connue avant FONDS_VERSES.
+  kolabimoClientRef     String? @map("kolabimo_client_ref")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  operation           Operation            @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  lot                 Lot                  @relation(fields: [lotId], references: [id])
-  acquereur           Acquereur            @relation(fields: [acquereurId], references: [id])
-  notaireActeur       Acteur?              @relation("ReservationNotaire", fields: [notaireActeurId], references: [id])
+  operation           Operation              @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  lot                 Lot                    @relation(fields: [lotId], references: [id])
+  acquereur           Acquereur?             @relation(fields: [acquereurId], references: [id])
+  acquereurs          ReservationAcquereur[]
+  notaireActeur       Acteur?                @relation("ReservationNotaire", fields: [notaireActeurId], references: [id])
   appelsDeFonds       AppelDeFonds[]
   documents           Document[]
   commissionsCourtage CommissionCourtage[]
