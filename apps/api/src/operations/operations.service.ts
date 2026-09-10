@@ -31,6 +31,8 @@ export interface OperationListItem {
   commune: string | null;
   canton: string | null;
   commercialisationActive: boolean;
+  /** Promotion Kolabimo rattachée : une opération n'en porte qu'une. */
+  kolabimoPromotionId: number | null;
   nbBiens: number;
 }
 
@@ -119,6 +121,7 @@ export class OperationsService {
           commune: true,
           canton: true,
           commercialisationActive: true,
+          kolabimoPromotionId: true,
           _count: { select: { biens: true } },
         },
         orderBy: { nom: 'asc' },
@@ -131,6 +134,7 @@ export class OperationsService {
         commune: o.commune,
         canton: o.canton,
         commercialisationActive: o.commercialisationActive,
+        kolabimoPromotionId: o.kolabimoPromotionId,
         nbBiens: o._count.biens,
       }));
     });

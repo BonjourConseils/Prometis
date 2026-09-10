@@ -192,3 +192,31 @@ inventoriée dans `app.security_definer_autorisees`) + deux index sur `webhook_e
 `prisma/passerelle-cles-dev.ts`, une par société du seed. Elles servent **à la fois**
 d'identifiant de tenant et de secret de signature. Valeurs publiques : à régénérer avant toute
 mise en ligne.
+
+
+---
+
+## Connexion par société (10 septembre 2026)
+
+| Sens | Secret | D'où il vient | Sert à |
+|---|---|---|---|
+| Prometis → Kolabimo | clé d'API `kolabimo_…` | générée par le promoteur dans Kolabimo, collée dans Prometis | lire promotions, lots, échéancier, réservations |
+| Kolabimo → Prometis | secret de webhook | généré par Prometis, montré une fois, collé dans Kolabimo | signer (HMAC hex nu) ce que Kolabimo pousse |
+
+URL à coller dans Kolabimo : `PUBLIC_API_URL/webhooks/kolabimo/<jeton>`. Le jeton désigne la
+société ; il n'est pas un secret, la signature l'est.
+
+Endpoints Prometis : `GET/PUT/DELETE /passerelle/kolabimo`, `POST …/tester`, `POST …/secret`
+(régénère), `GET …/promotions`, `GET …/promotions/:id` (photo, lecture seule),
+`POST …/promotions/:id/rattacher` `{ operationId? }`, `POST /operations/:id/passerelle/synchroniser`.
+
+Routes Kolabimo réellement appelées (relevées dans son code, 1.3.20) : `GET /api/v1/me`,
+`/promotions`, `/promotions/:id/lots`, `/promotions/:id/echeancier`, `/reservations` (non filtré
+par promotion — le filtre se fait chez nous, par les appartements).
+
+Rattacher : immeubles → biens (par nom), appartements → lots (par `kolabimoAppartementId`, à défaut
+par référence), parkings par référence (l'API ne donne pas leur id), étapes par `kolabimoEtapeId`
+— une étape Prometis sans id au même rang est **adoptée**. Un rang occupé par une étape absente de
+Kolabimo **refuse l'échéancier entier** avant toute écriture, lots et réservations passent quand
+même. Pourcentage 0 chez Kolabimo → jalon de suivi (nul) chez nous. Pourcentage figé si des appels
+en découlent. **Aucun appel de fonds** n'est émis par une synchronisation.

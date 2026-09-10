@@ -28,7 +28,7 @@ import CAN/NPK) ne s'engage qu'après le go/no-go du second jalon.
 
 `references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
 avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
-circuit multi-approbateurs, identifiants Kolabimo par société, PV en PDF. Aucun n'est un oubli : chacun
+circuit multi-approbateurs, identité des dossiers antérieurs à la connexion Kolabimo, PV en PDF. Aucun n'est un oubli : chacun
 attend un arbitrage, et le code est écrit pour l'accueillir. Ne pas en « débloquer » un en
 contournant le schéma.
 
@@ -398,10 +398,26 @@ un jalon : l'événement reste en attente et se rejoue. La `dedupeKey` sortante 
 `(opération, étape)` ou de l'id d'encaissement — rejouer le geste métier ne produit pas un second
 message.
 
-**Non configuré n'est pas en panne.** Sans `KOLABIMO_API_URL`/`KOLABIMO_API_KEY`, le client le dit
-et ne tente rien. C'est ce qui permet de développer et de tester la passerelle entière sans compte
-Kolabimo. Limite assumée : ces deux variables sont globales à l'instance — deux sociétés Prometis
-parlant à deux comptes Kolabimo distincts demanderont un champ de schéma ou un coffre.
+**La clé Kolabimo est une donnée du tenant** (10 septembre 2026). Depuis SEC1 (Kolabimo 1.3.0),
+une clé est cloisonnée à UN promoteur : chaque société la saisit dans l'écran Passerelle, table
+`connexions_kolabimo`. `KolabimoClient` ne connaît aucune clé — chaque appel reçoit l'`AccesKolabimo`
+de la société. Ne jamais réintroduire de clé d'instance : la société B lirait les promotions de A.
+
+- **Deux secrets, deux sens.** La clé d'API (générée dans Kolabimo, saisie ici) sert à LIRE. Le
+  secret de webhook (généré ici, montré une fois, collé dans Kolabimo) sert à SIGNER. Les deux
+  sont chiffrés AES-256-GCM, clé hors base `INTEGRATIONS_ENCRYPTION_KEY` ; sans elle, refus.
+- **Kolabimo n'envoie pas de clé d'API avec ses webhooks.** La société se lit dans l'URL
+  (`/webhooks/kolabimo/:jeton`, résolue par `app.societe_de_jeton_kolabimo`, SECURITY DEFINER).
+  L'ancienne route `/webhooks/kolabimo` + `x-api-key` ne sert plus qu'au contrat interne.
+- **Une clé est essayée avant d'être stockée** (`GET /api/v1/me`) et doit être de type
+  `PROMOTEUR` — une clé d'agence a un autre périmètre.
+- **Rattacher ne déclenche jamais d'appel de fonds.** Une étape close chez Kolabimo arrive close ;
+  un lot vendu en cours de chantier passe par le rattrapage.
+- **Le contrat se relève dans le code de Kolabimo** (`~/Documents/Projets/ImmoCollab`,
+  `src/routes/api/v1/`, `src/services/passerelle.service.js`), pas dans sa documentation Notion,
+  qui décrivait encore l'API de juillet. `kolabimo-api.ts` porte les schémas zod correspondants.
+- Les tests jouent contre un **faux Kolabimo local** (`tests/kolabimo-connexion.spec.ts`) qui rend
+  exactement ces formes.
 
 ## 4 undecies. Modules annexes (Lot 8)
 

@@ -32,9 +32,13 @@ l'accueillir sans réécriture.
 | **OIDC** | non retenu pour l'instant : l'authentification par identifiants + MFA TOTP couvre le besoin pilote | `PasswordService` + `TokenService` |
 | **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
-| **Identifiants Kolabimo par société** | une seule paire URL/clé par instance ; il faudrait un champ de schéma ou un coffre | `KOLABIMO_API_URL` / `KOLABIMO_API_KEY` |
-| **Séparation identifiant / secret de signature** | `ApiKey` ne porte qu'un champ `key`, qui sert des deux côtés | `signature.ts`, un seul secret à échanger |
-| **`GET /promotions/:id/echeancier` côté Kolabimo** | endpoint à écrire dans l'autre dépôt | `KolabimoClient.lireEcheancier()` prêt à l'appeler |
+| **Identité d'un dossier déjà passé le palier** | l'API Kolabimo ne livre jamais l'identité ; seul le webhook du passage à `FONDS_VERSES` la porte. Une réservation déjà au-delà au moment de la connexion reste sans nom. Il faut, côté Kolabimo, une route qui rende le dossier à la clé du promoteur (`chargeUtile` existe) ou un bouton « renvoyer à Prometis » | `dossiersDepuisReservations()` — `personnes: undefined` |
+| **Encaissements vers Kolabimo** | aucune route Kolabimo ne les reçoit (relevé en 1.3.20) | `KolabimoClient.publierEvenement()` le dit sans rien poster ; l'événement reste en boîte d'envoi |
+
+Levés le 10 septembre 2026 : **identifiants Kolabimo par société** (table `connexions_kolabimo`,
+clé saisie dans l'écran Passerelle) et **séparation clé / secret de signature** (le secret de
+webhook est généré par Prometis, distinct de la clé d'API). `GET /promotions/:id/echeancier`
+existe côté Kolabimo depuis la 1.3.0.
 | **PV en PDF mis en page** | le moteur de rendu existe désormais (pdfkit) ; reste à dessiner la mise en page | `pv.ts` produit du Markdown, lisible tel quel |
 
 Ne pas « débloquer » l'un de ces points en contournant le schéma ou en branchant un fournisseur

@@ -1201,3 +1201,35 @@ table.imbrique tr:last-child td {
   white-space: nowrap;
   border: 0;
 }
+
+/* =====================================================================
+ *  Passerelle Kolabimo — saisie de la clé
+ * ===================================================================== */
+
+/* La marche à suivre dans Kolabimo, numérotée : on la lit en passant d'un
+   onglet à l'autre, et un numéro est ce qu'on retrouve le plus vite. */
+ol.etapes {
+  margin: 0 0 var(--space-5);
+  padding-left: var(--space-7);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  max-width: 78ch;
+}
+
+ol.etapes li + li {
+  margin-top: var(--space-2);
+}
+
+/* Une valeur à copier telle quelle — URL de webhook, secret. Coupée n'importe
+   où plutôt que de faire déborder la page : elle se copie, elle ne se lit pas. */
+code.secret {
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-all;
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+}
+
+.rapport {
+  margin-top: var(--space-5);
+}

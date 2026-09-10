@@ -78,9 +78,11 @@ aucune « simulation » de promoteur.
 
 ## 6. Passerelle Kolabimo (voir §6.5 du plan)
 
-- Kolabimo expose une **API v1** (clé `x-api-key` par société) : promotions, lots (avec parkings +
-  prix total acte), lots réservés + client, réservations (création idempotente via `externalId`).
-- À **ajouter côté Kolabimo** : `GET /api/v1/promotions/:id/echeancier` et un webhook sortant.
+- Kolabimo expose une **API v1** (clé `x-api-key` **de promoteur**, cloisonnée depuis SEC1) :
+  promotions, lots (avec parkings + prix total acte), échéancier, réservations (sans identité).
+- **La clé se saisit dans Prometis, par société** (écran Passerelle, table `connexions_kolabimo`,
+  chiffrée). Prometis génère en retour l'URL et le **secret de webhook**, distinct de la clé, que
+  le promoteur colle dans Kolabimo — « Ma société → Intégrations & API ».
 - Webhooks : Kolabimo → Prometis (`reservation.*` **et** `echeancier.etape_completed`) ;
   Prometis → Kolabimo (statut des encaissements). Signés HMAC-SHA256, idempotents.
   **Deux contrats circulent** — celui de Kolabimo (en-têtes `X-Kolabimo-Event` / `-Delivery`,
@@ -88,7 +90,8 @@ aucune « simulation » de promoteur.
 - Mapping : `kolabimoPromotionId` (Operation), `kolabimoAppartementId` (Lot),
   `kolabimoParkingId` (Parking), `externalId` / `kolabimoReservationId` (Reservation),
   `kolabimoEtapeId` (EcheancierEtape), `kolabimoClientRef` + `ordre` (Acquereur — une personne
-  du dossier).
+  du dossier). Le rapprochement d'une réservation se fait par `kolabimoReservationId` :
+  `externalId` est nul pour toute réservation posée dans l'interface de Kolabimo.
 
 ## 7. Ordre de construction
 
@@ -106,7 +109,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 — 464 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre) — 492 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de
@@ -117,8 +120,8 @@ comptable. La V2 (portail acquéreur, signature QES, intégrations comptables et
 s'engage qu'après.
 
 État détaillé lot par lot, et surtout **la liste des sujets non livrés avec leur cause**
-(OIDC, notation multicritère, circuit multi-approbateurs, identifiants Kolabimo par société,
-PV en PDF) : `.claude/skills/prometis-dev/references/roadmap.md`.
+(OIDC, notation multicritère, circuit multi-approbateurs, identité des dossiers Kolabimo
+antérieurs à la connexion, PV en PDF) : `.claude/skills/prometis-dev/references/roadmap.md`.
 
 Reprendre sur une machine propre :
 `npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier`.

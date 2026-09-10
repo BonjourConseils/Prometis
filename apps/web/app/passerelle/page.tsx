@@ -1,6 +1,19 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../lib/session';
 import { AppHeader, type Me } from '../components/app-header';
+import { ActionsConnexion, Copier, SaisirCle } from './saisie';
+
+interface Connexion {
+  connectee: boolean;
+  baseUrl: string | null;
+  cleApercu: string | null;
+  promoteur: { id: number; nom: string } | null;
+  verifieeLe: string | null;
+  derniereErreur: string | null;
+  webhook: { url: string } | null;
+  chiffrementDisponible: boolean;
+}
 
 interface EtatPasserelle {
   sortant: { configure: boolean; baseUrl: string | null };
@@ -56,10 +69,15 @@ export default async function PasserellePage() {
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const [etat, journal] = await Promise.all([
+  const [etat, journal, connexion] = await Promise.all([
     apiGet<EtatPasserelle>('/passerelle/etat'),
     apiGet<EvenementJournal[]>('/passerelle/journal?limite=100'),
+    apiGet<Connexion>('/passerelle/kolabimo'),
   ]);
+  // Poser ou retirer la clé est réservé au titulaire et aux administrateurs :
+  // elle ouvre toutes les promotions du promoteur. L'API le refuserait de
+  // toute façon ; ne pas proposer le formulaire évite de le découvrir en 403.
+  const peutGerer = ['OWNER', 'ADMIN'].includes(me.workspace?.role ?? '');
 
   if (etat === null || journal === null) {
     return (
@@ -84,33 +102,109 @@ export default async function PasserellePage() {
       <section>
         <h2>Passerelle Kolabimo</h2>
         <p className="note">
-          Kolabimo est maître des lots, des prix et des réservations. Prometis est maître de
-          l&apos;échéancier, des appels de fonds et des encaissements. Cet écran montre ce qui
-          circule entre les deux.
+          Kolabimo porte la promotion : lots, prix, réservations, échéancier, et l&apos;identité des
+          acquéreurs à partir des fonds versés. Prometis y ajoute ce que Kolabimo ne gère pas —{' '}
+          <strong>l&apos;argent</strong> : les appels de fonds, leurs documents, les encaissements.
         </p>
       </section>
+
+      {connexion && (
+        <section>
+          <h2>Connexion à votre compte Kolabimo</h2>
+
+          {!connexion.chiffrementDisponible && (
+            <p className="note avertissement">
+              Le serveur n&apos;a pas de clé de chiffrement des intégrations (
+              <code>INTEGRATIONS_ENCRYPTION_KEY</code>). La clé Kolabimo sera refusée plutôt que
+              stockée en clair.
+            </p>
+          )}
+
+          {connexion.connectee ? (
+            <>
+              <table>
+                <tbody>
+                  <tr>
+                    <td>Promoteur</td>
+                    <td>
+                      <strong>{connexion.promoteur?.nom ?? '—'}</strong>
+                      <span className="meta"> · {connexion.baseUrl}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Clé d&apos;API</td>
+                    <td>
+                      <code>{connexion.cleApercu}</code>
+                      <span className="meta"> · jamais réaffichée, chiffrée sur le serveur</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Dernière vérification</td>
+                    <td className={connexion.derniereErreur ? 'ko' : 'ok'}>
+                      {connexion.derniereErreur ?? `réussie le ${dateCourte(connexion.verifieeLe)}`}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              {peutGerer && (
+                <>
+                  <ActionsConnexion />
+                  <SaisirCle baseUrlActuelle={connexion.baseUrl} remplacement />
+                </>
+              )}
+              <p>
+                <Link className="bouton" href="/passerelle/kolabimo">
+                  Voir mes promotions Kolabimo
+                </Link>
+              </p>
+            </>
+          ) : peutGerer ? (
+            <SaisirCle baseUrlActuelle={connexion.baseUrl} remplacement={false} />
+          ) : (
+            <p className="note">
+              Kolabimo n&apos;est pas encore connecté. Le titulaire du compte ou un administrateur
+              peut saisir la clé d&apos;API ici.
+            </p>
+          )}
+
+          {connexion.webhook && (
+            <>
+              <h3>Recevoir les événements de Kolabimo</h3>
+              <p className="note">
+                Pour que Kolabimo informe Prometis d&apos;une réservation ou d&apos;une étape
+                terminée, collez dans Kolabimo —{' '}
+                <em>Ma société → Intégrations &amp; API → Passerelle Prometis</em> — cette adresse,
+                et le secret de signature affiché à la connexion.
+              </p>
+              <p>
+                <code className="secret">{connexion.webhook.url}</code>{' '}
+                <Copier valeur={connexion.webhook.url} />
+              </p>
+              {connexion.webhook.url.includes('localhost') && (
+                <p className="note avertissement">
+                  Cette adresse pointe sur ce poste de développement : Kolabimo, sur internet, ne
+                  peut pas la joindre. En production, <code>PUBLIC_API_URL</code> doit porter
+                  l&apos;adresse publique de l&apos;API.
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       <section>
         <h2>État du raccordement</h2>
         <table>
           <tbody>
             <tr>
-              <td>Envoi vers Kolabimo</td>
+              <td>Encaissements vers Kolabimo</td>
               <td>
-                {etat.sortant.configure ? (
-                  <>
-                    <strong>configuré</strong> — {etat.sortant.baseUrl}
-                  </>
-                ) : (
-                  <>
-                    <strong>non configuré</strong>
-                    <br />
-                    <span className="meta">
-                      Les événements sortants restent en boîte d&apos;envoi et pourront être rejoués
-                      dès que l&apos;URL et la clé Kolabimo seront renseignées.
-                    </span>
-                  </>
-                )}
+                <strong>pas encore de destinataire</strong>
+                <br />
+                <span className="meta">
+                  Kolabimo n&apos;expose pas encore de route pour les recevoir. Ils restent en boîte
+                  d&apos;envoi, rejouables le jour où elle existera.
+                </span>
               </td>
             </tr>
             <tr>
@@ -124,8 +218,8 @@ export default async function PasserellePage() {
                   </div>
                 ))}
                 <span className="meta">
-                  La valeur d&apos;une clé n&apos;est jamais réaffichée : elle sert aussi de secret
-                  de signature.
+                  Clés Prometis de l&apos;ancien contrat interne. Kolabimo, lui, s&apos;authentifie
+                  par le secret de signature de la connexion ci-dessus.
                 </span>
               </td>
             </tr>
