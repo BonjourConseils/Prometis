@@ -118,17 +118,18 @@ model Societe {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  memberships     Membership[]
-  actionnaires    Actionnaire[]
-  operations      Operation[]
-  acteurs         Acteur[]
-  entreprises     Entreprise[]
-  tauxAcquisition TauxFraisAcquisition[]
-  acquereurs      Acquereur[]
-  factures        Facture[]
-  documents       Document[]
-  apiKeys         ApiKey[]
-  auditLogs       AuditLog[]
+  memberships       Membership[]
+  actionnaires      Actionnaire[]
+  operations        Operation[]
+  acteurs           Acteur[]
+  entreprises       Entreprise[]
+  tauxAcquisition   TauxFraisAcquisition[]
+  acquereurs        Acquereur[]
+  factures          Facture[]
+  documents         Document[]
+  apiKeys           ApiKey[]
+  connexionKolabimo ConnexionKolabimo?
+  auditLogs         AuditLog[]
 
   @@map("societes")
 }
@@ -223,6 +224,41 @@ model ApiKey {
   societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
 
   @@map("api_keys")
+}
+
+/// Le raccordement d'une société Prometis à SON compte promoteur Kolabimo.
+///
+/// Deux sens, deux secrets, et aucun n'est le même :
+///   · la **clé d'API** est générée par le promoteur dans Kolabimo (« Ma société
+///     → Intégrations & API ») et saisie ici — Prometis s'en sert pour LIRE ;
+///   · le **secret de webhook** est généré par Prometis et collé dans Kolabimo —
+///     Kolabimo s'en sert pour SIGNER ce qu'il pousse, et nous pour le vérifier.
+/// Les deux doivent être relus en clair : ils sont chiffrés (AES-256-GCM), la
+/// clé de chiffrement vit hors de la base (`INTEGRATIONS_ENCRYPTION_KEY`).
+///
+/// Le **jeton** figure dans l'URL du webhook : Kolabimo n'envoie pas de clé
+/// d'API avec ses webhooks, c'est donc l'URL qui dit à quelle société ils
+/// s'adressent. Il n'est pas un secret — la signature l'est.
+model ConnexionKolabimo {
+  id                   Int       @id @default(autoincrement())
+  societeId            Int       @unique @map("societe_id")
+  baseUrl              String    @default("https://kolabimo.ch") @map("base_url")
+  cleApiChiffree       String?   @map("cle_api_chiffree")
+  /// Les derniers caractères de la clé, pour la reconnaître sans la montrer.
+  cleApiApercu         String?   @map("cle_api_apercu")
+  jetonWebhook         String    @unique @map("jeton_webhook")
+  secretWebhookChiffre String    @map("secret_webhook_chiffre")
+  /// Identité rendue par `GET /api/v1/me` au dernier test réussi.
+  promoteurKolabimoId  Int?      @map("promoteur_kolabimo_id")
+  promoteurKolabimoNom String?   @map("promoteur_kolabimo_nom")
+  verifieeLe           DateTime? @map("verifiee_le")
+  derniereErreur       String?   @map("derniere_erreur")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@map("connexions_kolabimo")
 }
 
 // =====================================================================

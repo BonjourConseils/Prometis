@@ -1,6 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { ZodType } from 'zod';
 import { loadEnv, type Env } from '../config/env';
-import { ENTETE_CLE_API, ENTETE_SIGNATURE, signer } from './signature';
+import { ENTETE_CLE_API } from './signature';
+import {
+  echeancierSchema,
+  lotsSchema,
+  moiSchema,
+  promotionsSchema,
+  reservationsSchema,
+  type EcheancierKolabimo,
+  type LotsKolabimo,
+  type MoiKolabimo,
+  type PromotionsKolabimo,
+  type ReservationsKolabimo,
+} from './kolabimo-api';
+
+/** De quoi parler à Kolabimo au nom d'UNE société. */
+export interface AccesKolabimo {
+  baseUrl: string;
+  cle: string;
+}
+
+export type Lecture<T> =
+  { ok: true; donnees: T } | { ok: false; statutHttp?: number; raison: string };
 
 export interface ResultatLivraison {
   livre: boolean;
@@ -11,15 +33,13 @@ export interface ResultatLivraison {
 /**
  * Client de l'API v1 de Kolabimo.
  *
- * Deux principes :
+ * **Il ne connaît aucune clé.** Chaque appel reçoit l'accès de la société au
+ * nom de laquelle il parle — c'est la conséquence directe de SEC1 : depuis
+ * Kolabimo 1.3.0, une clé est cloisonnée à un promoteur. Une clé d'instance,
+ * comme au Lot 7, aurait fait lire à un promoteur les promotions d'un autre.
  *
- *   · **Non configuré n'est pas en panne.** Sans URL ni clé, le client le dit
- *     et ne tente rien. La boîte d'envoi garde l'événement ; le jour où les
- *     identifiants arrivent, un rejeu le livre. C'est ce qui permet de
- *     développer et de tester la passerelle entière sans compte Kolabimo.
- *   · **Un appel sortant ne fait jamais échouer une opération métier.** Les
- *     erreurs sont retournées, pas levées : Kolabimo indisponible ne doit pas
- *     empêcher un promoteur de clore un jalon de chantier.
+ * **Un appel ne lève jamais.** Il rend `{ ok: false, raison }` : Kolabimo
+ * indisponible ne doit faire échouer ni un écran ni un geste métier.
  */
 @Injectable()
 export class KolabimoClient {
@@ -30,106 +50,122 @@ export class KolabimoClient {
     this.env = loadEnv();
   }
 
-  get configure(): boolean {
-    return Boolean(this.env.KOLABIMO_API_URL && this.env.KOLABIMO_API_KEY);
+  /** Qui est derrière cette clé — sert au bouton « Tester la connexion ». */
+  moi(acces: AccesKolabimo): Promise<Lecture<MoiKolabimo>> {
+    return this.lire(acces, '/api/v1/me', moiSchema);
   }
 
-  get description(): { configure: boolean; baseUrl: string | null } {
-    return {
-      configure: this.configure,
-      baseUrl: this.env.KOLABIMO_API_URL || null,
-    };
+  promotions(acces: AccesKolabimo): Promise<Lecture<PromotionsKolabimo>> {
+    return this.lire(acces, '/api/v1/promotions', promotionsSchema);
+  }
+
+  lots(acces: AccesKolabimo, promotionId: number): Promise<Lecture<LotsKolabimo>> {
+    return this.lire(acces, `/api/v1/promotions/${promotionId}/lots`, lotsSchema);
+  }
+
+  echeancier(acces: AccesKolabimo, promotionId: number): Promise<Lecture<EcheancierKolabimo>> {
+    return this.lire(acces, `/api/v1/promotions/${promotionId}/echeancier`, echeancierSchema);
   }
 
   /**
-   * Publie un événement sortant vers Kolabimo, signé comme les entrants.
-   *
-   * La clé d'API sert de secret de signature : c'est le miroir exact de ce que
-   * Kolabimo fait avec la clé Prometis. Une seule chose à échanger, un seul
-   * mécanisme à relire.
+   * Les réservations de TOUTES les promotions du promoteur : l'API n'a pas de
+   * filtre par promotion. C'est à l'appelant de ne garder que les siennes, par
+   * les appartements de la promotion.
    */
-  async publierEvenement(
-    evenement: string,
-    charge: Record<string, unknown>,
-  ): Promise<ResultatLivraison> {
-    if (!this.configure) {
-      return { livre: false, raison: 'Passerelle Kolabimo non configurée (URL ou clé absente).' };
-    }
-    return this.appeler('POST', '/api/v1/webhooks/prometis', { evenement, donnees: charge });
+  reservations(acces: AccesKolabimo): Promise<Lecture<ReservationsKolabimo>> {
+    return this.lire(acces, '/api/v1/reservations', reservationsSchema);
   }
 
-  /** Échéancier d'une promotion — endpoint à ajouter côté Kolabimo (cf. plan §6.5). */
-  async lireEcheancier(promotionId: number): Promise<ResultatLivraison & { corps?: unknown }> {
-    return this.appeler('GET', `/api/v1/promotions/${promotionId}/echeancier`);
+  /**
+   * Les encaissements vers la trésorerie de Kolabimo — **sans destinataire**.
+   *
+   * La page Passerelle prévoit ce sens, mais Kolabimo n'expose aucune route
+   * pour les recevoir (relevé dans son code, version 1.3.20). Plutôt que de
+   * poster dans le vide et remplir le journal de 404, on le dit : l'événement
+   * reste en boîte d'envoi, rejouable le jour où la route existera.
+   */
+  publierEvenement(): Promise<ResultatLivraison> {
+    return Promise.resolve({
+      livre: false,
+      raison:
+        'Réception des encaissements non configurée côté Kolabimo : aucune route ne les ' +
+        "reçoit encore. L'événement reste en boîte d'envoi.",
+    });
   }
 
-  /** Lots d'une promotion, parkings et prix total acte compris. */
-  async listerLots(promotionId: number): Promise<ResultatLivraison & { corps?: unknown }> {
-    return this.appeler('GET', `/api/v1/promotions/${promotionId}/lots`);
-  }
-
-  /** Réservations d'une promotion, avec leur client. */
-  async listerReservations(promotionId: number): Promise<ResultatLivraison & { corps?: unknown }> {
-    return this.appeler('GET', `/api/v1/promotions/${promotionId}/reservations`);
-  }
-
-  private async appeler(
-    methode: 'GET' | 'POST',
+  private async lire<T>(
+    acces: AccesKolabimo,
     chemin: string,
-    corps?: unknown,
-  ): Promise<ResultatLivraison & { corps?: unknown }> {
-    if (!this.configure) {
-      return { livre: false, raison: 'Passerelle Kolabimo non configurée (URL ou clé absente).' };
-    }
-
-    const cle = this.env.KOLABIMO_API_KEY as string;
-    const url = `${(this.env.KOLABIMO_API_URL as string).replace(/\/+$/, '')}${chemin}`;
-    const corpsBrut = corps === undefined ? '' : JSON.stringify(corps);
-
-    const entetes: Record<string, string> = {
-      [ENTETE_CLE_API]: cle,
-      // On signe le corps exact qui part sur le fil — pas l'objet, qui
-      // pourrait se re-sérialiser autrement et invalider la signature.
-      [ENTETE_SIGNATURE]: signer(cle, corpsBrut),
-      accept: 'application/json',
-    };
-    if (corps !== undefined) entetes['content-type'] = 'application/json';
-
+    schema: ZodType<T>,
+  ): Promise<Lecture<T>> {
+    const url = `${acces.baseUrl.replace(/\/+$/, '')}${chemin}`;
     try {
       const reponse = await fetch(url, {
-        method: methode,
-        headers: entetes,
-        body: corps === undefined ? undefined : corpsBrut,
+        headers: { [ENTETE_CLE_API]: acces.cle, accept: 'application/json' },
         signal: AbortSignal.timeout(this.env.KOLABIMO_TIMEOUT_MS),
       });
-
       const texte = await reponse.text();
+
       if (!reponse.ok) {
         return {
-          livre: false,
+          ok: false,
           statutHttp: reponse.status,
-          raison: `Kolabimo a répondu ${reponse.status} : ${texte.slice(0, 300)}`,
+          raison: raisonLisible(reponse.status, texte),
         };
       }
 
-      return {
-        livre: true,
-        statutHttp: reponse.status,
-        corps: texte ? sansLever(texte) : undefined,
-      };
+      let json: unknown;
+      try {
+        json = JSON.parse(texte);
+      } catch {
+        return {
+          ok: false,
+          statutHttp: reponse.status,
+          raison: 'Kolabimo a répondu autre chose que du JSON.',
+        };
+      }
+
+      const analyse = schema.safeParse(json);
+      if (!analyse.success) {
+        const detail = analyse.error.issues
+          .slice(0, 3)
+          .map((i) => `${i.path.join('.') || '(racine)'} : ${i.message}`)
+          .join(' · ');
+        this.logger.error(`Réponse Kolabimo inattendue sur ${chemin} — ${detail}`);
+        return {
+          ok: false,
+          statutHttp: reponse.status,
+          raison: `Réponse Kolabimo inattendue — ${detail}`,
+        };
+      }
+      return { ok: true, donnees: analyse.data };
     } catch (erreur) {
-      const raison = erreur instanceof Error ? erreur.message : 'Appel sortant impossible';
-      this.logger.warn(`Kolabimo injoignable (${methode} ${chemin}) : ${raison}`);
-      return { livre: false, raison };
+      const raison = erreur instanceof Error ? erreur.message : 'Appel impossible';
+      this.logger.warn(`Kolabimo injoignable (GET ${chemin}) : ${raison}`);
+      return { ok: false, raison: `Kolabimo injoignable : ${raison}` };
     }
   }
 }
 
-/** Une réponse non-JSON ne doit pas se transformer en exception de plus. */
-function sansLever(texte: string): unknown {
+/**
+ * Traduit un code HTTP de Kolabimo en phrase utile.
+ *
+ * Hors périmètre, Kolabimo répond 404 et non 403 (SEC1 : ne pas confirmer
+ * qu'une promotion existe chez un concurrent). Un 404 sur une promotion veut
+ * donc souvent dire « pas la vôtre » — le message le dit.
+ */
+function raisonLisible(statut: number, texte: string): string {
+  let message = texte.slice(0, 200);
   try {
-    return JSON.parse(texte);
+    const corps = JSON.parse(texte) as { error?: string };
+    if (corps.error) message = corps.error;
   } catch {
-    return texte;
+    // Corps non JSON : on garde l'extrait brut.
   }
+  if (statut === 401)
+    return `Clé refusée par Kolabimo (${message}). Vérifiez-la, ou régénérez-la dans Kolabimo.`;
+  if (statut === 403) return `Kolabimo refuse cette opération à ce type de clé (${message}).`;
+  if (statut === 404)
+    return `Introuvable chez Kolabimo — ou hors du périmètre de votre clé (${message}).`;
+  return `Kolabimo a répondu ${statut} : ${message}`;
 }

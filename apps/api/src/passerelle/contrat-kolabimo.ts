@@ -58,15 +58,25 @@ export const personneSchema = z.object({
  * que Kolabimo cache encore au promoteur.
  */
 export const clientKolabimoSchema = z.object({
-  reference: z.string().trim().min(1).max(120),
+  /**
+   * Nulle quand l'agence n'a rien saisi — `clientReference` est facultative
+   * dans Kolabimo. Le dossier prend alors l'identifiant de la réservation.
+   */
+  reference: z.string().trim().max(120).nullish(),
   niveau: z.string().trim().max(40).nullish(),
   regime: z.string().trim().max(60).nullish(),
   personnes: z.array(personneSchema).optional(),
 });
 
 export const corpsReservationSchema = z.object({
-  id: z.number().int().positive().nullish(),
-  externalId: z.string().trim().min(1).max(120),
+  /** L'identifiant Kolabimo : c'est LUI la clé de rapprochement. */
+  id: z.number().int().positive(),
+  /**
+   * NUL pour toute réservation posée dans l'interface de Kolabimo — seules
+   * celles créées par son API en portent un. Le Lot 7 l'exigeait : chaque
+   * réservation saisie à la main chez Kolabimo aurait été refusée.
+   */
+  externalId: z.string().trim().min(1).max(120).nullish(),
   statut: z.string().trim().min(1),
   /**
    * Facultatif : le corps Kolabimo ne porte pas la promotion. On retrouve
@@ -75,13 +85,17 @@ export const corpsReservationSchema = z.object({
    * est ignoré au lieu d'échouer.
    */
   promotionId: z.number().int().positive().nullish(),
-  appartementId: z.number().int().positive(),
+  /** Nul sur un bien partagé entre agences : hors des promotions, donc hors de notre périmètre. */
+  appartementId: z.number().int().positive().nullish(),
   bienRef: z.string().trim().max(120).nullish(),
   agenceId: z.number().int().positive().nullish(),
   agenceNom: z.string().trim().max(200).nullish(),
   prixTotalActe: montantPositif.nullish(),
   montantVersement: montantPositif.nullish(),
   dateReservation: z.coerce.date().nullish(),
+  dateVersement: z.coerce.date().nullish(),
+  /** La signature de l'acte, chez Kolabimo. */
+  dateSignature: z.coerce.date().nullish(),
   dateSignatureActe: z.coerce.date().nullish(),
   client: clientKolabimoSchema,
 });

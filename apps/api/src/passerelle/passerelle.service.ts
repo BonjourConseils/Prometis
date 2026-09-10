@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { KolabimoClient } from './kolabimo.client';
+import { ConnexionKolabimoService } from './connexion-kolabimo.service';
 import { construireDedupeKey, verifier } from './signature';
 import { AppelsDeFondsService } from '../appels-de-fonds/appels-de-fonds.service';
 import { normaliser, type EnveloppeNormalisee } from './contrat-kolabimo';
@@ -39,7 +40,7 @@ export interface ResultatReception {
   detail?: unknown;
 }
 
-interface Traitement {
+export interface Traitement {
   statut: WebhookEventStatut;
   detail: Record<string, unknown>;
   erreur?: string;
@@ -59,6 +60,7 @@ export class PasserelleService {
     // Kolabimo est maître de la fin d'étape, les deux sens existent vraiment.
     @Inject(forwardRef(() => AppelsDeFondsService))
     private readonly appels: AppelsDeFondsService,
+    private readonly connexions: ConnexionKolabimoService,
   ) {}
 
   // ===================================================================
@@ -82,13 +84,19 @@ export class PasserelleService {
    *      est le meilleur moyen de la répéter.
    */
   async recevoir(entree: {
-    cleApi: string | undefined;
+    /** Contrat Kolabimo : le jeton de l'URL désigne la société. */
+    jeton?: string;
+    /** Contrat interne : la clé d'API Prometis désigne la société. */
+    cleApi?: string;
     signature: string | undefined;
     corpsBrut: string;
     evenement?: string;
     livraison?: string;
   }): Promise<ResultatReception> {
-    const { societeId, secret } = await this.resoudreTenant(entree.cleApi);
+    const { societeId, secret } =
+      entree.jeton !== undefined
+        ? await this.resoudreParJeton(entree.jeton)
+        : await this.resoudreTenant(entree.cleApi);
 
     const controle = verifier({
       secret,
@@ -183,6 +191,25 @@ export class PasserelleService {
    * tenant est justement ce qu'on cherche. D'où la fonction SECURITY DEFINER
    * posée par la migration du Lot 7, scopée à la clé passée.
    */
+  /**
+   * Retrouve la société d'un webhook Kolabimo par le jeton de son URL.
+   *
+   * Kolabimo n'envoie **pas** de clé d'API avec ses webhooks — relevé dans
+   * son `passerelle.service.js` : trois en-têtes, l'événement, la clé de
+   * déduplication, la signature. Le Lot 7 attendait `x-api-key` : chaque
+   * webhook réel aurait reçu un 401. C'est donc l'URL qui désigne la société,
+   * et le secret de webhook — propre à la connexion, distinct de la clé
+   * d'API — qui authentifie.
+   *
+   * Même réponse pour un jeton inconnu et une signature fausse : distinguer
+   * les deux aiderait surtout celui qui cherche des jetons valides.
+   */
+  private async resoudreParJeton(jeton: string): Promise<{ societeId: number; secret: string }> {
+    const connexion = await this.connexions.resoudreJeton(jeton);
+    if (!connexion) throw new UnauthorizedException('Signature du webhook invalide.');
+    return connexion;
+  }
+
   private async resoudreTenant(
     cleApi: string | undefined,
   ): Promise<{ societeId: number; secret: string }> {
@@ -205,10 +232,8 @@ export class PasserelleService {
         );
       });
 
-    // Le secret de signature est, pour l'instant, la clé elle-même. Le contrat
-    // Kolabimo prévoit un secret partagé distinct, saisi dans l'écran « Ma
-    // société → Intégrations & API » ; tant qu'il n'est pas déposé de notre
-    // côté, la clé fait office — c'est ce que la passerelle a toujours fait.
+    // Contrat interne seulement : la clé Prometis y sert aussi de secret. Le
+    // contrat Kolabimo, lui, passe par `resoudreParJeton` et un secret distinct.
     return { societeId: ligne.societe_id, secret: cleApi };
   }
 
@@ -276,6 +301,16 @@ export class PasserelleService {
     societeId: number,
     dossier: DossierEntrant,
   ): Promise<Traitement> {
+    if (dossier.appartementId === null) {
+      // Un bien partagé entre agences n'appartient à aucune promotion : il n'a
+      // pas d'appels de fonds, donc rien à faire chez nous.
+      return {
+        statut: 'IGNORE',
+        detail: { raison: 'Réservation sur un bien partagé, hors des promotions.' },
+      };
+    }
+    const appartementId = dossier.appartementId;
+
     return this.db.runInTenant(societeId, async (tx) => {
       // Le corps Kolabimo ne porte pas la promotion : on retrouve l'opération
       // par le lot. Ce détour a un effet heureux — une promotion hors de notre
@@ -283,7 +318,7 @@ export class PasserelleService {
       // que mis en erreur, ce que Kolabimo attend de nous.
       const lot = await tx.lot.findFirst({
         where: {
-          kolabimoAppartementId: dossier.appartementId,
+          kolabimoAppartementId: appartementId,
           ...(dossier.promotionId
             ? { bien: { operation: { kolabimoPromotionId: dossier.promotionId } } }
             : {}),
@@ -327,8 +362,17 @@ export class PasserelleService {
       const operationId = lot.bien.operationId;
       const operationNom = lot.bien.operation.nom;
 
-      const existante = await tx.reservation.findUnique({
-        where: { externalId: dossier.externalId },
+      // L'identifiant Kolabimo d'abord : `externalId` est NUL pour toute
+      // réservation posée dans l'interface de Kolabimo — seules celles créées
+      // par son API en portent un. Rapprocher par `externalId` seul aurait
+      // recréé la même vente à chaque événement.
+      const existante = await tx.reservation.findFirst({
+        where: {
+          OR: [
+            ...(dossier.reservationId ? [{ kolabimoReservationId: dossier.reservationId }] : []),
+            ...(dossier.externalId ? [{ externalId: dossier.externalId }] : []),
+          ],
+        },
         select: {
           id: true,
           operationId: true,
@@ -709,81 +753,23 @@ export class PasserelleService {
   }
 
   // ===================================================================
-  //  Reprise tirée — pour le premier raccordement et après une coupure
+  //  Reprise tirée — même chemin que les webhooks
   // ===================================================================
 
   /**
-   * Tire les réservations d'une promotion Kolabimo et les applique.
+   * Applique un dossier tiré de l'API Kolabimo, par **le même chemin** que
+   * les webhooks — mêmes verrous sur le prix figé, même audit. Un second
+   * chemin d'écriture finirait par diverger du premier.
    *
-   * Les webhooks tiennent le fil de l'eau ; ce tirage tient le reste : premier
-   * raccordement, coupure, événement perdu. Il emprunte **le même chemin** que
-   * les webhooks — mêmes verrous sur le prix figé, même audit — parce qu'un
-   * second chemin d'écriture finirait par diverger du premier.
+   * Ne lève pas : une réservation en erreur ne doit pas arrêter la reprise
+   * des suivantes. Elle est rendue avec sa raison.
    */
-  async importerReservations(societeId: number, operationId: number) {
-    const operation = await this.db.runInTenant(societeId, (tx) =>
-      tx.operation.findUnique({
-        where: { id: operationId },
-        select: { id: true, nom: true, kolabimoPromotionId: true },
-      }),
-    );
-    if (!operation) throw new NotFoundException(`Opération ${operationId} introuvable.`);
-    if (!operation.kolabimoPromotionId) {
-      throw new BadRequestException(
-        `L'opération « ${operation.nom} » n'est rattachée à aucune promotion Kolabimo ` +
-          `(kolabimoPromotionId non renseigné).`,
-      );
+  async appliquerDossierTire(societeId: number, dossier: DossierEntrant): Promise<Traitement> {
+    try {
+      return await this.appliquerReservation(societeId, dossier);
+    } catch (erreur) {
+      return { statut: 'ERREUR', detail: {}, erreur: messageLisible(erreur) };
     }
-
-    const reponse = await this.kolabimo.listerReservations(operation.kolabimoPromotionId);
-    if (!reponse.livre) {
-      throw new BadRequestException(reponse.raison ?? 'Kolabimo injoignable.');
-    }
-
-    const brutes = Array.isArray(reponse.corps)
-      ? reponse.corps
-      : ((reponse.corps as { reservations?: unknown[] } | undefined)?.reservations ?? []);
-
-    const resultats: { externalId?: string; statut: WebhookEventStatut; detail: unknown }[] = [];
-    for (const brute of brutes) {
-      // L'API v1 rend la forme Kolabimo ; nos tests et le format historique
-      // rendent la nôtre. On lit ce qui se présente plutôt que d'imposer un
-      // contrat à un endroit où les deux circulent réellement.
-      let dossier: DossierEntrant;
-      let contratKolabimo = false;
-      try {
-        dossier = dossierDepuisContratInterne(brute);
-      } catch {
-        try {
-          dossier = dossierDepuisContratKolabimo(brute);
-          contratKolabimo = true;
-        } catch (erreur) {
-          resultats.push({ statut: 'ERREUR', detail: { raison: messageLisible(erreur) } });
-          continue;
-        }
-      }
-      // Séquentiel et non parallèle : deux réservations du même dossier
-      // créeraient deux fiches si elles se croisaient.
-      const traitement = await this.traiter(
-        societeId,
-        'reservation.updated',
-        brute,
-        contratKolabimo,
-      );
-      resultats.push({
-        externalId: dossier.externalId,
-        statut: traitement.statut,
-        detail: traitement.erreur ?? traitement.detail,
-      });
-    }
-
-    return {
-      promotionKolabimo: operation.kolabimoPromotionId,
-      recues: brutes.length,
-      traitees: resultats.filter((r) => r.statut === 'TRAITE').length,
-      enErreur: resultats.filter((r) => r.statut === 'ERREUR').length,
-      resultats,
-    };
   }
 
   // ===================================================================
@@ -846,11 +832,9 @@ export class PasserelleService {
       return { livre: false, raison: 'Événement sortant introuvable.' };
     }
 
-    const charge = (evenement.payload ?? {}) as { donnees?: Record<string, unknown> };
-    const resultat = await this.kolabimo.publierEvenement(
-      evenement.evenement,
-      charge.donnees ?? {},
-    );
+    // Les encaissements n'ont pas encore de destinataire chez Kolabimo : le
+    // client le dit sans rien poster, l'événement reste rejouable.
+    const resultat = await this.kolabimo.publierEvenement();
 
     await this.prisma.webhookEvent.update({
       where: { id: evenementId },
@@ -931,7 +915,7 @@ export class PasserelleService {
     ]);
 
     return {
-      sortant: this.kolabimo.description,
+      sortant: { configure: false },
       // La clé n'est jamais renvoyée : elle sert aussi de secret de signature.
       clesEntrantes: cles,
       compteurs: parStatut.map((l) => ({

@@ -32,6 +32,7 @@ import { EntreprisesController, SoumissionsController } from './soumissions/soum
 import { FacturesController } from './factures/factures.controller';
 import { AcquereursController, VentesController } from './ventes/ventes.controller';
 import {
+  KolabimoController,
   OperationPasserelleController,
   PasserelleController,
   WebhooksKolabimoController,
@@ -99,6 +100,7 @@ export class AppModule implements NestModule {
       WebhooksKolabimoController,
       PasserelleController,
       OperationPasserelleController,
+      KolabimoController,
       DocumentsController,
       SeancesController,
       CourtageController,

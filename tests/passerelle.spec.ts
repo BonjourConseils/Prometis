@@ -301,6 +301,7 @@ describe('Contrat Kolabimo — normalisation de l’enveloppe', () => {
 describe('L’identité n’arrive qu’à FONDS_VERSES', () => {
   it('avant le palier : la référence seule, et AUCUNE personne', () => {
     const dossier = dossierDepuisContratKolabimo({
+      id: 701,
       externalId: 'res-1',
       appartementId: 4302,
       statut: 'reserve',
@@ -314,6 +315,7 @@ describe('L’identité n’arrive qu’à FONDS_VERSES', () => {
 
   it('au palier : N personnes, avec rôle et quote-part en fraction', () => {
     const dossier = dossierDepuisContratKolabimo({
+      id: 702,
       externalId: 'res-1',
       appartementId: 4302,
       statut: 'fonds_verses',
@@ -343,6 +345,7 @@ describe('L’identité n’arrive qu’à FONDS_VERSES', () => {
 
   it('accepte une société sans nom ni prénom : elle n’en a pas', () => {
     const dossier = dossierDepuisContratKolabimo({
+      id: 703,
       externalId: 'res-2',
       appartementId: 4302,
       statut: 'fonds_verses',
@@ -375,5 +378,64 @@ describe('L’identité n’arrive qu’à FONDS_VERSES', () => {
       client: { ref: 'cli-4' },
     });
     expect(dossier.personnes).toBeUndefined();
+  });
+});
+
+describe('Le contrat relevé dans le code de Kolabimo (1.3.20)', () => {
+  it('accepte une réservation posée dans l’interface : externalId NUL', () => {
+    // Seules les réservations créées par l'API Kolabimo portent un externalId.
+    const dossier = dossierDepuisContratKolabimo({
+      id: 42,
+      externalId: null,
+      appartementId: 4302,
+      statut: 'RESERVE',
+      client: { reference: 'Dupont' },
+    });
+    expect(dossier.externalId).toBeNull();
+    expect(dossier.reservationId).toBe(42);
+  });
+
+  it('donne une référence de dossier à une réservation qui n’en a pas', () => {
+    // Deux dossiers sans référence ne doivent pas partager leurs acquéreurs.
+    const a = dossierDepuisContratKolabimo({
+      id: 1,
+      appartementId: 1,
+      statut: 'RESERVE',
+      client: { reference: null },
+    });
+    const b = dossierDepuisContratKolabimo({
+      id: 2,
+      appartementId: 1,
+      statut: 'RESERVE',
+      client: { reference: null },
+    });
+    expect(a.clientRef).not.toBe(b.clientRef);
+  });
+
+  it('lit la signature de l’acte dans `dateSignature`, le nom que lui donne Kolabimo', () => {
+    const dossier = dossierDepuisContratKolabimo({
+      id: 3,
+      appartementId: 1,
+      statut: 'VENDU',
+      dateSignature: '2026-09-01T09:00:00.000Z',
+      client: { reference: 'x' },
+    });
+    expect(dossier.dateSignatureActe?.toISOString()).toBe('2026-09-01T09:00:00.000Z');
+  });
+
+  it('traduit les anciens statuts que Kolabimo normalise encore', () => {
+    expect(statutDepuisKolabimo('ACTIVE')).toBe('RESERVE');
+    expect(statutDepuisKolabimo('VERSEMENT_CONFIRME')).toBe('FONDS_VERSES');
+    expect(statutDepuisKolabimo('SIGNEE_VENDU')).toBe('VENDU');
+  });
+
+  it('un bien partagé n’a pas d’appartement : hors des promotions', () => {
+    const dossier = dossierDepuisContratKolabimo({
+      id: 4,
+      appartementId: null,
+      statut: 'RESERVE',
+      client: { reference: 'x' },
+    });
+    expect(dossier.appartementId).toBeNull();
   });
 });

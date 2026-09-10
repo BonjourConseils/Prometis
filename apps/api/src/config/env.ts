@@ -142,26 +142,28 @@ const envSchema = z.object({
   OCR_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
   // --- Passerelle Kolabimo ---------------------------------------------
-  /**
-   * Base de l'API v1 de Kolabimo, par exemple `https://app.kolabimo.ch`.
-   *
-   * Absente, la passerelle reste **installée mais silencieuse** : les
-   * événements sortants sont écrits en boîte d'envoi et attendent d'être
-   * rejoués. Rien ne casse, et rien ne part au hasard.
-   */
-  KOLABIMO_API_URL: z.string().url().or(z.literal('')).optional(),
-  /**
-   * Clé d'API Kolabimo, qui sert AUSSI de secret de signature des messages
-   * que nous lui envoyons — comme la clé Prometis sert de secret aux messages
-   * qu'il nous envoie. Symétrique, donc une seule chose à échanger.
-   *
-   * Limite assumée : une seule clé pour toute l'instance. Le jour où deux
-   * sociétés Prometis parleront à deux comptes Kolabimo distincts, il faudra
-   * un champ de schéma ou un coffre — cf. `references/roadmap.md`.
-   */
-  KOLABIMO_API_KEY: z.string().optional(),
+  //
+  // L'URL et la clé Kolabimo ne sont PLUS ici : depuis SEC1 (Kolabimo 1.3.0),
+  // une clé est cloisonnée à un promoteur. Chaque société Prometis saisit la
+  // sienne dans l'écran Passerelle — table `connexions_kolabimo`. Une clé
+  // globale ferait lire à la société B les promotions de la société A.
   /** Délai d'attente d'un appel sortant vers Kolabimo, en millisecondes. */
   KOLABIMO_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  /**
+   * Clé de chiffrement des secrets d'intégration — la clé d'API Kolabimo et
+   * le secret de signature des webhooks —, **hors de la base**.
+   *
+   * Distincte de `MFA_ENCRYPTION_KEY` : deux usages, deux rotations. Absente,
+   * l'enregistrement d'une connexion est refusé plutôt que stocké en clair.
+   * 32 caractères minimum, aléatoires : `openssl rand -base64 48`.
+   */
+  INTEGRATIONS_ENCRYPTION_KEY: z.string().min(32).optional(),
+  /**
+   * Adresse à laquelle **Kolabimo** joint l'API Prometis — c'est elle qu'on
+   * affiche au promoteur pour qu'il la colle dans Kolabimo. En production,
+   * l'origine publique de l'API, jamais `localhost`.
+   */
+  PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
 
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z

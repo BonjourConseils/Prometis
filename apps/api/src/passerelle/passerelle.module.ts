@@ -1,12 +1,16 @@
 import { Module, forwardRef } from '@nestjs/common';
 import {
+  KolabimoController,
   OperationPasserelleController,
   PasserelleController,
   WebhooksKolabimoController,
 } from './passerelle.controller';
 import { PasserelleService } from './passerelle.service';
 import { KolabimoClient } from './kolabimo.client';
+import { ConnexionKolabimoService } from './connexion-kolabimo.service';
+import { SynchronisationKolabimoService } from './synchronisation-kolabimo.service';
 import { AppelsDeFondsModule } from '../appels-de-fonds/appels-de-fonds.module';
+import { OperationsModule } from '../operations/operations.module';
 
 /**
  * La passerelle Kolabimo, dans les deux sens.
@@ -18,9 +22,21 @@ import { AppelsDeFondsModule } from '../appels-de-fonds/appels-de-fonds.module';
  * réel, et les `forwardRef` le disent plutôt que de le contourner.
  */
 @Module({
-  imports: [forwardRef(() => AppelsDeFondsModule)],
-  controllers: [WebhooksKolabimoController, PasserelleController, OperationPasserelleController],
-  providers: [PasserelleService, KolabimoClient],
+  // Les opérations, pour qu'une promotion rattachée crée son opération par le
+  // même chemin qu'à la main — créateur en MANAGE, audit compris.
+  imports: [forwardRef(() => AppelsDeFondsModule), OperationsModule],
+  controllers: [
+    WebhooksKolabimoController,
+    PasserelleController,
+    OperationPasserelleController,
+    KolabimoController,
+  ],
+  providers: [
+    PasserelleService,
+    KolabimoClient,
+    ConnexionKolabimoService,
+    SynchronisationKolabimoService,
+  ],
   exports: [PasserelleService],
 })
 export class PasserelleModule {}

@@ -45,10 +45,12 @@ export const clientSchema = z.object({
  * premier `reservation.step_changed` qui suivrait le palier.
  */
 export interface DossierEntrant {
-  externalId: string;
+  /** Nul pour une réservation posée dans l'interface de Kolabimo. */
+  externalId: string | null;
   reservationId?: number | null;
   promotionId?: number | null;
-  appartementId: number;
+  /** Nul sur un bien partagé entre agences — hors de notre périmètre. */
+  appartementId: number | null;
   statut: string;
   prixTotalActe?: Prisma.Decimal | null;
   dateReservation?: Date | null;
@@ -135,18 +137,34 @@ export function dossierDepuisContratInterne(donnees: unknown): DossierEntrant {
 export function dossierDepuisContratKolabimo(donnees: unknown): DossierEntrant {
   const d = corpsReservationSchema.parse(donnees);
   return {
-    externalId: d.externalId,
+    externalId: d.externalId ?? null,
     reservationId: d.id,
     promotionId: d.promotionId,
-    appartementId: d.appartementId,
+    appartementId: d.appartementId ?? null,
     statut: d.statut,
     prixTotalActe: d.prixTotalActe,
     dateReservation: d.dateReservation,
-    dateSignatureActe: d.dateSignatureActe,
-    clientRef: d.client.reference,
+    // Kolabimo nomme `dateSignature` la signature de l'acte.
+    dateSignatureActe: d.dateSignatureActe ?? d.dateSignature,
+    clientRef: referenceDeDossier(d.client.reference, d.id),
     // `personnes` absent avant le palier : on ne le remplace pas par [].
     personnes: d.client.personnes,
   };
+}
+
+/**
+ * La référence d'un dossier, même quand l'agence n'en a pas saisi.
+ *
+ * Elle sert de clé aux personnes du dossier (`societeId, référence, rang`) :
+ * deux dossiers sans référence ne doivent pas se partager leurs acquéreurs.
+ * L'identifiant de la réservation Kolabimo, lui, est unique.
+ */
+export function referenceDeDossier(
+  reference: string | null | undefined,
+  reservationId: number,
+): string {
+  const propre = reference?.trim();
+  return propre ? propre : `kolabimo-reservation-${reservationId}`;
 }
 
 export function etapeDepuisContratKolabimo(donnees: unknown): CorpsEtape {
@@ -175,6 +193,11 @@ const STATUTS: Record<string, ReservationStatut> = {
   vendu: 'VENDU',
   vendue: 'VENDU',
   acte_signe: 'VENDU',
+  // Anciens statuts de Kolabimo, qu'il normalise mais qui peuvent encore
+  // sortir d'une base ancienne (relevé dans son `constants.js`).
+  active: 'RESERVE',
+  versement_confirme: 'FONDS_VERSES',
+  signee_vendu: 'VENDU',
   expire: 'EXPIREE',
   expiree: 'EXPIREE',
   annule: 'ANNULEE',
