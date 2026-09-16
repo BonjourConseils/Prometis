@@ -271,6 +271,12 @@ export class ConnexionKolabimoService {
  * L'adresse de Kolabimo, sans chemin : la clé se colle souvent avec l'URL de
  * la page où on l'a trouvée. Seul HTTPS est accepté, sauf en local — une clé
  * d'API ne voyage pas en clair.
+ *
+ * `www.kolabimo.ch` répond, mais par une **redirection 301** vers l'apex. La
+ * suivre marcherait ; la normaliser évite un aller-retour à chaque appel, et
+ * surtout le jour où un intermédiaire cesse de transmettre l'en-tête
+ * `x-api-key` à travers la redirection — ce qui se lirait comme une clé
+ * refusée, sans rapport apparent avec l'adresse saisie.
  */
 export function normaliserBaseUrl(saisie: string | undefined): string {
   const brut = (saisie ?? '').trim() || KOLABIMO_PAR_DEFAUT;
@@ -286,6 +292,7 @@ export function normaliserBaseUrl(saisie: string | undefined): string {
       "L'adresse de Kolabimo doit être en https : la clé d'API voyage dans chaque requête.",
     );
   }
+  if (url.hostname.startsWith('www.')) url.hostname = url.hostname.slice(4);
   return url.origin;
 }
 

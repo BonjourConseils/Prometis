@@ -121,6 +121,43 @@ function repondre(chemin: string, cle: string | undefined): { statut: number; co
       };
     case '/api/v1/reservations':
       return { statut: 200, corps: reservationsKolabimo };
+    // Kolabimo 1.3.21 : le rattrapage d'identité, au même palier que le
+    // webhook. Avant FONDS_VERSES, la référence seule — même ici.
+    case '/api/v1/reservations/9001/dossier':
+      return {
+        statut: 200,
+        corps: {
+          id: 9_001,
+          externalId: null,
+          statut: 'FONDS_VERSES',
+          appartementId: APPART_1,
+          bienRef: 'TP-101',
+          client: {
+            reference: 'dossier-9001',
+            niveau: 'COMPLET',
+            regime: 'COPROPRIETE',
+            personnes: [
+              {
+                role: 'PRINCIPAL',
+                type: 'PHYSIQUE',
+                nom: 'Berger',
+                prenom: 'Nina',
+                email: 'nina@x.ch',
+                quotePart: '1/2',
+                signataire: true,
+              },
+              {
+                role: 'CONJOINT',
+                type: 'PHYSIQUE',
+                nom: 'Berger',
+                prenom: 'Yves',
+                email: 'yves@x.ch',
+                quotePart: '1/2',
+              },
+            ],
+          },
+        },
+      };
     default:
       return { statut: 404, corps: { error: 'Promotion introuvable' } };
   }
@@ -438,14 +475,38 @@ describe('Rattacher une promotion à une opération Prometis', () => {
     expect(res.body.reservations).toMatchObject({ recues: 2, traitees: 2, enErreur: 0 });
   });
 
+  it('rattrape l’identité d’un dossier déjà passé le palier', async () => {
+    // Le webhook du palier est parti avant notre raccordement, et Kolabimo ne
+    // le rejoue pas : sans la route `/dossier`, cet acquéreur resterait
+    // anonyme, et son appel de fonds sans destinataire.
+    const reservation = await ownerDb.reservation.findFirstOrThrow({
+      where: { kolabimoReservationId: 9_001 },
+      include: { acquereurs: { orderBy: { ordre: 'asc' }, include: { acquereur: true } } },
+    });
+    expect(reservation.acquereurs).toHaveLength(2);
+    expect(reservation.acquereurs.map((l) => l.acquereur.prenom)).toEqual(['Nina', 'Yves']);
+    expect(reservation.acquereurs.map((l) => l.quotePart)).toEqual(['1/2', '1/2']);
+    // Contact principal dérivé : le signataire.
+    expect(reservation.acquereurId).toBe(reservation.acquereurs[0]!.acquereurId);
+  });
+
+  it('ne demande PAS l’identité d’un dossier en deçà du palier', async () => {
+    // 9002 est en RESERVE : Kolabimo ne rendrait que la référence, qu'on a
+    // déjà. L'appel serait un aller-retour pour rien.
+    expect(requetes.some((r) => r.chemin === '/api/v1/reservations/9002/dossier')).toBe(false);
+    const reservation = await ownerDb.reservation.findFirstOrThrow({
+      where: { kolabimoReservationId: 9_002 },
+      include: { acquereurs: true },
+    });
+    expect(reservation.acquereurs).toHaveLength(0);
+  });
+
   it('le prix total acte d’une réservation reprend le lot ET ses parkings', async () => {
     const reservation = await ownerDb.reservation.findFirstOrThrow({
       where: { kolabimoReservationId: 9_001 },
     });
     expect(reservation.prixTotalActe?.toFixed(2)).toBe('630000.00');
     expect(reservation.statut).toBe('FONDS_VERSES');
-    // Sans identité : l'API ne la donne jamais, seul le webhook du palier.
-    expect(reservation.acquereurId).toBeNull();
     // `externalId` nul chez Kolabimo → nul chez nous, sans faire échouer.
     expect(reservation.externalId).toBeNull();
   });
@@ -465,12 +526,14 @@ describe('Rattacher une promotion à une opération Prometis', () => {
     const res = await appel<{
       lots: { crees: number; misAJour: number };
       echeancier: { creees: number };
+      reservations: { identitesRecuperees: number };
     }>(`/operations/${operationCreee}/passerelle/synchroniser`, {
       methode: 'POST',
       token: christophe,
     });
     expect(res.status).toBe(200);
     expect(res.body.lots).toMatchObject({ crees: 0, misAJour: 3 });
+    expect(res.body.reservations.identitesRecuperees).toBe(1);
     expect(res.body.echeancier.creees).toBe(0);
     expect(await ownerDb.lot.count({ where: { bien: { operationId: operationCreee } } })).toBe(3);
     expect(await ownerDb.reservation.count({ where: { operationId: operationCreee } })).toBe(2);

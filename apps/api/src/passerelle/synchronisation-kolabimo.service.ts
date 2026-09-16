@@ -50,6 +50,8 @@ export interface RapportSynchronisation {
     traitees: number;
     ignorees: number;
     enErreur: number;
+    /** Dossiers déjà passés le palier dont l'identité a pu être rattrapée. */
+    identitesRecuperees: number;
     erreurs: string[];
   };
 }
@@ -247,7 +249,14 @@ export class SynchronisationKolabimoService {
       lots: { crees: 0, misAJour: 0, total: lots.lots.length },
       parkings: { crees: 0, misAJour: 0 },
       echeancier: { creees: 0, misesAJour: 0, adoptees: 0, refus: [], horsKolabimo: [] },
-      reservations: { recues: 0, traitees: 0, ignorees: 0, enErreur: 0, erreurs: [] },
+      reservations: {
+        recues: 0,
+        traitees: 0,
+        ignorees: 0,
+        enErreur: 0,
+        identitesRecuperees: 0,
+        erreurs: [],
+      },
     };
 
     // Lots et échéancier dans UNE transaction : un catalogue à moitié importé
@@ -260,7 +269,8 @@ export class SynchronisationKolabimoService {
     // Les réservations ensuite, une par une, par le chemin des webhooks.
     for (const dossier of dossiersDepuisReservations(reservations)) {
       rapport.reservations.recues += 1;
-      const traitement = await this.passerelle.appliquerDossierTire(societeId, dossier);
+      const complet = await this.rattraperIdentite(acces, dossier, rapport);
+      const traitement = await this.passerelle.appliquerDossierTire(societeId, complet);
       if (traitement.statut === 'TRAITE') rapport.reservations.traitees += 1;
       else if (traitement.statut === 'IGNORE') rapport.reservations.ignorees += 1;
       else {
@@ -318,6 +328,44 @@ export class SynchronisationKolabimoService {
       lots,
       echeancier,
       reservations: reservations.filter((r) => r.appartement && appartements.has(r.appartement.id)),
+    };
+  }
+
+  /**
+   * Va chercher l'identité d'un dossier déjà passé le palier.
+   *
+   * `GET /reservations` ne la donne jamais, et le webhook du palier n'est parti
+   * qu'au moment de la transition — avant notre raccordement, pour une
+   * promotion déjà commercialisée. Sans ce rattrapage, ces acquéreurs
+   * restaient anonymes chez nous, et leurs appels de fonds sans destinataire.
+   *
+   * On n'appelle que pour les dossiers **au palier** : en deçà, Kolabimo ne
+   * rendrait que la référence, qu'on a déjà.
+   */
+  private async rattraperIdentite(
+    acces: AccesKolabimo,
+    dossier: DossierEntrant,
+    rapport: RapportSynchronisation,
+  ): Promise<DossierEntrant> {
+    if (!dossier.reservationId || !auPalier(dossier.statut)) return dossier;
+
+    const lecture = await this.kolabimo.dossier(acces, dossier.reservationId);
+    if (!lecture.ok) {
+      // Kolabimo antérieur à la 1.3.21 n'a pas cette route : ce n'est pas une
+      // erreur de synchronisation, l'identité arrivera au prochain webhook.
+      rapport.reservations.erreurs.push(
+        `Identité non rattrapée pour la réservation ${dossier.reservationId} : ${lecture.raison}`,
+      );
+      return dossier;
+    }
+
+    const personnes = lecture.donnees.client.personnes;
+    if (!personnes || personnes.length === 0) return dossier;
+    rapport.reservations.identitesRecuperees += 1;
+    return {
+      ...dossier,
+      personnes,
+      clientRef: referenceDeDossier(lecture.donnees.client.reference, dossier.reservationId),
     };
   }
 
@@ -536,6 +584,18 @@ export class SynchronisationKolabimoService {
       else rapport.echeancier.misesAJour += 1;
     }
   }
+}
+
+/**
+ * Les statuts où Kolabimo consent à livrer l'identité (ACQ1, décision 29).
+ *
+ * Écrits ici en graphies Kolabimo, sur la charge brute : traduire d'abord
+ * obligerait à lever sur un statut inconnu, alors qu'on veut seulement savoir
+ * s'il vaut la peine de demander.
+ */
+function auPalier(statut: string): boolean {
+  const cle = statut.trim().toUpperCase();
+  return ['FONDS_VERSES', 'VERSEMENT_CONFIRME', 'VENDU', 'SIGNEE_VENDU'].includes(cle);
 }
 
 /** Une ligne de `GET /reservations` vers la forme commune aux deux contrats. */

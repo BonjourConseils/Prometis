@@ -3,11 +3,13 @@ import type { ZodType } from 'zod';
 import { loadEnv, type Env } from '../config/env';
 import { ENTETE_CLE_API } from './signature';
 import {
+  dossierSchema,
   echeancierSchema,
   lotsSchema,
   moiSchema,
   promotionsSchema,
   reservationsSchema,
+  type DossierKolabimo,
   type EcheancierKolabimo,
   type LotsKolabimo,
   type MoiKolabimo,
@@ -74,6 +76,19 @@ export class KolabimoClient {
    */
   reservations(acces: AccesKolabimo): Promise<Lecture<ReservationsKolabimo>> {
     return this.lire(acces, '/api/v1/reservations', reservationsSchema);
+  }
+
+  /**
+   * Le dossier acquéreur d'une réservation, **au palier**.
+   *
+   * Ajouté à Kolabimo (1.3.21) parce que le webhook ne part qu'au moment
+   * d'une transition : sans cette route, une promotion raccordée après coup
+   * gardait des réservations sans nom, donc des appels de fonds sans
+   * destinataire. Kolabimo n'assouplit rien — avant `FONDS_VERSES`, la
+   * réponse ne porte toujours que la référence.
+   */
+  dossier(acces: AccesKolabimo, reservationId: number): Promise<Lecture<DossierKolabimo>> {
+    return this.lire(acces, `/api/v1/reservations/${reservationId}/dossier`, dossierSchema);
   }
 
   /**

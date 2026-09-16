@@ -15,6 +15,7 @@ import {
   verifier,
 } from '../apps/api/src/passerelle/signature';
 import { normaliser } from '../apps/api/src/passerelle/contrat-kolabimo';
+import { normaliserBaseUrl } from '../apps/api/src/passerelle/connexion-kolabimo.service';
 import {
   calculerPrixTotalDepuisLot,
   dossierDepuisContratInterne,
@@ -437,5 +438,30 @@ describe('Le contrat relevé dans le code de Kolabimo (1.3.20)', () => {
       client: { reference: 'x' },
     });
     expect(dossier.appartementId).toBeNull();
+  });
+});
+
+describe('L’adresse de Kolabimo', () => {
+  it('ramène www.kolabimo.ch à l’apex, qui est le canonique', () => {
+    // www répond par une redirection 301 vers kolabimo.ch. La suivre marche,
+    // mais ajoute un aller-retour à chaque appel — et un intermédiaire qui
+    // cesserait de transmettre `x-api-key` se lirait comme une clé refusée.
+    expect(normaliserBaseUrl('https://www.kolabimo.ch')).toBe('https://kolabimo.ch');
+    expect(normaliserBaseUrl('https://kolabimo.ch/')).toBe('https://kolabimo.ch');
+  });
+
+  it('coupe le chemin : la clé se colle souvent avec l’URL de la page', () => {
+    expect(normaliserBaseUrl('https://kolabimo.ch/mon-societe/integrations')).toBe(
+      'https://kolabimo.ch',
+    );
+  });
+
+  it('refuse http hors du poste local', () => {
+    expect(() => normaliserBaseUrl('http://kolabimo.ch')).toThrow(/https/);
+    expect(normaliserBaseUrl('http://localhost:4600')).toBe('http://localhost:4600');
+  });
+
+  it('vide, elle vaut la production', () => {
+    expect(normaliserBaseUrl(undefined)).toBe('https://kolabimo.ch');
   });
 });

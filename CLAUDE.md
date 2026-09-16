@@ -109,7 +109,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre) — 492 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16) — 494 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de
@@ -120,8 +120,8 @@ comptable. La V2 (portail acquéreur, signature QES, intégrations comptables et
 s'engage qu'après.
 
 État détaillé lot par lot, et surtout **la liste des sujets non livrés avec leur cause**
-(OIDC, notation multicritère, circuit multi-approbateurs, identité des dossiers Kolabimo
-antérieurs à la connexion, PV en PDF) : `.claude/skills/prometis-dev/references/roadmap.md`.
+(OIDC, notation multicritère, circuit multi-approbateurs, réception des encaissements côté
+Kolabimo, PV en PDF) : `.claude/skills/prometis-dev/references/roadmap.md`.
 
 Reprendre sur une machine propre :
 `npm ci && npm run db:bootstrap && npm run db:migrate && npm run db:seed && npm run verifier`.

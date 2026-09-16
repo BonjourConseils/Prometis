@@ -210,9 +210,21 @@ Endpoints Prometis : `GET/PUT/DELETE /passerelle/kolabimo`, `POST …/tester`, `
 (régénère), `GET …/promotions`, `GET …/promotions/:id` (photo, lecture seule),
 `POST …/promotions/:id/rattacher` `{ operationId? }`, `POST /operations/:id/passerelle/synchroniser`.
 
-Routes Kolabimo réellement appelées (relevées dans son code, 1.3.20) : `GET /api/v1/me`,
-`/promotions`, `/promotions/:id/lots`, `/promotions/:id/echeancier`, `/reservations` (non filtré
-par promotion — le filtre se fait chez nous, par les appartements).
+Routes Kolabimo réellement appelées (relevées dans son code) : `GET /api/v1/me`, `/promotions`,
+`/promotions/:id/lots`, `/promotions/:id/echeancier`, `/reservations` (non filtré par promotion —
+le filtre se fait chez nous, par les appartements) et `/reservations/:id/dossier`.
+
+**Adresse** : `https://kolabimo.ch`. `www.kolabimo.ch` répond par une redirection 301 vers
+l'apex — `normaliserBaseUrl` la ramène, pour ne pas dépendre d'un intermédiaire qui
+transmettrait mal `x-api-key` à travers la redirection.
+
+**Le rattrapage d'identité** (`GET /reservations/:id/dossier`, Kolabimo 1.3.21, ajouté à notre
+demande le 16 septembre 2026). `GET /reservations` ne porte jamais l'identité, et le webhook du
+palier n'est parti qu'**au moment** de la transition : une promotion raccordée après coup gardait
+des acquéreurs anonymes, donc des appels de fonds sans destinataire. La synchronisation appelle
+cette route **pour les seuls dossiers au palier** (`FONDS_VERSES`, `VENDU`) — en deçà, Kolabimo ne
+rendrait que la référence, qu'on a déjà. Un échec n'arrête rien : il est noté au rapport, et
+l'identité arrivera au prochain webhook.
 
 Rattacher : immeubles → biens (par nom), appartements → lots (par `kolabimoAppartementId`, à défaut
 par référence), parkings par référence (l'API ne donne pas leur id), étapes par `kolabimoEtapeId`

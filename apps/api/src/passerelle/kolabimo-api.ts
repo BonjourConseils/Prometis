@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { clientKolabimoSchema } from './contrat-kolabimo';
 
 /**
  * Ce que l'API v1 de Kolabimo renvoie réellement — relevé dans son code
@@ -131,6 +132,25 @@ export const reservationsSchema = z.array(
   }),
 );
 
+/**
+ * `GET /api/v1/reservations/:id/dossier` — le rattrapage d'identité
+ * (Kolabimo 1.3.21, ajouté à notre demande).
+ *
+ * Même palier que le webhook : `{ reference }` seule avant `FONDS_VERSES`,
+ * les personnes après. C'est la seule façon d'obtenir l'identité d'un dossier
+ * qui avait déjà franchi le palier avant le raccordement — le webhook, lui,
+ * ne part qu'au moment d'une transition, et Kolabimo ne le rejoue pas.
+ */
+export const dossierSchema = z.object({
+  id: z.number().int(),
+  externalId: z.string().nullable().optional(),
+  statut: z.string(),
+  appartementId: z.number().int().nullable().optional(),
+  bienRef: z.string().nullable().optional(),
+  client: clientKolabimoSchema,
+});
+
+export type DossierKolabimo = z.infer<typeof dossierSchema>;
 export type MoiKolabimo = z.infer<typeof moiSchema>;
 export type PromotionsKolabimo = z.infer<typeof promotionsSchema>;
 export type LotsKolabimo = z.infer<typeof lotsSchema>;

@@ -28,7 +28,7 @@ import CAN/NPK) ne s'engage qu'après le go/no-go du second jalon.
 
 `references/roadmap.md` porte l'état détaillé lot par lot **et le tableau des sujets non livrés
 avec leur cause** — OIDC, MFA, SMTP, extraction PDF, PDF de la QR-facture, notation multicritère,
-circuit multi-approbateurs, identité des dossiers antérieurs à la connexion Kolabimo, PV en PDF. Aucun n'est un oubli : chacun
+circuit multi-approbateurs, réception des encaissements côté Kolabimo, PV en PDF. Aucun n'est un oubli : chacun
 attend un arbitrage, et le code est écrit pour l'accueillir. Ne pas en « débloquer » un en
 contournant le schéma.
 
@@ -413,6 +413,10 @@ de la société. Ne jamais réintroduire de clé d'instance : la société B lir
   `PROMOTEUR` — une clé d'agence a un autre périmètre.
 - **Rattacher ne déclenche jamais d'appel de fonds.** Une étape close chez Kolabimo arrive close ;
   un lot vendu en cours de chantier passe par le rattrapage.
+- **L'identité d'un dossier déjà passé le palier se rattrape** par
+  `GET /api/v1/reservations/:id/dossier` (Kolabimo 1.3.21). Appelée par la synchronisation pour
+  les seuls dossiers au palier. Sans elle, une promotion raccordée en cours de commercialisation
+  gardait des acquéreurs anonymes.
 - **Le contrat se relève dans le code de Kolabimo** (`~/Documents/Projets/ImmoCollab`,
   `src/routes/api/v1/`, `src/services/passerelle.service.js`), pas dans sa documentation Notion,
   qui décrivait encore l'API de juillet. `kolabimo-api.ts` porte les schémas zod correspondants.

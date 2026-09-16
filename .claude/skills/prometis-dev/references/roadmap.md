@@ -32,8 +32,11 @@ l'accueillir sans réécriture.
 | **OIDC** | non retenu pour l'instant : l'authentification par identifiants + MFA TOTP couvre le besoin pilote | `PasswordService` + `TokenService` |
 | **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
-| **Identité d'un dossier déjà passé le palier** | l'API Kolabimo ne livre jamais l'identité ; seul le webhook du passage à `FONDS_VERSES` la porte. Une réservation déjà au-delà au moment de la connexion reste sans nom. Il faut, côté Kolabimo, une route qui rende le dossier à la clé du promoteur (`chargeUtile` existe) ou un bouton « renvoyer à Prometis » | `dossiersDepuisReservations()` — `personnes: undefined` |
-| **Encaissements vers Kolabimo** | aucune route Kolabimo ne les reçoit (relevé en 1.3.20) | `KolabimoClient.publierEvenement()` le dit sans rien poster ; l'événement reste en boîte d'envoi |
+| **Encaissements vers Kolabimo** | aucune route Kolabimo ne les reçoit ; sa trésorerie n'a pas de modèle pour un encaissement Prometis — décision produit, pas un oubli de code | `KolabimoClient.publierEvenement()` le dit sans rien poster ; l'événement reste en boîte d'envoi |
+
+Levé le 16 septembre 2026 : **identité d'un dossier déjà passé le palier** — la route
+`GET /api/v1/reservations/:id/dossier` a été ajoutée à Kolabimo (1.3.21) et la synchronisation
+l'appelle pour les dossiers au palier.
 
 Levés le 10 septembre 2026 : **identifiants Kolabimo par société** (table `connexions_kolabimo`,
 clé saisie dans l'écran Passerelle) et **séparation clé / secret de signature** (le secret de
