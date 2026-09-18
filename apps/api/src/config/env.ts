@@ -176,6 +176,16 @@ const envSchema = z.object({
    * tous les utilisateurs derrière une seule IP.
    */
   RELAIS_SECRET: z.string().min(32).optional(),
+  /**
+   * Infomaniak AI Services — l'IA de Prometis, hébergée en Suisse (skill
+   * `infomaniak-ai`). Le jeton se crée dans Manager → profil → Jetons API,
+   * sous « Application par défaut », scope `ai-tools`. Le Product ID ne
+   * s'affiche nulle part : il se lit par l'API. Absents, l'IA est éteinte et
+   * la saisie manuelle reste possible.
+   */
+  INFOMANIAK_AI_TOKEN: z.string().optional(),
+  INFOMANIAK_AI_PRODUCT_ID: z.string().optional(),
+  INFOMANIAK_AI_MODEL: z.string().optional(),
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z
     .string()

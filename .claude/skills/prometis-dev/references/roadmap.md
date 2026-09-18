@@ -149,6 +149,16 @@ l'opération de la route ; séances, participants, points d'action et **généra
 en GED** ; mandats de courtage avec périmètre, exclusivité contrôlée et calcul de commission
 pur ; trésorerie consolidée mois par mois avec position, creux et créances attendues.
 
+### Modules commerciaux et passeport numérique ✅ (18 septembre 2026)
+Socle + quatre modules vendus (appels de fonds, contrôle des factures, appels d'offres,
+passeport), dérivés des souscriptions, lecture seule après résiliation ; écran exploitant sous
+second facteur. **Passeport** : équipements, échéances SIA 118 / CO 371 / fabricant / entretien
+calculées, complétude du dossier, export ZIP avec index PDF, propositions d'équipements par
+l'IA Infomaniak validées une à une. 584 tests.
+
+**Reste** : la facturation Stripe par module (méthode `plans-payants`) — attend les clés et les
+prix du gérant ; `ModulesService.changer` en sera le seul point d'écriture.
+
 ## V2 / V3
 
 - **V2** : portail acquéreur (surface séparée : avancement, appels reçus, TMA), signature QES

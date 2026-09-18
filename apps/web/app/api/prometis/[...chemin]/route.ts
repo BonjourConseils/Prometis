@@ -57,6 +57,27 @@ async function relayer(request: Request, segments: string[]): Promise<Response> 
     cache: 'no-store',
   });
 
+  // Un fichier — pièce de la GED, archive du passeport — passe **tel quel**,
+  // avec les en-têtes que l'API a posés pour le servir sans risque. Le relire
+  // en texte, comme une réponse JSON, corromprait les octets : c'est pourquoi
+  // aucun téléchargement n'existait dans l'interface.
+  const typeReponse = res.headers.get('content-type') ?? '';
+  if (res.ok && !typeReponse.includes('application/json')) {
+    const entetes = new Headers();
+    for (const nom of [
+      'content-type',
+      'content-length',
+      'content-disposition',
+      'content-security-policy',
+      'x-content-type-options',
+      'cache-control',
+    ]) {
+      const valeur = res.headers.get(nom);
+      if (valeur) entetes.set(nom, valeur);
+    }
+    return new Response(res.body, { status: res.status, headers: entetes });
+  }
+
   const texte = await res.text();
   return new Response(texte || '{}', {
     status: res.status,

@@ -10,7 +10,7 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 9 livrés** (15 août 2026) · **427 tests verts** · dépôt
+**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux et passeport (18 septembre) · **584 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -636,6 +636,32 @@ en base.
 - **Tout changement d'état passe par `ModulesService.changer`** — le geste de l'exploitant
   aujourd'hui, le webhook Stripe demain. Deux chemins d'écriture ouvriraient des accès différents
   pour le même état.
+
+## 4 septdecies. Passeport numérique et IA (18 septembre 2026)
+
+Le dossier de l'ouvrage, lu des années après la livraison : pièces (GED), **équipements**
+(`equipements`), **échéances** calculées. Module commercial `PASSEPORT`, écran
+`/operations/:id/passeport`, API `apps/api/src/passeport/`.
+
+- **Les échéances ne se saisissent pas** (`echeances.ts`, pur) : SIA 118 = réception + 2 ans,
+  CO 371 = réception + 5 ans (par contrat réceptionné), garantie fabricant et prochain entretien
+  par équipement. « Proche » = sous 90 jours.
+- **La complétude** compare les catégories de la GED à `PIECES_ATTENDUES` : un document déposé
+  avec la bonne catégorie rejoint le passeport sans autre geste.
+- **L'IA propose, l'humain valide.** `POST /passeport/propositions` lit un document (OCR si PDF),
+  masque e-mails / téléphones / IBAN, envoie le texte **délimité comme données** à Infomaniak
+  (`apps/api/src/ia/` — `fournisseur.ts` pur avec les cinq adaptations, `ia.service.ts` seul point
+  de passage, journal `appels_ia` avec le modèle **réellement envoyé**). La réponse est contrainte
+  par un `json_schema` ; **chaque proposition doit citer un extrait présent mot pour mot dans le
+  document**, sinon elle est écartée et comptée. Une proposition est un `Equipement` au statut
+  `PROPOSE`, invisible des échéances et de l'export tant qu'elle n'est pas `VALIDE`.
+- **Pas d'OpenAI, pas de repli.** Sans `INFOMANIAK_AI_*`, `iaDisponible = false` : l'écran le dit
+  et la saisie manuelle reste entière.
+- **L'export** (`GET /passeport/export`) : un ZIP (fflate) avec un index PDF (pdfkit) et les
+  pièces courantes, journalisé. Il reste ouvert **après résiliation** — c'est la lecture qui compte.
+- **Téléchargements par le relais** : `apps/web/app/api/prometis/[...chemin]` transmet tel quel
+  toute réponse non JSON, avec `content-disposition`, `content-security-policy`,
+  `x-content-type-options` et `cache-control`. Ne pas y réintroduire de `res.json()` systématique.
 
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 

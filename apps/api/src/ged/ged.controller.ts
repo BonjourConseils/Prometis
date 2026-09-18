@@ -1,3 +1,4 @@
+import { DocumentCategorie } from '@prisma/client';
 import {
   BadRequestException,
   Body,
@@ -22,31 +23,12 @@ import { RequireModule, RequireOperationAccess, Roles } from '../auth/decorators
 import { TAILLE_MAX_OCTETS } from '../stockage/chemin';
 import { GedService } from './ged.service';
 
-const CATEGORIES = [
-  'MANDAT',
-  'CONTRAT',
-  'DEVIS',
-  'SOUMISSION',
-  'FACTURE',
-  'ACTE_VENTE',
-  'RESERVATION',
-  'PLAN',
-  'PROJET',
-  'PERMIS',
-  'AUTORISATION',
-  'EXTRAIT_RF',
-  'PPE_ACTE_CONSTITUTIF',
-  'PPE_REGLEMENT',
-  'PPE_PLAN',
-  'MANDAT_COURTAGE',
-  'GARANTIE',
-  'PV_RECEPTION',
-  'PV_SEANCE',
-  'NOTE',
-  'PHOTO_CHANTIER',
-  'ASSURANCE',
-  'AUTRE',
-] as const;
+/**
+ * Dérivée du schéma, pas recopiée : la copie à la main qui vivait ici avait
+ * déjà perdu FINANCEMENT et ADMINISTRATIF — une catégorie du modèle que l'API
+ * refusait sans raison apparente.
+ */
+const CATEGORIES = Object.values(DocumentCategorie) as [DocumentCategorie, ...DocumentCategorie[]];
 
 const identifiant = z.coerce.number().int().positive().optional();
 /** Les champs d'un envoi multipart arrivent en texte : d'où les coercitions. */
@@ -70,6 +52,7 @@ const depotSchema = z.object({
   parcelleId: identifiant,
   ppeId: identifiant,
   mandatCourtageId: identifiant,
+  equipementId: identifiant,
 });
 
 const modificationSchema = z.object({
@@ -92,6 +75,7 @@ const filtreSchema = z.object({
   parcelleId: identifiant,
   ppeId: identifiant,
   mandatCourtageId: identifiant,
+  equipementId: identifiant,
 });
 
 /**

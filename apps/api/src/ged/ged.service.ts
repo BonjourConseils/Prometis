@@ -5,7 +5,7 @@ import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
 import { StockageService } from '../stockage/stockage.service';
 
-/** Les onze rattachements possibles d'un document (cf. `schema.prisma`). */
+/** Les douze rattachements possibles d'un document (cf. `schema.prisma`). */
 export interface Rattachements {
   lotId?: number | null;
   soumissionId?: number | null;
@@ -17,6 +17,8 @@ export interface Rattachements {
   parcelleId?: number | null;
   ppeId?: number | null;
   mandatCourtageId?: number | null;
+  /** Notice, garantie, certificat d'un équipement du passeport. */
+  equipementId?: number | null;
 }
 
 export interface Fichier {
@@ -449,6 +451,15 @@ export class GedService {
           }),
       ],
       [
+        rattachements.equipementId,
+        'équipement',
+        () =>
+          tx.equipement.findFirst({
+            where: { id: rattachements.equipementId!, operationId },
+            select: { id: true },
+          }),
+      ],
+      [
         rattachements.ppeId,
         'PPE',
         () =>
@@ -497,6 +508,7 @@ function extraireRattachements(source: Rattachements): Rattachements {
     'parcelleId',
     'ppeId',
     'mandatCourtageId',
+    'equipementId',
   ];
   const retenu: Rattachements = {};
   for (const cle of cles) {

@@ -162,7 +162,14 @@ export default async function DocumentsPage({
                     )}
                   </td>
                   <td>
-                    {d.fileName}
+                    {/* Par le relais, qui transmet le fichier tel quel avec
+                        ses en-têtes : pièce jointe, bac à sable, pas de cache. */}
+                    <a
+                      href={`/api/prometis/operations/${operationId}/documents/${d.id}/contenu`}
+                      download={d.fileName}
+                    >
+                      {d.fileName}
+                    </a>
                     <br />
                     <span className="meta">{taille(d.fileSize)}</span>
                   </td>

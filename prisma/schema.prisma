@@ -122,7 +122,7 @@ model Societe {
   modulesActifs  AppModule[]   @map("modules_actifs")
   /// Modules résiliés : leurs données restent **lisibles**, plus modifiables.
   /// Résilier ne détruit rien.
-  modulesLecture AppModule[]   @map("modules_lecture")
+  modulesLecture AppModule[]   @default([]) @map("modules_lecture")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -139,6 +139,7 @@ model Societe {
   connexionKolabimo ConnexionKolabimo?
   souscriptions     SouscriptionModule[]
   historiqueModules HistoriqueModule[]
+  appelsIa          AppelIa[]
   auditLogs         AuditLog[]
 
   @@map("societes")
@@ -333,6 +334,100 @@ model HistoriqueModule {
   @@map("historique_modules")
 }
 
+enum EquipementCategorie {
+  CHAUFFAGE
+  VENTILATION
+  SANITAIRE
+  ELECTRICITE
+  PHOTOVOLTAIQUE
+  ASCENSEUR
+  CUISINE
+  MENUISERIE
+  TOITURE
+  FACADE
+  SECURITE
+  AMENAGEMENTS_EXTERIEURS
+  AUTRE
+}
+
+enum EquipementStatut {
+  /// Proposé — par l'IA à partir d'une notice, ou importé. N'existe pas dans
+  /// le passeport tant qu'un humain ne l'a pas validé.
+  PROPOSE
+  VALIDE
+}
+
+/// Un équipement de l'ouvrage livré : ce qu'il faut savoir dix ans plus tard
+/// — qui l'a posé, sa garantie, son entretien, sa notice.
+///
+/// `lotId` nul = parties communes. Rattaché au contrat de l'entreprise qui
+/// l'a posé quand on le sait : c'est de là que vient la garantie SIA 118.
+model Equipement {
+  id                       Int                 @id @default(autoincrement())
+  operationId              Int                 @map("operation_id")
+  bienId                   Int?                @map("bien_id")
+  lotId                    Int?                @map("lot_id")
+  categorie                EquipementCategorie
+  designation              String
+  marque                   String?
+  modele                   String?
+  numeroSerie              String?             @map("numero_serie")
+  emplacement              String?
+  entrepriseId             Int?                @map("entreprise_id")
+  contratId                Int?                @map("contrat_id")
+  cfcNodeId                Int?                @map("cfc_node_id")
+  dateMiseEnService        DateTime?           @map("date_mise_en_service")
+  garantieFabricantFin     DateTime?           @map("garantie_fabricant_fin")
+  entretienPeriodiciteMois Int?                @map("entretien_periodicite_mois")
+  dernierEntretien         DateTime?           @map("dernier_entretien")
+  notes                    String?
+  statut                   EquipementStatut    @default(VALIDE)
+  /// Pour une proposition : le document dont elle vient, et l'extrait qui la
+  /// justifie — une valeur proposée cite toujours sa source.
+  sourceDocumentId         Int?                @map("source_document_id")
+  sourceExtrait            String?             @map("source_extrait")
+  valideLe                 DateTime?           @map("valide_le")
+  /// Membership qui a validé.
+  valideParId              Int?                @map("valide_par_id")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+
+  operation      Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  bien           Bien?       @relation(fields: [bienId], references: [id], onDelete: SetNull)
+  lot            Lot?        @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  entreprise     Entreprise? @relation(fields: [entrepriseId], references: [id], onDelete: SetNull)
+  contrat        Contrat?    @relation(fields: [contratId], references: [id], onDelete: SetNull)
+  cfcNode        CfcNode?    @relation(fields: [cfcNodeId], references: [id], onDelete: SetNull)
+  sourceDocument Document?   @relation("PropositionSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  documents      Document[]  @relation("DocumentEquipement")
+
+  @@index([operationId])
+  @@map("equipements")
+}
+
+/// Chaque appel à l'IA : pour quoi, quel modèle **réellement envoyé**, combien.
+/// Sans ce journal, le coût d'un fournisseur ne se lit nulle part.
+model AppelIa {
+  id            Int      @id @default(autoincrement())
+  societeId     Int      @map("societe_id")
+  /// « passeport.equipements »…
+  usage         String
+  modele        String
+  tokensEntree  Int?     @map("tokens_entree")
+  tokensSortie  Int?     @map("tokens_sortie")
+  /// Estimé depuis la table de prix, en millièmes de franc.
+  coutMilliemes Int?     @map("cout_milliemes")
+  dureeMs       Int      @map("duree_ms")
+  succes        Boolean
+  erreur        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId, createdAt])
+  @@map("appels_ia")
+}
+
 // =====================================================================
 //  2. OPÉRATION, FONCIER, BIENS, LOTS, PARKINGS
 // =====================================================================
@@ -453,6 +548,8 @@ model Operation {
   mandatsCourtage     MandatCourtage[]
   operationAccesses   OperationAccess[]
 
+  equipements Equipement[]
+
   @@index([societeId])
   @@index([kolabimoPromotionId])
   @@map("operations")
@@ -529,6 +626,8 @@ model Bien {
   operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
   lots      Lot[]
 
+  equipements Equipement[]
+
   @@index([operationId])
   @@map("biens")
 }
@@ -556,6 +655,8 @@ model Lot {
   reservations       Reservation[]
   documents          Document[]
   mandatCourtageLots MandatCourtageLot[]
+
+  equipements Equipement[]
 
   @@index([bienId])
   @@index([kolabimoAppartementId])
@@ -609,6 +710,8 @@ model CfcNode {
   contrats     Contrat[]
   factures     Facture[]
   avenants     Avenant[]
+
+  equipements Equipement[]
 
   @@unique([operationId, code])
   @@index([operationId])
@@ -681,6 +784,8 @@ model Entreprise {
   offres      Offre[]
   contrats    Contrat[]
   factures    Facture[]
+
+  equipements Equipement[]
 
   @@index([societeId])
   @@map("entreprises")
@@ -813,6 +918,8 @@ model Contrat {
   avenants     Avenant[]
   factures     Facture[]
   documents    Document[]
+
+  equipements Equipement[]
 
   @@index([operationId])
   @@index([entrepriseId])
@@ -1245,6 +1352,10 @@ enum DocumentCategorie {
   ASSURANCE
   FINANCEMENT
   ADMINISTRATIF
+  // Passeport numérique de l'ouvrage
+  NOTICE
+  CERTIFICAT
+  CONTRAT_ENTRETIEN
   AUTRE
 }
 
@@ -1285,6 +1396,8 @@ model Document {
   parcelleId       Int? @map("parcelle_id")
   ppeId            Int? @map("ppe_id")
   mandatCourtageId Int? @map("mandat_courtage_id")
+  /// Notice, garantie, certificat d'un équipement du passeport.
+  equipementId     Int? @map("equipement_id")
 
   societe        Societe         @relation(fields: [societeId], references: [id], onDelete: Cascade)
   operation      Operation?      @relation(fields: [operationId], references: [id], onDelete: Cascade)
@@ -1300,6 +1413,10 @@ model Document {
   mandatCourtage MandatCourtage? @relation(fields: [mandatCourtageId], references: [id])
   parent         Document?       @relation("DocumentVersions", fields: [parentDocumentId], references: [id])
   versions       Document[]      @relation("DocumentVersions")
+
+  equipement   Equipement?  @relation("DocumentEquipement", fields: [equipementId], references: [id], onDelete: SetNull)
+  /// Les équipements proposés à partir de ce document.
+  propositions Equipement[] @relation("PropositionSource")
 
   @@index([societeId])
   @@index([operationId, categorie])

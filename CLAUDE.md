@@ -28,6 +28,8 @@ Le tenant est une **organisation** (`Societe.profil`) : `PROMOTEUR`, `ENTREPRISE
 écarts, GED, séances, acteurs) et quatre **modules commerciaux** — appels de fonds, contrôle des
 factures, appels d'offres, passeport numérique. `modulesActifs` est **dérivé** des souscriptions,
 jamais écrit à la main. Résilier un module le met en **lecture seule** : rien n'est effacé.
+Le **passeport numérique** propose ses équipements par l'IA **Infomaniak** (Suisse, jamais
+OpenAI) ; chaque proposition cite son extrait et n'existe qu'après validation humaine.
 
 Une EG ou un architecte se connecte **en tant que tel** et ne voit que la gestion de chantier —
 aucune « simulation » de promoteur.

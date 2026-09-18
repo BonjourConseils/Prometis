@@ -154,6 +154,10 @@ export function AppHeader({
             {moduleActif('SEANCES') &&
               lien('seances', op('/seances'), 'Séances & PV', IconeSeances)}
             {moduleActif('GED') && lien('documents', op('/documents'), 'Documents', IconeGed)}
+            {/* Le passeport se lit encore des années après la livraison : il
+                reste dans le menu une fois résilié, en lecture. */}
+            {moduleActif('PASSEPORT') &&
+              lien('passeport', op('/passeport'), 'Passeport numérique', IconeGed, 'PASSEPORT')}
 
             {moduleActif('LOTS') && (
               <>

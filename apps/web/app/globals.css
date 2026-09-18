@@ -1285,3 +1285,32 @@ code.secret {
 .carte-module.resilie {
   background: var(--surface-muted);
 }
+
+/* --- Passeport numérique ------------------------------------------- */
+.liste-pieces {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 4px 16px;
+}
+td.avertir {
+  color: var(--warning-fg);
+  font-weight: 600;
+}
+.proposition {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.proposition blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border-default);
+  font-style: italic;
+}
+.proposition cite {
+  font-style: normal;
+  color: var(--text-muted);
+}
