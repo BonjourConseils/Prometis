@@ -23,7 +23,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { modulesTechniques, type CodeModule } from '../apps/api/src/modules/catalogue';
+import { PrismaClient, Prisma, type SocieteProfil } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 import { config as loadDotenv } from 'dotenv';
 import { CLE_API_CONSTRUCTA, CLE_API_CB } from './passerelle-cles-dev';
@@ -443,27 +444,9 @@ async function seedCb(): Promise<void> {
       // bancaire redevient manuel — cf. `qr-facture.ts`.
       iban: 'CH57 3000 0123 4567 8901 2',
       profil: 'PROMOTEUR',
-      // Un promoteur active tout : chantier + surcouche commercialisation.
-      modulesActifs: [
-        'FONCIER',
-        'BUDGET_CFC',
-        'SOUMISSIONS',
-        'ADJUDICATIONS',
-        'CONTRATS',
-        'FACTURES',
-        'SUIVI_CHANTIER',
-        'ECARTS',
-        'SEANCES',
-        'GED',
-        'ACTEURS',
-        'LOTS',
-        'ACQUEREURS',
-        'BILAN_PROMOTEUR',
-        'ECHEANCIER',
-        'APPELS_FONDS',
-        'TRESORERIE',
-        'COURTAGE',
-      ],
+      // Un promoteur souscrit les trois modules de la promotion. Le passeport
+      // reste à souscrire : c'est lui qu'on présente en démonstration.
+      ...modulesSouscrits('PROMOTEUR', ['APPELS_DE_FONDS', 'CONTROLE_FACTURES', 'APPELS_OFFRES']),
       actionnaires: {
         create: [
           { nom: 'Christophe Bonjour', partPct: chf('60.00'), fonction: 'Administrateur' },
@@ -1477,21 +1460,10 @@ async function seedConstructa(): Promise<void> {
       canton: 'VD',
       email: 'contact@constructa.ch',
       profil: 'ENTREPRISE_GENERALE',
-      // Une EG n'active QUE la gestion de chantier : ni lots, ni acquéreurs,
-      // ni appels de fonds. Pas de « simulation » de promoteur.
-      modulesActifs: [
-        'FONCIER',
-        'BUDGET_CFC',
-        'SOUMISSIONS',
-        'ADJUDICATIONS',
-        'CONTRATS',
-        'FACTURES',
-        'SUIVI_CHANTIER',
-        'ECARTS',
-        'SEANCES',
-        'GED',
-        'ACTEURS',
-      ],
+      // Une EG ne souscrit QUE la gestion de chantier : ni lots, ni acquéreurs,
+      // ni appels de fonds. Pas de « simulation » de promoteur — et le
+      // catalogue le refuserait de toute façon à son profil.
+      ...modulesSouscrits('ENTREPRISE_GENERALE', ['CONTROLE_FACTURES', 'APPELS_OFFRES']),
     },
   });
 
@@ -1634,6 +1606,24 @@ async function seedConstructa(): Promise<void> {
 }
 
 // =====================================================================
+
+/**
+ * Les modules d'une société de démonstration, **par la même règle** que
+ * l'application : souscriptions, puis modules techniques dérivés.
+ *
+ * Écrire `modulesActifs` à la main, comme avant les modules commerciaux,
+ * serait défait à la première requête : l'accès se recalcule depuis les
+ * souscriptions, et une société sans souscription n'a que le socle.
+ */
+function modulesSouscrits(profil: SocieteProfil, codes: CodeModule[]) {
+  const souscriptions = codes.map((module) => ({ module, statut: 'ACTIF' as const }));
+  const { actifs, lecture } = modulesTechniques(souscriptions, profil);
+  return {
+    modulesActifs: actifs,
+    modulesLecture: lecture,
+    souscriptions: { create: souscriptions.map((s) => ({ ...s, source: 'REPRISE' })) },
+  };
+}
 
 /** Les opérations que ce seed crée — et donc les seules qu'il a le droit d'effacer. */
 const OPERATIONS_DU_SEED = ['Les Jardins de Prilly', 'Résidence du Lac'];

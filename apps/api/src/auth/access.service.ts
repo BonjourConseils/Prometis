@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AccessModule, AppModule, OperationAccessLevel } from '@prisma/client';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
+import { modulesTechniques } from '../modules/catalogue';
 import { RequestContext } from '../context/request-context';
 
 /** READ_ONLY < OPERATE < MANAGE. */
@@ -38,21 +39,63 @@ export class AccessService {
   }
 
   async modulesActifs(): Promise<AppModule[]> {
-    const societeId = RequestContext.requireSocieteId();
-    const societe = await this.tenantDb.run((tx) =>
-      tx.societe.findUniqueOrThrow({
-        where: { id: societeId },
-        select: { modulesActifs: true },
-      }),
-    );
-    return societe.modulesActifs;
+    return (await this.modulesOuverts()).actifs;
   }
 
-  async assertModuleActif(module: AppModule): Promise<void> {
-    const modules = await this.modulesActifs();
-    if (!modules.includes(module)) {
-      throw new ForbiddenException(`Le module ${module} n'est pas activé pour cette société.`);
+  /**
+   * Les modules ouverts, **calculés à la lecture** depuis les souscriptions.
+   *
+   * Un essai qui expire ne doit pas attendre une tâche planifiée pour se
+   * fermer : une passe quotidienne peut mourir sans bruit, et l'essai
+   * resterait ouvert indéfiniment. Le calcul est donc refait à chaque
+   * contrôle — une requête, sur une poignée de lignes — et la valeur stockée,
+   * qui sert à l'affichage, est corrigée au passage si elle a dérivé.
+   */
+  async modulesOuverts(): Promise<{ actifs: AppModule[]; lecture: AppModule[] }> {
+    const societeId = RequestContext.requireSocieteId();
+    return this.tenantDb.run(async (tx) => {
+      const societe = await tx.societe.findUniqueOrThrow({
+        where: { id: societeId },
+        select: {
+          profil: true,
+          modulesActifs: true,
+          modulesLecture: true,
+          souscriptions: { select: { module: true, statut: true, finEssai: true } },
+        },
+      });
+      const ouverts = modulesTechniques(societe.souscriptions, societe.profil);
+      const memes = (a: AppModule[], b: AppModule[]) =>
+        a.length === b.length && [...a].sort().every((m, i) => m === [...b].sort()[i]);
+      if (
+        !memes(ouverts.actifs, societe.modulesActifs) ||
+        !memes(ouverts.lecture, societe.modulesLecture)
+      ) {
+        await tx.societe.update({
+          where: { id: societeId },
+          data: { modulesActifs: ouverts.actifs, modulesLecture: ouverts.lecture },
+        });
+      }
+      return ouverts;
+    });
+  }
+
+  /**
+   * Refuse si le module n'est pas ouvert.
+   *
+   * `lectureSuffit` : une route de lecture accepte aussi un module **résilié**.
+   * Résilier ne détruit rien — le client garde l'accès à ce qu'il a saisi,
+   * c'est la règle maison des plans payants (« données accessibles »).
+   */
+  async assertModuleActif(module: AppModule, lectureSuffit = false): Promise<void> {
+    const { actifs, lecture } = await this.modulesOuverts();
+    if (actifs.includes(module)) return;
+    if (lecture.includes(module)) {
+      if (lectureSuffit) return;
+      throw new ForbiddenException(
+        `Le module ${module} est résilié : ses données restent consultables, mais ne se modifient plus.`,
+      );
     }
+    throw new ForbiddenException(`Le module ${module} n'est pas activé pour cette société.`);
   }
 
   /**

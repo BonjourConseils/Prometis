@@ -289,11 +289,11 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 42 tables tenant du modèle', async () => {
+  it('couvre les 44 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(42);
+    expect(Number(rows[0]!.count)).toBe(44);
   });
 
   it('les taux de frais d’acquisition sont propres à chaque société', async () => {
@@ -301,6 +301,16 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
     // promoteurs n'ont ni le même notaire ni la même pratique.
     const constructa = await asTenant(CONSTRUCTA, (tx) => tx.tauxFraisAcquisition.count());
     expect(constructa).toBe(0);
+  });
+
+  it('les souscriptions et leur historique ne traversent pas les sociétés', async () => {
+    // Ce qu'un concurrent a souscrit, et depuis quand, est une information
+    // commerciale : un tenant ne voit que les siennes.
+    const vues = await asTenant(CONSTRUCTA, (tx) => tx.souscriptionModule.findMany());
+    expect(vues.length).toBeGreaterThan(0);
+    expect(vues.every((s) => s.societeId === CONSTRUCTA)).toBe(true);
+    const historique = await asTenant(CONSTRUCTA, (tx) => tx.historiqueModule.findMany());
+    expect(historique.every((h) => h.societeId === CONSTRUCTA)).toBe(true);
   });
 
   it('le dossier acquéreur ne traverse pas les sociétés', async () => {

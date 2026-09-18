@@ -14,6 +14,8 @@ import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
 import { VentesModule } from './ventes/ventes.module';
 import { PasserelleModule } from './passerelle/passerelle.module';
+import { ModulesModule } from './modules/modules.module';
+import { ExploitantController, ModulesController } from './modules/modules.controller';
 import { GedModule } from './ged/ged.module';
 import { SeancesModule } from './seances/seances.module';
 import { CourtageModule } from './courtage/courtage.module';
@@ -61,6 +63,7 @@ import { CourtageController, TresorerieController } from './courtage/courtage.co
     FacturesModule,
     VentesModule,
     PasserelleModule,
+    ModulesModule,
     GedModule,
     SeancesModule,
     CourtageModule,
@@ -108,6 +111,8 @@ export class AppModule implements NestModule {
       AccesController,
       AuditController,
       MailController,
+      ModulesController,
+      ExploitantController,
     );
   }
 }

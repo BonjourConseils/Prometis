@@ -61,6 +61,7 @@ enum AccessModule {
   DOCUMENTS
   SEANCES
   ACTEURS
+  PASSEPORT
 }
 
 /// Profil de l'organisation cliente : détermine les modules activés par défaut.
@@ -95,6 +96,8 @@ enum AppModule {
   APPELS_FONDS
   TRESORERIE
   COURTAGE
+  // Passeport numérique de l'ouvrage — il survit à la promotion
+  PASSEPORT
 }
 
 /// Le tenant : l'organisation cliente (promoteur, EG, architecte…). Racine de l'isolation des données.
@@ -114,7 +117,12 @@ model Societe {
   logoUrl        String?       @map("logo_url")
   iban           String? // pour QR-factures émises
   profil         SocieteProfil @default(PROMOTEUR)
+  /// Modules ouverts. **Dérivé** des souscriptions par `ModulesService.recalculer` —
+  /// ne jamais l'écrire ailleurs, sinon un module s'active sans souscription.
   modulesActifs  AppModule[]   @map("modules_actifs")
+  /// Modules résiliés : leurs données restent **lisibles**, plus modifiables.
+  /// Résilier ne détruit rien.
+  modulesLecture AppModule[]   @map("modules_lecture")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -129,6 +137,8 @@ model Societe {
   documents         Document[]
   apiKeys           ApiKey[]
   connexionKolabimo ConnexionKolabimo?
+  souscriptions     SouscriptionModule[]
+  historiqueModules HistoriqueModule[]
   auditLogs         AuditLog[]
 
   @@map("societes")
@@ -138,15 +148,19 @@ model Societe {
 /// de PLUSIEURS sociétés (espaces de travail) — ex. un collaborateur d'EG travaillant
 /// pour deux promoteurs, avec un seul login et un sélecteur d'espace.
 model Compte {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  prenom       String?
-  nom          String?
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  prenom          String?
+  nom             String?
+  isActive        Boolean   @default(true) @map("is_active")
+  /// Opérateur de la plateforme (Digital Systems) : active les modules des
+  /// sociétés. **Jamais** posé par l'API — uniquement en base, par l'exploitant.
+  /// Ne donne aucun accès au contenu d'un client.
+  adminPlateforme Boolean   @default(false) @map("admin_plateforme")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // --- Second facteur (TOTP, RFC 6238) — ajouté au Lot 9 -------------
   // Seule extension du modèle depuis sa validation, et elle a été arbitrée :
@@ -259,6 +273,64 @@ model ConnexionKolabimo {
   societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
 
   @@map("connexions_kolabimo")
+}
+
+enum StatutSouscription {
+  ESSAI
+  ACTIF
+  /// Résilié : les données restent lisibles, plus rien ne s'y écrit.
+  RESILIE
+}
+
+/// La souscription d'une société à un **module commercial** — ce qui se vend :
+/// appels de fonds, contrôle des factures, appels d'offres, passeport.
+///
+/// Un module commercial ouvre plusieurs modules techniques (`AppModule`) ; la
+/// correspondance vit dans le code (`modules/catalogue.ts`), versionnée et testée,
+/// pas en base où elle dériverait sans trace.
+model SouscriptionModule {
+  id                       Int                @id @default(autoincrement())
+  societeId                Int                @map("societe_id")
+  /// Code du module commercial : APPELS_DE_FONDS, CONTROLE_FACTURES…
+  module                   String
+  statut                   StatutSouscription
+  depuis                   DateTime           @default(now())
+  finEssai                 DateTime?          @map("fin_essai")
+  resilieLe                DateTime?          @map("resilie_le")
+  /// ADMIN (geste de l'exploitant), STRIPE, REPRISE (migration)
+  source                   String
+  /// L'élément d'abonnement Stripe qui la facture, le jour où elle l'est.
+  stripeSubscriptionItemId String?            @map("stripe_subscription_item_id")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@unique([societeId, module])
+  @@map("souscriptions_modules")
+}
+
+/// Chaque changement d'état d'un module, avec qui, pourquoi, et combien.
+/// « Appels de fonds actif depuis le 18.09.2026 » se lit ici.
+model HistoriqueModule {
+  id              Int                 @id @default(autoincrement())
+  societeId       Int                 @map("societe_id")
+  module          String
+  de              StatutSouscription?
+  vers            StatutSouscription
+  source          String
+  /// Obligatoire pour un geste de l'exploitant : un accès ouvert à la main
+  /// sans raison écrite ne se justifie plus six mois plus tard.
+  raison          String?
+  /// Compte de l'exploitant — pas un membership : il n'appartient pas à la société.
+  parCompteId     Int?                @map("par_compte_id")
+  montantCentimes Int?                @map("montant_centimes")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId, createdAt])
+  @@map("historique_modules")
 }
 
 // =====================================================================

@@ -1235,3 +1235,53 @@ code.secret {
 .rapport {
   margin-top: var(--space-5);
 }
+
+/* =====================================================================
+ *  Modules
+ * ===================================================================== */
+
+/* Un module résilié reste dans la navigation, marqué : ses données sont
+   toujours là, seule l'écriture est fermée. */
+.app-sidebar .lecture-seule {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  opacity: 0.7;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-2);
+}
+
+.cartes-modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.carte-module {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  background: var(--surface-card);
+}
+
+.carte-module header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.carte-module h3 {
+  margin: 0;
+}
+
+/* Souscrit : la carte porte la teinte de marque. Non souscrit : neutre. */
+.carte-module.actif,
+.carte-module.essai {
+  border-color: var(--border-brand, var(--surface-brand));
+}
+
+.carte-module.resilie {
+  background: var(--surface-muted);
+}

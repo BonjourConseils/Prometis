@@ -8,6 +8,7 @@ import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { MfaService } from './mfa.service';
 import { LimiteursService } from '../securite/limiteurs.service';
+import { AccessService } from './access.service';
 
 export interface WorkspaceSummary {
   membershipId: number;
@@ -42,6 +43,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly mfa: MfaService,
     private readonly limiteurs: LimiteursService,
+    private readonly access: AccessService,
   ) {}
 
   /**
@@ -196,8 +198,13 @@ export class AuthService {
     const compte = RequestContext.requireCompte();
     const workspace = RequestContext.workspace();
 
+    // L'exploitant voit un lien de plus ; rien d'autre ne change pour lui.
+    const drapeaux = await this.prisma.compte.findUnique({
+      where: { id: compte.compteId },
+      select: { adminPlateforme: true },
+    });
     const base = {
-      compte,
+      compte: { ...compte, adminPlateforme: drapeaux?.adminPlateforme ?? false },
       workspaces: await this.workspacesDe(compte.compteId),
     };
 
@@ -213,6 +220,7 @@ export class AuthService {
           raisonSociale: true,
           profil: true,
           modulesActifs: true,
+          modulesLecture: true,
           canton: true,
           logoUrl: true,
         },
@@ -228,6 +236,15 @@ export class AuthService {
       }),
     }));
 
-    return { ...base, workspace, societe, membership };
+    // Les modules ouverts **maintenant**, pas la valeur stockée : c'est elle
+    // qui construit la navigation, et un essai échu doit en disparaître sans
+    // attendre qu'un autre écran ait recalculé.
+    const ouverts = await this.access.modulesOuverts();
+    return {
+      ...base,
+      workspace,
+      societe: { ...societe, modulesActifs: ouverts.actifs, modulesLecture: ouverts.lecture },
+      membership,
+    };
   }
 }

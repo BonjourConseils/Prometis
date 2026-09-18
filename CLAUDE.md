@@ -24,6 +24,11 @@ Le tenant est une **organisation** (`Societe.profil`) : `PROMOTEUR`, `ENTREPRISE
 - **Commercialisation & appels de fonds** (surcouche promoteur) : lots, acquéreurs, bilan
   promoteur, échéancier de paiement, appels de fonds, trésorerie, courtage.
 
+**Ce qui se vend** (depuis le 18.09.2026) : un **socle** toujours inclus (foncier, budget CFC,
+écarts, GED, séances, acteurs) et quatre **modules commerciaux** — appels de fonds, contrôle des
+factures, appels d'offres, passeport numérique. `modulesActifs` est **dérivé** des souscriptions,
+jamais écrit à la main. Résilier un module le met en **lecture seule** : rien n'est effacé.
+
 Une EG ou un architecte se connecte **en tant que tel** et ne voit que la gestion de chantier —
 aucune « simulation » de promoteur.
 
@@ -109,7 +114,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), et les barrières de sécurité du 18 — 528 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité et les modules commerciaux du 18 — 551 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de

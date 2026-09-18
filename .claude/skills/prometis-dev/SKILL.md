@@ -607,6 +607,36 @@ Deux pièges vérifiés :
   `.toBe(n)` sur un `count()`, demandez-vous ce que devient ce chiffre quand un utilisateur crée
   une deuxième promotion — parce qu'il en créera une.
 
+## 4 sexdecies. Modules commerciaux (18 septembre 2026)
+
+**Deux niveaux, ne pas les confondre.** Les 19 `AppModule` sont des interrupteurs de routes
+(62 routes via `@RequireModule`) ; ce qui se **vend**, ce sont 4 modules commerciaux —
+`APPELS_DE_FONDS`, `CONTROLE_FACTURES`, `APPELS_OFFRES`, `PASSEPORT` — chacun un ensemble
+d'`AppModule`. La correspondance vit dans `apps/api/src/modules/catalogue.ts` (pur, testé), pas
+en base.
+
+- **Le socle** (FONCIER, BUDGET_CFC, ECARTS, SUIVI_CHANTIER, ACTEURS, GED, SEANCES) est toujours
+  ouvert : le CFC porte les factures et les appels d'offres, il ne se vend pas à part.
+- **`modulesActifs` / `modulesLecture` sont DÉRIVÉS** des `souscriptions_modules`. Seuls
+  `ModulesService.recalculer` / `rafraichir` et `AccessService.modulesOuverts` les écrivent. Les
+  écrire ailleurs — seed compris — ouvrirait un module sans souscription : le seed passe par
+  `modulesSouscrits()`.
+- **Résilier ne détruit rien** : un module résilié passe en `modulesLecture`. Le garde
+  (`AppModuleGuard`) laisse passer GET/HEAD, refuse toute écriture avec un message qui le dit.
+  Un `AppModule` partagé (CONTRATS) reste ouvert tant qu'un de ses porteurs l'est.
+- **Un essai échu se ferme sans tâche planifiée** : l'accès se calcule à la lecture, et la valeur
+  stockée est corrigée au passage. `/auth/me` et `/modules` passent par le même calcul — sinon la
+  navigation afficherait un module fermé.
+- **Le profil borne le catalogue** : `APPELS_DE_FONDS` n'est ouvert qu'à un `PROMOTEUR`, même
+  souscrit.
+- **L'exploitant** (`Compte.adminPlateforme`, posé uniquement en base) gère les souscriptions depuis
+  `/exploitant`, avec un **second facteur obligatoire** et une **raison écrite** à chaque geste,
+  inscrite dans `historique_modules`. Il ne voit aucun contenu client : la liste des sociétés passe
+  par `app.societes_pour_exploitant()` (nom, profil, modules).
+- **Tout changement d'état passe par `ModulesService.changer`** — le geste de l'exploitant
+  aujourd'hui, le webhook Stripe demain. Deux chemins d'écriture ouvriraient des accès différents
+  pour le même état.
+
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 
 Posées d'après le skill `securite-saas`, **avant** d'ajouter des modules : élargir un produit dont

@@ -20,13 +20,15 @@ import {
 } from './icones';
 
 export interface Me {
-  compte: { compteId: number; email: string };
+  compte: { compteId: number; email: string; adminPlateforme?: boolean };
   workspace: { societeId: number; membershipId: number; role: string } | null;
   societe: {
     id: number;
     raisonSociale: string;
     profil: string;
     modulesActifs: string[];
+    /** Modules résiliés : consultables, plus modifiables. */
+    modulesLecture?: string[];
     canton: string | null;
   } | null;
   membership: {
@@ -69,12 +71,27 @@ export function AppHeader({
   operationId?: number;
 }) {
   const estAdmin = me.membership?.role === 'OWNER' || me.membership?.role === 'ADMIN';
-  const moduleActif = (m: string) => me.societe?.modulesActifs.includes(m) ?? false;
+  // Un module résilié reste dans la navigation : ses données sont toujours
+  // là, et les faire disparaître laisserait croire qu'elles ont été effacées.
+  const enLecture = (m: string) => me.societe?.modulesLecture?.includes(m) ?? false;
+  const moduleActif = (m: string) =>
+    (me.societe?.modulesActifs.includes(m) ?? false) || enLecture(m);
 
-  const lien = (cle: string, href: string, libelle: string, Icone: () => JSX.Element) => (
+  const lien = (
+    cle: string,
+    href: string,
+    libelle: string,
+    Icone: () => JSX.Element,
+    module?: string,
+  ) => (
     <Link key={cle} href={href} className={actif === cle ? 'actif' : ''}>
       <Icone />
       <span>{libelle}</span>
+      {module && enLecture(module) && (
+        <span className="lecture-seule" title="Module résilié : consultation seule">
+          lecture
+        </span>
+      )}
     </Link>
   );
 
@@ -125,9 +142,15 @@ export function AppHeader({
             {moduleActif('BUDGET_CFC') && lien('budget', op('/budget'), 'Budget CFC', IconeBudget)}
             {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SOUMISSIONS') &&
-              lien('soumissions', op('/soumissions'), 'Soumissions', IconeSoumissions)}
+              lien(
+                'soumissions',
+                op('/soumissions'),
+                'Soumissions',
+                IconeSoumissions,
+                'SOUMISSIONS',
+              )}
             {moduleActif('FACTURES') &&
-              lien('factures', op('/factures'), 'Factures', IconeFactures)}
+              lien('factures', op('/factures'), 'Factures', IconeFactures, 'FACTURES')}
             {moduleActif('SEANCES') &&
               lien('seances', op('/seances'), 'Séances & PV', IconeSeances)}
             {moduleActif('GED') && lien('documents', op('/documents'), 'Documents', IconeGed)}
@@ -135,13 +158,25 @@ export function AppHeader({
             {moduleActif('LOTS') && (
               <>
                 <div className="rubrique">Commercialisation</div>
-                {lien('lots', op('/lots'), 'Lots & acquéreurs', IconeLots)}
+                {lien('lots', op('/lots'), 'Lots & acquéreurs', IconeLots, 'LOTS')}
                 {moduleActif('APPELS_FONDS') &&
-                  lien('appels', op('/appels-de-fonds'), 'Appels de fonds', IconeAppels)}
+                  lien(
+                    'appels',
+                    op('/appels-de-fonds'),
+                    'Appels de fonds',
+                    IconeAppels,
+                    'APPELS_FONDS',
+                  )}
                 {moduleActif('TRESORERIE') &&
-                  lien('tresorerie', op('/tresorerie'), 'Trésorerie', IconeTresorerie)}
+                  lien(
+                    'tresorerie',
+                    op('/tresorerie'),
+                    'Trésorerie',
+                    IconeTresorerie,
+                    'TRESORERIE',
+                  )}
                 {moduleActif('COURTAGE') &&
-                  lien('courtage', op('/courtage'), 'Courtage', IconeActeurs)}
+                  lien('courtage', op('/courtage'), 'Courtage', IconeActeurs, 'COURTAGE')}
                 {lien('ppe', op('/registre-ppe'), 'Registre PPE', IconePpe)}
               </>
             )}
@@ -151,6 +186,7 @@ export function AppHeader({
         {estAdmin && (
           <>
             <div className="rubrique">Administration</div>
+            {lien('modules', '/modules', 'Modules', IconeBudget)}
             {lien('passerelle', '/passerelle', 'Passerelle', IconePasserelle)}
             {lien('droits', '/droits-acces', "Droits d'accès", IconeDroits)}
             {lien('taux', '/taux-acquisition', "Frais d'acquisition", IconeBudget)}
@@ -160,6 +196,8 @@ export function AppHeader({
 
       <div className="pied">
         <nav>
+          {me.compte.adminPlateforme &&
+            lien('exploitant', '/exploitant', 'Exploitant', IconeDroits)}
           {lien('securite', '/securite', 'Sécurité', IconeSecurite)}
           {me.workspaces.length > 1 &&
             lien('espaces', '/espaces', "Changer d'espace", IconeOperations)}

@@ -87,7 +87,10 @@ export class AppModuleGuard implements CanActivate {
     ]);
     if (!module) return true;
 
-    await this.access.assertModuleActif(module);
+    // Une lecture accepte un module résilié : ses données restent à celui
+    // qui les a saisies. Toute écriture exige un module ouvert.
+    const methode = context.switchToHttp().getRequest<{ method: string }>().method;
+    await this.access.assertModuleActif(module, methode === 'GET' || methode === 'HEAD');
     return true;
   }
 }
