@@ -15,6 +15,8 @@ export interface ChangementModule {
   finEssai?: Date;
   montantCentimes?: number;
   stripeSubscriptionItemId?: string | null;
+  /** Résiliation programmée : ouvert jusqu'à cette date. `null` l'annule. */
+  finAcces?: Date | null;
 }
 
 /**
@@ -68,6 +70,7 @@ export class ModulesService {
             depuis: s?.depuis ?? null,
             finEssai: s?.finEssai ?? null,
             resilieLe: s?.resilieLe ?? null,
+            finAcces: s?.finAcces ?? null,
           };
         }),
         modulesActifs: societe.modulesActifs,
@@ -116,7 +119,27 @@ export class ModulesService {
       const avant = await tx.souscriptionModule.findUnique({
         where: { societeId_module: { societeId, module: code } },
       });
-      if (avant?.statut === vers && vers !== 'ESSAI') {
+      const temps = (d: Date | null | undefined) => d?.getTime() ?? null;
+      const memeEtat =
+        avant?.statut === vers &&
+        temps(avant.finAcces) === temps(options.finAcces) &&
+        (vers !== 'ESSAI' || temps(avant.finEssai) === temps(options.finEssai));
+      if (memeEtat) {
+        // Stripe renvoie le même état à chaque événement : ce n'est pas une
+        // erreur, c'est une synchronisation sans changement. Seul l'élément
+        // d'abonnement peut avoir bougé.
+        if (options.source === 'STRIPE') {
+          if (
+            options.stripeSubscriptionItemId !== undefined &&
+            options.stripeSubscriptionItemId !== avant.stripeSubscriptionItemId
+          ) {
+            await tx.souscriptionModule.update({
+              where: { id: avant.id },
+              data: { stripeSubscriptionItemId: options.stripeSubscriptionItemId },
+            });
+          }
+          return;
+        }
         throw new BadRequestException(`« ${module.libelle} » est déjà dans cet état.`);
       }
 
@@ -128,9 +151,13 @@ export class ModulesService {
         source: options.source,
         // `depuis` date l'ouverture : il ne bouge pas quand on résilie, pour
         // que l'historique dise « actif du … au … ».
-        depuis: vers === 'RESILIE' ? (avant?.depuis ?? maintenant) : maintenant,
+        // Même statut (une résiliation programmée, puis annulée) : la date
+        // d'ouverture ne bouge pas non plus.
+        depuis:
+          vers === 'RESILIE' || avant?.statut === vers ? (avant?.depuis ?? maintenant) : maintenant,
         finEssai: vers === 'ESSAI' ? options.finEssai! : null,
         resilieLe: vers === 'RESILIE' ? maintenant : null,
+        finAcces: vers === 'RESILIE' ? null : (options.finAcces ?? null),
         ...(options.stripeSubscriptionItemId !== undefined
           ? { stripeSubscriptionItemId: options.stripeSubscriptionItemId }
           : {}),
@@ -184,7 +211,7 @@ export class ModulesService {
         profil: true,
         modulesActifs: true,
         modulesLecture: true,
-        souscriptions: { select: { module: true, statut: true, finEssai: true } },
+        souscriptions: { select: { module: true, statut: true, finEssai: true, finAcces: true } },
       },
     });
     const ouverts = modulesTechniques(societe.souscriptions, societe.profil);
@@ -212,7 +239,7 @@ export class ModulesService {
       where: { id: societeId },
       select: {
         profil: true,
-        souscriptions: { select: { module: true, statut: true, finEssai: true } },
+        souscriptions: { select: { module: true, statut: true, finEssai: true, finAcces: true } },
       },
     });
     const ouverts = modulesTechniques(societe.souscriptions, societe.profil);

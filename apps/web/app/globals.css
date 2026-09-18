@@ -1314,3 +1314,36 @@ td.avertir {
   font-style: normal;
   color: var(--text-muted);
 }
+
+/* --- Facturation des modules --------------------------------------- */
+.carte-module .prix {
+  font-weight: 600;
+}
+.recapitulatif,
+.resultat-paiement {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 8px 0;
+}
+.recapitulatif dl,
+.resultat-paiement dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+}
+.recapitulatif dt,
+.resultat-paiement dt {
+  color: var(--text-muted);
+}
+.recapitulatif dd,
+.resultat-paiement dd {
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .recapitulatif dl,
+  .resultat-paiement dl {
+    grid-template-columns: 1fr;
+  }
+}

@@ -174,3 +174,16 @@ export function nomAcquereur(
   const complet = [a.prenom, a.nom].filter(Boolean).join(' ');
   return complet || a.raisonSociale || a.email || 'sans nom';
 }
+
+/**
+ * Un montant facturé, au centime près : « CHF 1’234.50 ».
+ *
+ * Distinct de `chf`, qui arrondit au franc : un prorata Stripe n'est pas rond,
+ * et le montant affiché doit être celui qui sera prélevé.
+ */
+export function francs(centimes: number | null | undefined): string {
+  if (centimes === null || centimes === undefined || !Number.isFinite(centimes)) return '—';
+  const [entier, dec] = (Math.abs(centimes) / 100).toFixed(2).split('.');
+  const groupe = entier!.replace(/\B(?=(\d{3})+(?!\d))/g, '’');
+  return `${centimes < 0 ? '-' : ''}CHF ${groupe}.${dec}`;
+}

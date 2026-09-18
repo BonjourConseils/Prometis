@@ -16,6 +16,13 @@ import { VentesModule } from './ventes/ventes.module';
 import { PasserelleModule } from './passerelle/passerelle.module';
 import { ModulesModule } from './modules/modules.module';
 import { PasseportModule } from './passeport/passeport.module';
+import { FacturationModule } from './facturation/facturation.module';
+import {
+  FacturationController,
+  PasseQuotidienneController,
+  TarifsController,
+  WebhookStripeController,
+} from './facturation/facturation.controller';
 import { PasseportController } from './passeport/passeport.controller';
 import { ExploitantController, ModulesController } from './modules/modules.controller';
 import { GedModule } from './ged/ged.module';
@@ -67,6 +74,7 @@ import { CourtageController, TresorerieController } from './courtage/courtage.co
     PasserelleModule,
     ModulesModule,
     PasseportModule,
+    FacturationModule,
     GedModule,
     SeancesModule,
     CourtageModule,
@@ -117,6 +125,12 @@ export class AppModule implements NestModule {
       ModulesController,
       ExploitantController,
       PasseportController,
+      // Webhook Stripe et passe quotidienne : `@Public()`, mais avec un
+      // contexte de requête (adresse, piste d'audit), comme Kolabimo.
+      FacturationController,
+      WebhookStripeController,
+      PasseQuotidienneController,
+      TarifsController,
     );
   }
 }

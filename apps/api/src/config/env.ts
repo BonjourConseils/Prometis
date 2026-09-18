@@ -186,6 +186,34 @@ const envSchema = z.object({
   INFOMANIAK_AI_TOKEN: z.string().optional(),
   INFOMANIAK_AI_PRODUCT_ID: z.string().optional(),
   INFOMANIAK_AI_MODEL: z.string().optional(),
+  // --- Facturation Stripe (skill plans-payants) -------------------------
+  /**
+   * Fermeture de la souscription. **Vraie par défaut** : les paiements ne
+   * s'ouvrent qu'une fois les prix saisis, le webhook branché et la passe
+   * quotidienne vérifiée — c'est la dernière case de la liste, pas la
+   * première. Fermée, la souscription répond 503 ; le portail de gestion
+   * (carte, factures, résiliation) reste ouvert.
+   */
+  BILLING_DISABLED: z
+    .union([z.boolean(), z.string()])
+    .default(true)
+    .transform((v) => v === true || v === 'true'),
+  /** Clé secrète Stripe. Jamais dans le chat, jamais dans Git. */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  /** Secret de signature du webhook Stripe (`whsec_…`). */
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  /**
+   * Taux de TVA Stripe (`txr_…`, 8.1 %) appliqué à l'abonnement. Les prix
+   * sont saisis hors taxes : sans ce taux, Stripe facturerait le HT.
+   */
+  STRIPE_TAX_RATE_ID: z.string().optional(),
+  /** Origine publique de l'application web : retour de Checkout et du portail. */
+  PUBLIC_WEB_URL: z.string().url().default('http://localhost:3000'),
+  /**
+   * Secret de la passe quotidienne (avertissements de fin d'essai). La route
+   * interne n'a pas d'autre barrière : 32 caractères minimum.
+   */
+  PASSE_QUOTIDIENNE_SECRET: z.string().min(32).optional(),
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z
     .string()
@@ -209,6 +237,15 @@ export type Env = z.infer<typeof envSchema>;
  */
 const envProduction = envSchema.superRefine((env, ctx) => {
   if (env.NODE_ENV !== 'production') return;
+  if (!env.BILLING_DISABLED && (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['BILLING_DISABLED'],
+      message:
+        'la souscription est ouverte sans clé Stripe ou sans secret de webhook : ' +
+        'aucun paiement ne serait enregistré.',
+    });
+  }
   if (!env.RELAIS_SECRET) {
     ctx.addIssue({
       code: 'custom',

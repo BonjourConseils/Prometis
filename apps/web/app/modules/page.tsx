@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../lib/session';
 import { AppHeader, type Me } from '../components/app-header';
 import { PageHeader } from '../components/page-header';
-import { date } from '../../lib/format';
+import { date, francs } from '../../lib/format';
+import { AjouterModule, Portail, Reprendre, Resilier, Souscrire } from './facturation';
 
 export interface EtatModules {
   societe: { id: number; raisonSociale: string; profil: string };
@@ -18,6 +19,7 @@ export interface EtatModules {
     depuis: string | null;
     finEssai: string | null;
     resilieLe: string | null;
+    finAcces?: string | null;
   }[];
   historique: {
     id: number;
@@ -52,6 +54,26 @@ export const LIBELLE_TECHNIQUE: Record<string, string> = {
   PASSEPORT: 'Passeport',
 };
 
+/** Ce que rend `/facturation` — aux administrateurs seulement. */
+interface Offre {
+  ouverte: boolean;
+  portail: boolean;
+  essaiPermis: boolean;
+  dureeEssaiJours: number;
+  abonnement: {
+    statut: string | null;
+    vivant: boolean;
+    finPeriode: string | null;
+    annulationFinPeriode: boolean;
+    essaiFinLe: string | null;
+  } | null;
+  modules: (EtatModules['modules'][number] & {
+    vendable: boolean;
+    prixMensuel: string | null;
+    factureParStripe: boolean;
+  })[];
+}
+
 const STATUT: Record<string, { texte: string; classe: string }> = {
   ACTIF: { texte: 'Actif', classe: 'ok' },
   ESSAI: { texte: 'Essai', classe: 'ok' },
@@ -74,7 +96,27 @@ export default async function ModulesPage() {
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const etat = await apiGet<EtatModules>('/modules');
+  const [etat, offre] = await Promise.all([
+    apiGet<EtatModules>('/modules'),
+    // Réservée aux administrateurs : pour les autres membres, `null`, et la
+    // page reste une page de lecture.
+    apiGet<Offre>('/facturation'),
+  ]);
+  const vivant = offre?.abonnement?.vivant ?? false;
+  const maintenant = Date.now();
+  const offreDe = (code: string) => offre?.modules.find((m) => m.code === code);
+  const aSouscrire =
+    offre?.ouverte && !vivant
+      ? offre.modules.filter(
+          (m) =>
+            m.eligible && m.vendable && (m.statut === 'NON_SOUSCRIT' || m.statut === 'RESILIE'),
+        )
+      : [];
+  const echeance = offre?.abonnement
+    ? offre.abonnement.statut === 'trialing'
+      ? offre.abonnement.essaiFinLe
+      : offre.abonnement.finPeriode
+    : null;
 
   return (
     <main>
@@ -104,6 +146,10 @@ export default async function ModulesPage() {
                 .filter((m) => m.eligible)
                 .map((m) => {
                   const s = STATUT[m.statut]!;
+                  const o = offreDe(m.code);
+                  const resiliationProgrammee =
+                    m.finAcces != null && new Date(m.finAcces).getTime() > maintenant;
+                  const ouvert = m.statut === 'ACTIF' || m.statut === 'ESSAI';
                   return (
                     <article key={m.code} className={`carte-module ${m.statut.toLowerCase()}`}>
                       <header>
@@ -128,19 +174,79 @@ export default async function ModulesPage() {
                         </p>
                       )}
                       {m.statut === 'NON_SOUSCRIT' && m.seul && <p className="note">{m.seul}</p>}
+                      {o?.vendable && o.prixMensuel && (
+                        <p className="prix">
+                          {francs(Math.round(Number(o.prixMensuel) * 100))} HT / mois
+                        </p>
+                      )}
+                      {resiliationProgrammee && (
+                        <p className="note avertissement">
+                          Résilié : ouvert jusqu&apos;au {date(m.finAcces!)}, puis en lecture seule.
+                          Aucun autre prélèvement.
+                        </p>
+                      )}
+                      {offre?.ouverte && o?.vendable && vivant && !ouvert && (
+                        <AjouterModule code={m.code} libelle={m.libelle} />
+                      )}
+                      {/* Revenir sur une résiliation ne coûte rien : la période
+                          est payée. Pas d'aperçu, donc, mais un seul bouton. */}
+                      {resiliationProgrammee && vivant && o?.vendable && (
+                        <Reprendre code={m.code} />
+                      )}
+                      {o?.factureParStripe && ouvert && !resiliationProgrammee && (
+                        <Resilier code={m.code} libelle={m.libelle} jusquAu={echeance} />
+                      )}
                     </article>
                   );
                 })}
             </div>
-            <p className="note">
-              La souscription en ligne n&apos;est pas encore ouverte. Pour activer un module ou
-              démarrer un essai, écrivez-nous à{' '}
-              <a href="mailto:contact@prometis.ch?subject=Activer%20un%20module">
-                contact@prometis.ch
-              </a>
-              .
-            </p>
+            {!offre?.ouverte && (
+              <p className="note">
+                La souscription en ligne n&apos;est pas ouverte. Pour activer un module ou démarrer
+                un essai, écrivez-nous à{' '}
+                <a href="mailto:contact@prometis.ch?subject=Activer%20un%20module">
+                  contact@prometis.ch
+                </a>
+                .
+              </p>
+            )}
           </section>
+
+          {aSouscrire.length > 0 && (
+            <section>
+              <h2>
+                {offre!.essaiPermis ? `Essayer ${offre!.dureeEssaiJours} jours` : 'Souscrire'}
+              </h2>
+              <Souscrire
+                modules={aSouscrire.map((m) => ({
+                  code: m.code,
+                  libelle: m.libelle,
+                  prixMensuel: m.prixMensuel!,
+                }))}
+                essaiPermis={offre!.essaiPermis}
+                dureeEssaiJours={offre!.dureeEssaiJours}
+              />
+            </section>
+          )}
+
+          {offre?.abonnement && (
+            <section>
+              <h2>Votre abonnement</h2>
+              <p>
+                {offre.abonnement.statut === 'trialing' &&
+                  `Essai jusqu'au ${date(offre.abonnement.essaiFinLe)}.`}
+                {offre.abonnement.statut === 'active' &&
+                  `Actif · prochaine échéance le ${date(offre.abonnement.finPeriode)}.`}
+                {offre.abonnement.statut === 'past_due' &&
+                  'Le dernier prélèvement a échoué : mettez à jour votre carte. Vos modules restent ouverts en attendant.'}
+                {offre.abonnement.statut === 'canceled' &&
+                  'Résilié. Vos données restent consultables.'}
+                {offre.abonnement.annulationFinPeriode &&
+                  ` Annulation le ${date(echeance)} — aucun autre prélèvement.`}
+              </p>
+              {offre.portail && <Portail />}
+            </section>
+          )}
 
           {etat.historique.length > 0 && (
             <section>

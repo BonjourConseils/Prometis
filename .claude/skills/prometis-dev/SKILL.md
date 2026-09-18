@@ -10,7 +10,7 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux et passeport (18 septembre) · **584 tests verts** · dépôt
+**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux, passeport et facturation Stripe (18 septembre) · **604 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -662,6 +662,37 @@ Le dossier de l'ouvrage, lu des années après la livraison : pièces (GED), **�
 - **Téléchargements par le relais** : `apps/web/app/api/prometis/[...chemin]` transmet tel quel
   toute réponse non JSON, avec `content-disposition`, `content-security-policy`,
   `x-content-type-options` et `cache-control`. Ne pas y réintroduire de `res.json()` systématique.
+
+## 4 octodecies. Facturation Stripe par module (18 septembre 2026)
+
+Méthode commune `plans-payants`, adaptée au B2B : **un abonnement Stripe par société, un élément
+par module**. Code : `apps/api/src/facturation/` (`regles.ts` pur et testé, `facturation.service.ts`,
+`emails.ts`), écran `/modules` (+ `/modules/resultat`), prix dans `/exploitant`.
+
+- **Fermée par défaut** (`BILLING_DISABLED=true`) : 503 sur tout geste payant, message avec
+  contact, portail toujours ouvert. La production refuse de démarrer si elle est ouverte sans clé
+  ni secret de webhook.
+- **Prix en base** (`tarifs_modules`, catalogue commun, exemption RLS), saisis par l'exploitant ; un
+  module sans prix OU sans `price_…` n'apparaît pas. Stripe branché : le prix Stripe est relu et
+  doit correspondre au centime (CHF, mensuel, actif). Prix HT + `STRIPE_TAX_RATE_ID` (8.1 %).
+- **Première souscription** par Checkout, essai 7 jours carte exigée, **un seul essai par
+  société** (`abonnements_societes.essai_fin_le`, jamais effacée). Un abonnement vivant → 409 : on
+  n'en crée jamais un second.
+- **Ajout** : `POST …/apercu` (deux `createPreview` : aujourd'hui, ensuite) puis `…/ajouter` avec la
+  **même `prorationDate`** ; aperçu de plus de 10 min refusé ; `always_invoice` +
+  `error_if_incomplete` → carte refusée = 402, rien d'ouvert.
+- **Résiliation à l'échéance** : l'élément est retiré sans prorata (ou `cancel_at_period_end` pour
+  le dernier), le module garde l'accès jusqu'à `souscriptions_modules.fin_acces`, calculé à la
+  lecture comme un essai. « Annuler la résiliation » remet l'élément sans facturer.
+- **Webhook** `/webhooks/stripe` : signature sur le corps brut, dédoublonné par
+  `evenements_stripe`, abonnement **relu par le SDK épinglé** (`2026-08-26.dahlia` : la fin de
+  période est sur les éléments). Société retrouvée par `app.societe_pour_client_stripe()`.
+- **Tout passe par `ModulesService.changer`** (source `STRIPE`) — idempotent pour Stripe.
+- **J-3** : webhook `trial_will_end` ET passe quotidienne (`POST /internal/facturation/passe-quotidienne`,
+  secret en en-tête, trace dans `passes_quotidiennes`), même clé dans `emails_facturation`. Le
+  cron du serveur est à poser au déploiement.
+- **Tests Stripe réels** : à faire en mode test avec les clés du gérant — les tests du dépôt
+  couvrent les règles pures et les barrières, pas le parcours de paiement.
 
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 

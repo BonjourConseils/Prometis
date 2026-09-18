@@ -30,7 +30,7 @@ npm run build --silent > /dev/null
 
 # Un serveur déjà en écoute servirait un binaire périmé : on refuse plutôt
 # que de tester la mauvaise version.
-if lsof -ti:"$PORT" > /dev/null 2>&1; then
+if lsof -ti:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then
   echo "✗ Le port $PORT est déjà occupé." >&2
   echo "  Arrêter le serveur en cours, ou les tests joueraient contre un binaire périmé." >&2
   exit 1

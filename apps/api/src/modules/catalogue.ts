@@ -112,6 +112,8 @@ export interface Souscription {
   module: string;
   statut: StatutSouscription;
   finEssai?: Date | null;
+  /** Résiliation programmée : payé jusqu'à cette date, lecture seule ensuite. */
+  finAcces?: Date | null;
 }
 
 /**
@@ -142,7 +144,10 @@ export function modulesTechniques(
     if (!module || !module.profils.includes(profil)) continue;
 
     const essaiEchu = s.statut === 'ESSAI' && s.finEssai != null && s.finEssai <= maintenant;
-    const ouvert = s.statut === 'ACTIF' || (s.statut === 'ESSAI' && !essaiEchu);
+    // Une résiliation programmée garde le module ouvert jusqu'au bout de la
+    // période payée — on ne retire jamais ce qui a été réglé.
+    const accesEchu = s.finAcces != null && s.finAcces <= maintenant;
+    const ouvert = !accesEchu && (s.statut === 'ACTIF' || (s.statut === 'ESSAI' && !essaiEchu));
     for (const t of module.techniques) (ouvert ? actifs : lecture).add(t);
   }
 

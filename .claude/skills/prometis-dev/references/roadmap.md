@@ -156,8 +156,14 @@ second facteur. **Passeport** : équipements, échéances SIA 118 / CO 371 / fab
 calculées, complétude du dossier, export ZIP avec index PDF, propositions d'équipements par
 l'IA Infomaniak validées une à une. 584 tests.
 
-**Reste** : la facturation Stripe par module (méthode `plans-payants`) — attend les clés et les
-prix du gérant ; `ModulesService.changer` en sera le seul point d'écriture.
+**Facturation Stripe par module** livrée le même jour, **fermée par défaut** : Checkout avec essai
+7 jours, aperçu chiffré avant tout ajout, résiliation à l'échéance, webhook dédoublonné, J-3 par
+deux chemins. 604 tests.
+
+**Reste avant d'encaisser** (gérant) : compte Stripe activé, prix CHF mensuels créés et saisis dans
+l'espace exploitant, taux TVA 8.1 %, webhook avec ses 7 événements (relus par l'API), cron de la
+passe quotidienne, pages légales (CGU : conversion de l'essai, J-3, annulation) — puis
+`BILLING_DISABLED=false` en dernier.
 
 ## V2 / V3
 

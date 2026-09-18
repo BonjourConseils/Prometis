@@ -139,6 +139,8 @@ model Societe {
   connexionKolabimo ConnexionKolabimo?
   souscriptions     SouscriptionModule[]
   historiqueModules HistoriqueModule[]
+  abonnement        AbonnementSociete?
+  emailsFacturation EmailFacturation[]
   appelsIa          AppelIa[]
   auditLogs         AuditLog[]
 
@@ -302,6 +304,9 @@ model SouscriptionModule {
   source                   String
   /// L'élément d'abonnement Stripe qui la facture, le jour où elle l'est.
   stripeSubscriptionItemId String?            @map("stripe_subscription_item_id")
+  /// Résiliation programmée : le module est payé jusqu'à cette date, puis
+  /// passe en lecture seule. Calculé à la lecture, comme la fin d'un essai.
+  finAcces                 DateTime?          @map("fin_acces")
   createdAt                DateTime           @default(now()) @map("created_at")
   updatedAt                DateTime           @updatedAt @map("updated_at")
 
@@ -309,6 +314,86 @@ model SouscriptionModule {
 
   @@unique([societeId, module])
   @@map("souscriptions_modules")
+}
+
+/// Prix d'un module commercial. Catalogue de la PLATEFORME, commun à toutes
+/// les sociétés : aucune donnée client. Saisi par l'exploitant ; la page des
+/// modules, l'aperçu et Stripe lisent cette même ligne. Un module sans prix ou
+/// sans identifiant Stripe ne se propose pas.
+model TarifModule {
+  id            Int      @id @default(autoincrement())
+  module        String   @unique
+  /// CHF hors taxes, par mois.
+  prixMensuel   Decimal  @map("prix_mensuel") @db.Decimal(12, 2)
+  stripePriceId String?  @map("stripe_price_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("tarifs_modules")
+}
+
+/// L'abonnement Stripe d'une société : UN seul, avec un élément par module.
+/// Ajouter un module modifie cet abonnement ; en créer un second laisserait
+/// le premier facturer, orphelin.
+model AbonnementSociete {
+  id                   Int       @id @default(autoincrement())
+  societeId            Int       @unique @map("societe_id")
+  stripeCustomerId     String    @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  /// Statut Stripe tel quel : trialing, active, past_due, canceled…
+  statut               String?
+  finPeriode           DateTime? @map("fin_periode")
+  annulationFinPeriode Boolean   @default(false) @map("annulation_fin_periode")
+  /// Fin de l'essai. Conservée après résiliation : c'est elle qui refuse un
+  /// second essai, pas Stripe. Recopiée à chaque synchronisation quand Stripe
+  /// annonce une date — jamais effacée.
+  essaiFinLe           DateTime? @map("essai_fin_le")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@map("abonnements_societes")
+}
+
+/// Les événements Stripe reçus : dédoublonnage (Stripe livre parfois deux
+/// fois) et trace. Écrits avant de savoir à quelle société ils appartiennent.
+model EvenementStripe {
+  id        String    @id
+  type      String
+  societeId Int?      @map("societe_id")
+  recuLe    DateTime  @default(now()) @map("recu_le")
+  traiteLe  DateTime? @map("traite_le")
+  erreur    String?
+
+  @@map("evenements_stripe")
+}
+
+/// Un e-mail de facturation ne part qu'une fois par événement : la clé
+/// (« fin-essai ») et la référence (la date de fin) le rendent unique.
+model EmailFacturation {
+  id        Int      @id @default(autoincrement())
+  societeId Int      @map("societe_id")
+  cle       String
+  reference String
+  envoyeLe  DateTime @default(now()) @map("envoye_le")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@unique([societeId, cle, reference])
+  @@map("emails_facturation")
+}
+
+/// Chaque exécution de la passe quotidienne. Sans trace, « est-ce que ça
+/// tourne ? » n'a pas de réponse.
+model PasseQuotidienne {
+  id      Int       @id @default(autoincrement())
+  debut   DateTime  @default(now())
+  fin     DateTime?
+  envoyes Int       @default(0)
+  erreur  String?
+
+  @@map("passes_quotidiennes")
 }
 
 /// Chaque changement d'état d'un module, avec qui, pourquoi, et combien.

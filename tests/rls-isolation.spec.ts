@@ -289,11 +289,11 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 46 tables tenant du modèle', async () => {
+  it('couvre les 48 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(46);
+    expect(Number(rows[0]!.count)).toBe(48);
   });
 
   it('les taux de frais d’acquisition sont propres à chaque société', async () => {
@@ -311,6 +311,31 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
     expect(vues.every((s) => s.societeId === CONSTRUCTA)).toBe(true);
     const historique = await asTenant(CONSTRUCTA, (tx) => tx.historiqueModule.findMany());
     expect(historique.every((h) => h.societeId === CONSTRUCTA)).toBe(true);
+  });
+
+  it('l’abonnement Stripe d’une société ne traverse pas les sociétés', async () => {
+    // Le client Stripe, le statut et la date d'essai d'un concurrent sont
+    // des informations commerciales.
+    const ligne = await ownerDb.abonnementSociete.upsert({
+      where: { societeId: CB },
+      create: { societeId: CB, stripeCustomerId: 'cus_test_rls_isolation' },
+      update: {},
+    });
+    try {
+      const vus = await asTenant(CONSTRUCTA, (tx) => tx.abonnementSociete.findMany());
+      expect(vus.some((a) => a.societeId === CB)).toBe(false);
+      await expect(
+        asTenant(CONSTRUCTA, (tx) =>
+          tx.abonnementSociete.create({
+            data: { societeId: CB, stripeCustomerId: 'cus_test_rls_intrus' },
+          }),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      if (ligne.stripeCustomerId === 'cus_test_rls_isolation') {
+        await ownerDb.abonnementSociete.delete({ where: { id: ligne.id } });
+      }
+    }
   });
 
   it('le dossier acquéreur ne traverse pas les sociétés', async () => {

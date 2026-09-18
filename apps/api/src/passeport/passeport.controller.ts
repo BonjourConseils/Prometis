@@ -72,6 +72,8 @@ export class PasseportController {
     reponse.setHeader('Content-Length', contenu.length);
     reponse.setHeader('Content-Disposition', `attachment; filename="${nom}"`);
     reponse.setHeader('Cache-Control', 'private, no-store');
+    reponse.setHeader('X-Content-Type-Options', 'nosniff');
+    reponse.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     reponse.send(contenu);
   }
 
