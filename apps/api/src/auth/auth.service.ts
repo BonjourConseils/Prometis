@@ -7,6 +7,7 @@ import { loadEnv, type Env } from '../config/env';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { MfaService } from './mfa.service';
+import { LimiteursService } from '../securite/limiteurs.service';
 
 export interface WorkspaceSummary {
   membershipId: number;
@@ -40,6 +41,7 @@ export class AuthService {
     private readonly password: PasswordService,
     private readonly tokens: TokenService,
     private readonly mfa: MfaService,
+    private readonly limiteurs: LimiteursService,
   ) {}
 
   /**
@@ -50,20 +52,41 @@ export class AuthService {
    * aucune donnée métier, et rien n'en sort sans mot de passe valide.
    */
   async login(email: string, motDePasse: string) {
-    const compte = await this.prisma.compte.findUnique({
-      where: { email: email.trim().toLowerCase() },
-    });
+    const adresseEmail = email.trim().toLowerCase();
+    const cleCompte = `compte:${adresseEmail}`;
+    const cleAdresse = this.limiteurs.cleAdresse();
+
+    // Les deux barrières AVANT toute vérification : un compte bloqué ne doit
+    // pas continuer à offrir un oracle, même lent.
+    this.limiteurs.exiger(this.limiteurs.compte.verifier(cleCompte));
+    this.limiteurs.exiger(this.limiteurs.adresse.verifier(cleAdresse));
+
+    const compte = await this.prisma.compte.findUnique({ where: { email: adresseEmail } });
+
+    const refuser = async (compteId: number | null): Promise<never> => {
+      // La clé du compte est comptée qu'il existe ou non : sinon, le blocage
+      // lui-même trahirait les adresses qui correspondent à un compte.
+      const verdictCompte = this.limiteurs.compte.echec(cleCompte);
+      const verdictAdresse = this.limiteurs.adresse.echec(cleAdresse);
+      const bloque = !verdictCompte.autorise || !verdictAdresse.autorise;
+      await this.limiteurs.journaliser(compteId, bloque ? 'BLOQUE' : 'ECHEC_MOT_DE_PASSE');
+      throw new UnauthorizedException('Identifiants invalides.');
+    };
 
     if (!compte || !compte.isActive) {
       // Vérification à vide : sans elle, un compte inexistant répondrait bien
       // plus vite qu'un mot de passe faux, ce qui permet d'énumérer les comptes.
       await this.password.verifyDummy(motDePasse);
-      throw new UnauthorizedException('Identifiants invalides.');
+      return refuser(null);
     }
 
     if (!(await this.password.verify(compte.passwordHash, motDePasse))) {
-      throw new UnauthorizedException('Identifiants invalides.');
+      return refuser(compte.id);
     }
+
+    // Le bon mot de passe efface les erreurs du compte — pas celles de
+    // l'adresse, qui peut servir à essayer d'autres comptes.
+    this.limiteurs.compte.reinitialiser(cleCompte);
 
     const identite: AuthenticatedCompte = { compteId: compte.id, email: compte.email };
 
@@ -77,6 +100,7 @@ export class AuthService {
       };
     }
 
+    await this.limiteurs.journaliser(compte.id, 'CONNEXION_REUSSIE');
     return this.ouvrirSession(identite);
   }
 
@@ -88,7 +112,13 @@ export class AuthService {
    */
   async verifierMfa(defiToken: string, code: string) {
     const payload = this.tokens.verifyDefiMfa(defiToken);
-    await this.mfa.verifierPourConnexion(payload.sub, code);
+    try {
+      await this.mfa.verifierPourConnexion(payload.sub, code);
+    } catch (erreur) {
+      await this.limiteurs.journaliser(payload.sub, 'ECHEC_MFA');
+      throw erreur;
+    }
+    await this.limiteurs.journaliser(payload.sub, 'MFA_REUSSI');
 
     const compte = await this.prisma.compte.findUnique({ where: { id: payload.sub } });
     if (!compte || !compte.isActive) throw new UnauthorizedException('Identifiants invalides.');

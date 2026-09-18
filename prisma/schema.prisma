@@ -1107,12 +1107,38 @@ model AuditLog {
   entite        String // "Facture", "AppelDeFonds"…
   entiteId      Int?     @map("entite_id")
   donnees       Json?
+  /// Adresse du client — relayée par Next et vérifiée par secret. Nulle pour
+  /// une action sans requête humaine (webhook, traitement planifié).
+  ip            String?
+  userAgent     String?  @map("user_agent")
   createdAt     DateTime @default(now()) @map("created_at")
 
   societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
 
   @@index([societeId, createdAt])
   @@map("audit_logs")
+}
+
+/// Journal des connexions — réussies, refusées, bloquées.
+///
+/// Séparé de `audit_logs` parce qu'une connexion précède le choix d'une
+/// société : elle n'a pas de tenant. Exemptée de RLS pour la même raison que
+/// `comptes`, et filtrée par compte dans le code.
+///
+/// **Aucune adresse e-mail n'y est écrite.** Un échec sur une adresse
+/// inconnue laisse `compteId` nul : garder l'adresse tapée reviendrait à
+/// conserver les fautes de frappe — et les tentatives — de n'importe qui.
+model JournalConnexion {
+  id        Int      @id @default(autoincrement())
+  compteId  Int?     @map("compte_id")
+  /// CONNEXION_REUSSIE, ECHEC_MOT_DE_PASSE, ECHEC_MFA, BLOQUE, MFA_REUSSI
+  evenement String
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([compteId, createdAt])
+  @@map("journal_connexions")
 }
 
 // =====================================================================

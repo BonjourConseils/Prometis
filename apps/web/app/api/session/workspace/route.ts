@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { API, SESSION_COOKIE, SESSION_MAX_AGE } from '../../../../lib/session';
+import { entetesRelais } from '../../../../lib/relais';
 
 /**
  * Choix (ou changement) d'espace de travail.
@@ -17,7 +18,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const res = await fetch(`${API}/auth/workspace`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      ...(await entetesRelais()),
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(body),
     cache: 'no-store',
   });

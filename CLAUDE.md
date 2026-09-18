@@ -109,7 +109,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre, complétée le 16) — 494 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), et les barrières de sécurité du 18 — 528 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de

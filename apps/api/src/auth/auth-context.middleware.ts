@@ -1,7 +1,11 @@
 import { Injectable, type NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { RequestContext, type RequestStore } from '../context/request-context';
+import { loadEnv } from '../config/env';
+import { ipClient } from '../securite/ip-client';
 import { TokenService } from './token.service';
+
+const env = loadEnv();
 
 /**
  * Pose le contexte de la requête à partir du jeton.
@@ -19,7 +23,16 @@ export class AuthContextMiddleware implements NestMiddleware {
   constructor(private readonly tokens: TokenService) {}
 
   use(req: Request, _res: Response, next: NextFunction): void {
-    const store: RequestStore = {};
+    const store: RequestStore = {
+      ip: ipClient({
+        ipConnexion: req.socket.remoteAddress,
+        entetes: req.headers,
+        secretRelais: env.RELAIS_SECRET,
+      }),
+      // Le relais réécrit `user-agent` avec celui du navigateur ; c'est une
+      // indication pour le journal, pas une preuve, donc sans secret requis.
+      userAgent: req.header('user-agent')?.slice(0, 200),
+    };
     const header = req.header('authorization');
 
     if (header?.startsWith('Bearer ')) {

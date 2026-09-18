@@ -21,6 +21,10 @@ export interface Workspace {
 export interface RequestStore {
   compte?: AuthenticatedCompte;
   workspace?: Workspace;
+  /** Adresse du vrai client — relayée par Next, vérifiée par secret. */
+  ip?: string;
+  /** Tronqué : il finit dans le journal d'audit, pas dans une analyse. */
+  userAgent?: string;
 }
 
 const storage = new AsyncLocalStorage<RequestStore>();
@@ -39,6 +43,12 @@ export const RequestContext = {
 
   get(): RequestStore | undefined {
     return storage.getStore();
+  },
+
+  /** L'adresse et le navigateur du client, pour le journal d'audit. */
+  origine(): { ip: string | null; userAgent: string | null } {
+    const store = storage.getStore();
+    return { ip: store?.ip ?? null, userAgent: store?.userAgent ?? null };
   },
 
   compte(): AuthenticatedCompte | undefined {

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { API, SESSION_COOKIE, SESSION_MAX_AGE } from '../../../lib/session';
+import { entetesRelais } from '../../../lib/relais';
 
 interface ReponseAuth {
   mfaRequis?: boolean;
@@ -31,7 +32,8 @@ export async function POST(request: Request): Promise<Response> {
 
   const res = await fetch(`${API}${etapeMfa ? '/auth/mfa/verifier' : '/auth/login'}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // L'adresse du client : c'est elle que la limite de tentatives compte.
+    headers: { ...(await entetesRelais()), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',
   });

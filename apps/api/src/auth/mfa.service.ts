@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LimiteursService } from '../securite/limiteurs.service';
 import { loadEnv, type Env } from '../config/env';
 import { chiffrer, dechiffrer, empreinteCodeSecours } from './chiffrement';
 import {
@@ -22,7 +23,27 @@ export class MfaService {
   private readonly logger = new Logger(MfaService.name);
   private readonly env: Env = loadEnv();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly limiteurs: LimiteursService,
+  ) {}
+
+  /**
+   * Toute vérification de code passe par ici, avec sa limite.
+   *
+   * Six chiffres, c'est un million de combinaisons, et une fenêtre TOTP en
+   * accepte plusieurs : sans limite, le second facteur se force en quelques
+   * heures. La limite porte sur le COMPTE, pas sur l'adresse — celui qui
+   * détient le mot de passe peut changer d'adresse à volonté.
+   */
+  private async avecLimite(compteId: number, verification: () => Promise<boolean> | boolean) {
+    const cle = `mfa:${compteId}`;
+    this.limiteurs.exiger(this.limiteurs.mfa.verifier(cle));
+    const accepte = await verification();
+    if (accepte) this.limiteurs.mfa.reinitialiser(cle);
+    else this.limiteurs.exiger(this.limiteurs.mfa.echec(cle));
+    return accepte;
+  }
 
   async etat(compteId: number): Promise<EtatMfa> {
     const compte = await this.prisma.compte.findUniqueOrThrow({
@@ -90,7 +111,7 @@ export class MfaService {
     }
 
     const secret = dechiffrer(compte.totpSecret, this.env.MFA_ENCRYPTION_KEY);
-    if (!verifierCode(secret, code)) {
+    if (!(await this.avecLimite(compteId, () => verifierCode(secret, code)))) {
       throw new BadRequestException(
         'Code incorrect. Vérifier que l’heure du téléphone est à jour, puis réessayer.',
       );
@@ -124,7 +145,7 @@ export class MfaService {
       throw new BadRequestException("Le second facteur n'est pas actif sur ce compte.");
     }
 
-    const accepte = await this.verifier(compteId, code, compte);
+    const accepte = await this.avecLimite(compteId, () => this.verifier(compteId, code, compte));
     if (!accepte) throw new BadRequestException('Code incorrect.');
 
     await this.prisma.compte.update({
@@ -145,7 +166,7 @@ export class MfaService {
     if (!compte.totpActiveAt || !compte.totpSecret) {
       throw new UnauthorizedException("Aucun second facteur n'est attendu pour ce compte.");
     }
-    if (!(await this.verifier(compteId, code, compte))) {
+    if (!(await this.avecLimite(compteId, () => this.verifier(compteId, code, compte)))) {
       // Message unique : distinguer « code expiré » de « code faux » ne
       // renseigne que celui qui essaie.
       throw new UnauthorizedException('Code de vérification invalide.');

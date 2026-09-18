@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { API, SESSION_COOKIE } from '../../../../lib/session';
+import { entetesRelais } from '../../../../lib/relais';
 
 /**
  * Relais unique vers l'API, pour tous les formulaires de l'application.
@@ -48,6 +49,7 @@ async function relayer(request: Request, segments: string[]): Promise<Response> 
   const res = await fetch(`${API}/${chemin}${requete.search}`, {
     method: request.method,
     headers: {
+      ...(await entetesRelais()),
       'Content-Type': estMultipart ? typeEntrant : 'application/json',
       Authorization: `Bearer ${jeton}`,
     },

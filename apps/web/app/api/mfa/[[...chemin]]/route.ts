@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { API, SESSION_COOKIE } from '../../../../lib/session';
+import { entetesRelais } from '../../../../lib/relais';
 
 /**
  * Relais des appels MFA vers l'API.
@@ -29,6 +30,7 @@ async function relayer(request: Request, segments: string[] | undefined): Promis
   const res = await fetch(`${API}${cible}`, {
     method: request.method,
     headers: {
+      ...(await entetesRelais()),
       'Content-Type': 'application/json',
       Authorization: `Bearer ${jeton}`,
     },

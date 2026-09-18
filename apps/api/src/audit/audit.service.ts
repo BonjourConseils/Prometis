@@ -40,6 +40,7 @@ export class AuditService {
         entite: evenement.entite,
         entiteId: evenement.entiteId ?? null,
         donnees: evenement.donnees ?? undefined,
+        ...RequestContext.origine(),
       },
     });
   }
@@ -65,6 +66,7 @@ export class AuditService {
         entite: evenement.entite,
         entiteId: evenement.entiteId ?? null,
         donnees: evenement.donnees ?? undefined,
+        ...RequestContext.origine(),
       },
     });
   }

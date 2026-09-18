@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { typeAccepte } from '../securite/type-fichier';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { ZodBody } from '../common/zod-body.pipe';
@@ -154,6 +155,12 @@ export class DocumentsController {
     const { document, contenu } = await this.ged.telecharger(operationId, documentId);
     reponse.setHeader('Content-Type', document.mimeType);
     reponse.setHeader('Content-Length', document.fileSize);
+    // Même si un navigateur passait outre `attachment`, le contenu ne
+    // s'exécuterait pas : aucune ressource chargeable, aucun script, et pas de
+    // devinette de type à partir des octets.
+    reponse.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    reponse.setHeader('X-Content-Type-Options', 'nosniff');
+    reponse.setHeader('Cache-Control', 'private, no-store');
     // `attachment` et non `inline` : un fichier déposé par un tiers ne
     // s'affiche pas dans l'origine de l'application — un SVG ou un HTML y
     // exécuterait son propre script.
@@ -191,9 +198,15 @@ function exigerFichier(fichier: Express.Multer.File | undefined) {
       'Aucun fichier reçu. Envoyer un formulaire multipart avec un champ « fichier ».',
     );
   }
+  // Le type annoncé vient du navigateur, qui le déduit du nom : il se falsifie
+  // en renommant le fichier. On lit les octets, on refuse ce qui n'est pas
+  // sur la liste blanche, et c'est le type DÉTECTÉ qu'on enregistre — celui
+  // qui sera renvoyé au téléchargement.
+  const controle = typeAccepte(fichier.buffer, fichier.originalname, 'document');
+  if (!controle.ok) throw new BadRequestException(controle.raison);
   return {
     nomOriginal: fichier.originalname,
-    mimeType: fichier.mimetype || 'application/octet-stream',
+    mimeType: controle.type.mime,
     contenu: fichier.buffer,
   };
 }

@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { typeAccepte } from '../securite/type-fichier';
 import { z } from 'zod';
 import { TAILLE_MAX_OCTETS } from '../stockage/chemin';
 import { ZodBody } from '../common/zod-body.pipe';
@@ -126,6 +127,10 @@ export class FacturesController {
         'Aucun fichier reçu. Envoyer un formulaire multipart avec un champ « fichier ».',
       );
     }
+    // Les octets, pas le type annoncé par le navigateur : c'est ce fichier
+    // qui part dans l'extracteur du serveur.
+    const controle = typeAccepte(fichier.buffer, fichier.originalname, 'facture');
+    if (!controle.ok) throw new BadRequestException(controle.raison);
     return this.factures.extraireDepuisPdf(operationId, factureId, fichier.buffer);
   }
 

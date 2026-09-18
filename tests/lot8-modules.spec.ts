@@ -28,6 +28,14 @@ const contexte = {
   mandatId: 0,
 };
 
+/**
+ * Un vrai en-tête PDF. Depuis le 18.09.2026, la GED lit les octets d'un
+ * fichier et refuse ce qui n'est pas ce qu'il prétend : la chaîne
+ * « PLAN-VERSION-1 » nommée `.pdf` que déposaient ces tests est précisément ce
+ * qu'elle doit refuser.
+ */
+const PDF = '%PDF-1.7\n';
+
 /** Dépôt multipart — l'API attend un champ `fichier` et des champs texte. */
 async function deposerFichier(
   chemin: string,
@@ -151,7 +159,7 @@ describe('GED — dépôt, versions et téléchargement', () => {
   it('dépose un document et le rend courant en version 1', async () => {
     const res = await deposerFichier(
       `/operations/${bac}/documents`,
-      { nom: 'Plan RDC.pdf', type: 'application/pdf', contenu: 'PLAN-VERSION-1' },
+      { nom: 'Plan RDC.pdf', type: 'application/pdf', contenu: `${PDF}PLAN-VERSION-1` },
       { titre: 'Plan du rez', categorie: 'PLAN', lotId: String(contexte.lotId) },
     );
     expect(res.status).toBe(201);
@@ -171,13 +179,13 @@ describe('GED — dépôt, versions et téléchargement', () => {
     });
     expect(res.status).toBe(200);
     expect(res.headers.get('content-disposition')).toContain('attachment');
-    expect(await res.text()).toBe('PLAN-VERSION-1');
+    expect(await res.text()).toBe(`${PDF}PLAN-VERSION-1`);
   });
 
   it('dépose une version 2 sans effacer la version 1', async () => {
     const res = await deposerFichier(
       `/operations/${bac}/documents/${contexte.documentId}/versions`,
-      { nom: 'Plan RDC v2.pdf', type: 'application/pdf', contenu: 'PLAN-VERSION-2' },
+      { nom: 'Plan RDC v2.pdf', type: 'application/pdf', contenu: `${PDF}PLAN-VERSION-2` },
     );
     expect(res.status).toBe(201);
     expect(res.body.version).toBe(2);
@@ -207,7 +215,7 @@ describe('GED — dépôt, versions et téléchargement', () => {
     // contrôle, la pièce apparaîtrait dans le dossier de quelqu'un d'autre.
     const res = await deposerFichier(
       `/operations/${bac}/documents`,
-      { nom: 'intrus.pdf', type: 'application/pdf', contenu: 'x' },
+      { nom: 'intrus.pdf', type: 'application/pdf', contenu: `${PDF}x` },
       { titre: 'Intrus', lotId: String(contexte.lotSeedId) },
     );
     expect(res.status).toBe(404);

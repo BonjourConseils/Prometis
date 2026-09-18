@@ -165,6 +165,17 @@ const envSchema = z.object({
    */
   PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
 
+  /**
+   * Secret partagé entre le relais Next et l'API.
+   *
+   * Le navigateur ne parle jamais à l'API : vue d'elle, chaque utilisateur a
+   * l'adresse du serveur Next. Le relais transmet donc l'adresse réelle du
+   * client — et l'API ne la croit que si elle arrive avec ce secret, parce
+   * qu'elle est aussi joignable directement. **Exigé en production** : sans
+   * lui, la limite de tentatives par adresse et le journal d'audit verraient
+   * tous les utilisateurs derrière une seule IP.
+   */
+  RELAIS_SECRET: z.string().min(32).optional(),
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z
     .string()
@@ -179,8 +190,28 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/**
+ * Ce que la production exige en plus du développement.
+ *
+ * Écrit ici, au démarrage, plutôt que découvert au premier incident : une API
+ * qui démarre sans ces valeurs démarre avec une barrière en moins, sans rien
+ * dire.
+ */
+const envProduction = envSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV !== 'production') return;
+  if (!env.RELAIS_SECRET) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['RELAIS_SECRET'],
+      message:
+        'requis en production : sans lui, tous les utilisateurs ont l’adresse du serveur Next ' +
+        '(limite de tentatives et journal d’audit inopérants).',
+    });
+  }
+});
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = envSchema.safeParse(source);
+  const parsed = envProduction.safeParse(source);
   if (!parsed.success) {
     const details = parsed.error.issues
       .map((i) => `  · ${i.path.join('.') || '(racine)'} : ${i.message}`)

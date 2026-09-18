@@ -1635,8 +1635,46 @@ async function seedConstructa(): Promise<void> {
 
 // =====================================================================
 
+/** Les opérations que ce seed crée — et donc les seules qu'il a le droit d'effacer. */
+const OPERATIONS_DU_SEED = ['Les Jardins de Prilly', 'Résidence du Lac'];
+
+/**
+ * Deux garde-fous avant de tout effacer.
+ *
+ * **La production.** Ce seed crée trois comptes au mot de passe public
+ * `Prometis!2026`. Lancé sur un serveur ouvert, il ouvrirait trois portes
+ * dont tout le monde a la clé. Il refuse, sans exception ni option.
+ *
+ * **Les données réelles.** Il vide 43 tables avant de réécrire la
+ * démonstration. Le 3 septembre 2026, lancé pour « réparer » une base qu'on
+ * croyait vide, il a détruit une promotion réelle, « Immeuble La Praille à
+ * Martigny », saisie pendant des heures et sans sauvegarde. Il refuse donc
+ * dès qu'une opération qu'il n'a pas créée existe, et les nomme — sauf
+ * demande explicite, `SEED_ECRASER_DONNEES=oui`.
+ */
+async function verifierQueLeSeedPeutEffacer(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Seed refusé en production : il crée des comptes au mot de passe public et vide toute la base.',
+    );
+  }
+  const etrangeres = await prisma.operation.findMany({
+    where: { nom: { notIn: OPERATIONS_DU_SEED } },
+    select: { nom: true, societe: { select: { raisonSociale: true } } },
+  });
+  if (etrangeres.length === 0 || process.env.SEED_ECRASER_DONNEES === 'oui') return;
+
+  const liste = etrangeres.map((o) => `    · ${o.nom} (${o.societe.raisonSociale})`).join('\n');
+  throw new Error(
+    `Seed refusé : la base contient ${etrangeres.length} opération(s) qu'il n'a pas créée(s), ` +
+      `et qu'il effacerait sans retour :\n${liste}\n\n` +
+      `Si c'est voulu : SEED_ECRASER_DONNEES=oui npm run db:seed`,
+  );
+}
+
 async function main(): Promise<void> {
   console.log('Seed Prometis — rôle propriétaire (contourne la RLS)\n');
+  await verifierQueLeSeedPeutEffacer();
   await reset();
   await seedCb();
   await seedConstructa();

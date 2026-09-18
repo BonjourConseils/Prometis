@@ -11,7 +11,7 @@
  *  structure portée par des filets de 1 px plutôt que par des ombres.
  * ===================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* Polices : servies par Prometis via `next/font` (voir `layout.tsx`), plus par Google. */
 
 :root {
   /* ---- Marque : pétrole ------------------------------------------------ */
@@ -102,10 +102,12 @@
   --ring: 0 0 0 3px oklch(0.61 0.09 202 / 0.32);
 
   /* ---- Typographie ------------------------------------------------------ */
-  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans:
+    var(--police-sans), 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
   /* Les références, montants et codes passent en mono : « précision
      notariale ». C'est un signal de lecture, pas une décoration. */
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-mono: var(--police-mono), 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --text-2xs: 11px;
   --text-xs: 12px;

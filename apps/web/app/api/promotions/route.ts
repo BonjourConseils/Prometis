@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { API, SESSION_COOKIE } from '../../../lib/session';
+import { entetesRelais } from '../../../lib/relais';
 
 /**
  * Création d'une promotion.
@@ -18,7 +19,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const res = await fetch(`${API}/operations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jeton}` },
+    headers: {
+      ...(await entetesRelais()),
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jeton}`,
+    },
     body: await request.text(),
     cache: 'no-store',
   });

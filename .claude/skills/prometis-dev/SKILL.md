@@ -607,6 +607,43 @@ Deux pièges vérifiés :
   `.toBe(n)` sur un `count()`, demandez-vous ce que devient ce chiffre quand un utilisateur crée
   une deuxième promotion — parce qu'il en créera une.
 
+## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
+
+Posées d'après le skill `securite-saas`, **avant** d'ajouter des modules : élargir un produit dont
+la connexion n'est pas protégée, c'est élargir une surface déjà ouverte. Tout vit dans
+`apps/api/src/securite/`, en fonctions pures testées (`tests/securite.spec.ts`) et éprouvées
+contre l'API (`tests/securite-api.spec.ts`).
+
+- **L'adresse du client passe par le relais.** Le navigateur ne parle jamais à l'API : vue
+  d'elle, tout le monde a l'IP du serveur Next. Le relais transmet l'adresse réelle
+  (`lib/relais.ts`, dernière valeur de `X-Forwarded-For` — un seul proxy devant Next) avec
+  `RELAIS_SECRET`, et l'API ne la croit qu'avec ce secret (`ip-client.ts`). **Tout nouvel appel
+  serveur Next → API doit passer `entetesRelais()`**, sinon ses actions sont journalisées sous la
+  mauvaise IP. Exigé en production : l'API refuse de démarrer sans.
+- **Limite de tentatives** (`limiteur.ts`, `limiteurs.service.ts`) : 5 échecs / 15 min par
+  compte, 50 par adresse, 5 par compte sur les codes MFA (connexion, activation, désactivation).
+  La clé du compte compte aussi pour une adresse inconnue — sinon le blocage trahirait les comptes
+  existants. En mémoire : une instance d'API. Plusieurs instances → Redis.
+- **Journal des connexions** (`journal_connexions`, exempté de RLS comme `comptes`) : réussites,
+  échecs, blocages, avec IP et navigateur. **Jamais l'adresse e-mail tapée.**
+- **`audit_logs` porte `ip` et `user_agent`**, remplis depuis le contexte de requête.
+- **Un fichier se juge à ses octets** (`type-fichier.ts`) : liste blanche (PDF, images dont HEIC,
+  DWG/DXF/IFC, bureautique, texte sans balisage exécutable), type **détecté** enregistré, archive
+  ZIP quelconque refusée. Une facture : PDF ou scan. Au téléchargement : `sandbox`, `nosniff`,
+  `no-store`. **Un test qui dépose `'contenu'` nommé `.pdf` échouera** — donner un vrai en-tête
+  (`%PDF-1.7\n`).
+- **En-têtes** : API (`entetes.ts`, sur toute réponse, `X-Powered-By` retiré) et site
+  (`next.config.mjs`, CSP stricte, `'unsafe-inline'` restant pour l'hydratation Next — le
+  retirer demande des nonces). HSTS en production seulement.
+- **Polices servies par Prometis** (`next/font`), plus par Google : chaque page envoyait l'IP du
+  visiteur à un destinataire non inventorié.
+- **Le seed refuse** en production, et dès qu'une opération qu'il n'a pas créée existe — il les
+  nomme. `SEED_ECRASER_DONNEES=oui` pour forcer. C'est la perte de La Praille qui l'a fait écrire.
+
+**Reste, avant ouverture publique** (skill `securite-saas` §14) : antivirus et quarantaine des
+dépôts, gestion des sessions et « déconnecter mes appareils », export et suppression de compte,
+réauthentification avant les gestes lourds, restauration de sauvegarde testée, test d'intrusion.
+
 ## 4 quater. E-mails : un seul point de sortie
 
 **Toute** communication sortante passe par `MailService.envoyer()` — appel de fonds, relance,

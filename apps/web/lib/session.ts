@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { entetesRelais } from './relais';
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -46,6 +47,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
+      ...(await entetesRelais()),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },

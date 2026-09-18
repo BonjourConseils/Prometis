@@ -9,6 +9,7 @@ import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { MfaService } from './mfa.service';
 import { AuthContextMiddleware } from './auth-context.middleware';
+import { LimiteursService } from '../securite/limiteurs.service';
 import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './guards';
 
 @Global()
@@ -37,6 +38,9 @@ import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './g
     PasswordService,
     TokenService,
     MfaService,
+    // Un seul exemplaire pour l'instance : deux limiteurs compteraient chacun
+    // de leur côté, et aucun n'atteindrait son seuil.
+    LimiteursService,
     AuthContextMiddleware,
     // Ordre significatif : identité, puis rôle, puis module de la société,
     // puis droit sur l'opération. Chaque étage suppose le précédent satisfait.
@@ -51,6 +55,7 @@ import { AppModuleGuard, AuthGuard, OperationAccessGuard, RolesGuard } from './g
     PasswordService,
     TokenService,
     MfaService,
+    LimiteursService,
     AuthContextMiddleware,
   ],
 })
