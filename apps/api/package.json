@@ -19,6 +19,7 @@
     "@node-rs/argon2": "^2.1.0",
     "@prisma/client": "^6.19.3",
     "dotenv": "^17.4.2",
+    "fflate": "0.8.3",
     "nodemailer": "^9.0.5",
     "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.2",
