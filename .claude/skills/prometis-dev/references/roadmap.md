@@ -30,7 +30,7 @@ l'accueillir sans réécriture.
 | Sujet | Bloqué par | Où c'est isolé |
 |---|---|---|
 | **OIDC** | non retenu pour l'instant : l'authentification par identifiants + MFA TOTP couvre le besoin pilote | `PasswordService` + `TokenService` |
-| **Notation multicritère des offres** | `Offre` n'a aucun champ de score | note de *prix*, nommée comme telle |
+| ~~Notation multicritère des offres~~ | livrée le 19.09.2026 (critères pondérés, notes justifiées) | — |
 | **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
 | **Encaissements vers Kolabimo** | aucune route Kolabimo ne les reçoit ; sa trésorerie n'a pas de modèle pour un encaissement Prometis — décision produit, pas un oubli de code | `KolabimoClient.publierEvenement()` le dit sans rien poster ; l'événement reste en boîte d'envoi |
 
@@ -164,6 +164,14 @@ deux chemins. 604 tests.
 l'espace exploitant, taux TVA 8.1 %, webhook avec ses 7 événements (relus par l'API), cron de la
 passe quotidienne, pages légales (CGU : conversion de l'essai, J-3, annulation) — puis
 `BILLING_DISABLED=false` en dernier.
+
+### Appels d'offres : consultation des entreprises ✅ (19 septembre 2026)
+Dossier de soumission, envoi par lien personnel + code, espace entreprise (dossier, questions,
+dépôt de l'offre en PDF, refus), pli scellé jusqu'à la date limite, options et variantes,
+notation multicritère, relance J-3, lecture de l'offre par l'IA. 641 tests.
+
+**Reste** : import CAN/NPK (V2) ; comparaison position par position (suppose des offres
+détaillées) ; signature électronique des offres.
 
 ## V2 / V3
 

@@ -89,7 +89,7 @@ export const CATALOGUE: readonly ModuleCommercial[] = [
     code: 'APPELS_OFFRES',
     libelle: 'Appels d’offres',
     promesse:
-      'Soumissions par poste CFC, comparaison au net après remise, adjudication tracée, contrat SIA 118.',
+      'Dossier envoyé aux entreprises, questions et dépôt des offres en ligne sous pli scellé, notation multicritère, adjudication tracée, contrat SIA 118.',
     techniques: ['SOUMISSIONS', 'ADJUDICATIONS', 'CONTRATS'],
     profils: TOUS,
     seul: 'Sans le contrôle des factures, le montant commandé ne se confronte à rien.',

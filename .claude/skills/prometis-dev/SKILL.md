@@ -10,7 +10,7 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux, passeport et facturation Stripe (18 septembre) · **604 tests verts** · dépôt
+**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux, passeport, facturation Stripe (18 septembre) et consultation des entreprises (19) · **641 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -693,6 +693,43 @@ par module**. Code : `apps/api/src/facturation/` (`regles.ts` pur et testé, `fa
   cron du serveur est à poser au déploiement.
 - **Tests Stripe réels** : à faire en mode test avec les clés du gérant — les tests du dépôt
   couvrent les règles pures et les barrières, pas le parcours de paiement.
+
+## 4 novodecies. Appels d'offres : registre et consultation des entreprises (19 septembre 2026)
+
+Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consultation-regles.ts`
+(pur, testé), `consultation.service.ts` (côté promoteur), `espace-entreprise.service.ts` +
+`.controller.ts` (côté entreprise), `consultation-emails.ts`. Écrans : la page d'une soumission
+(dossier → entreprises → questions → critères → offres → adjudication) et l'espace public
+`/consultation/[jeton]`, avec son propre relais `/api/consultation/[jeton]/…`.
+
+- **Accès entreprise = lien + code.** Le lien (32 octets) n'est stocké qu'en **empreinte**
+  (`soumission_invitations.jeton_hash`) ; renvoyer un lien invalide l'ancien. À l'ouverture, un code
+  à six chiffres part à l'adresse **figée** de l'invitation (15 min, 5 essais, HMAC lié à
+  l'invitation). La session (2 h) est signée par une **instance JWT distincte** (secret dérivé,
+  émetteur `prometis-consultation`), voyage dans `x-consultation-session` — jamais
+  `Authorization` — et vaut pour son seul lien. Cookie `prometis_consultation`, httpOnly,
+  `SameSite=Strict`. Page en `noindex` et `referrer: no-referrer` (l'URL porte le lien).
+- **Hors tenant, deux fonctions seulement** : `app.invitation_de_jeton()` (rend 3 identifiants) et
+  `app.invitations_a_relancer()` (passe quotidienne). Tout le reste se lit sous RLS, borné à
+  l'invitation : une entreprise ne voit ni les autres invités, ni leurs offres, ni qui a demandé.
+- **Pli scellé** (`soumissions.offres_scellees`, vrai par défaut) : une offre `source = PORTAIL`
+  reste fermée jusqu'à `date_limite` — montants, options, notes, PDF masqués dans la comparaison
+  **et dans la GED** (`horsPlisScelles()`), rien ne s'adjuge tant qu'une offre est scellée, la date
+  limite ne s'avance plus après l'envoi (elle se repousse, et chaque changement est annoncé à tous).
+  Les soumissions antérieures ont été passées à `false` par la migration.
+- **Une offre déposée par l'entreprise fait foi** : le promoteur n'en modifie pas les montants, sa
+  pièce ne se supprime ni ne se remplace depuis la GED.
+- **Montant adjugé** = (variante retenue ou base) + options retenues, remise déduite
+  (`montantRetenu`). `offre_lignes.retenue` se pose à l'adjudication, s'efface à son annulation.
+- **Notation multicritère** : `criteres_soumission` (somme 100, un seul critère de prix),
+  `notes_offres` (0 à 10, justifiées). La note de prix se calcule (moins-disant ÷ prix × 10) ; un
+  critère non noté laisse le total **vide**, pas partiel.
+- **Questions** : publiées, elles partent à tous les invités sans le nom de l'auteur.
+- **IA** : `POST …/offres/:id/lecture` lit le PDF (OCR local, masquage, Infomaniak) et **propose**
+  montant, remise, options — chaque valeur citée, rien d'enregistré ; « Reprendre ces valeurs »
+  n'existe que pour une offre saisie par le promoteur.
+- **Passe quotidienne commune** : `POST /internal/passe-quotidienne` (secret en en-tête) — fins
+  d'essai Stripe et relance J-3 des entreprises sans réponse, une seule fois (`relance_le`).
 
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { champ } from '../../../../../lib/api-client';
 import { montant } from '../../../../../lib/format';
 import { Repliable, useEnvoi } from '../../../../components/formulaire';
@@ -15,6 +15,7 @@ interface OffreAdjugeable {
   id: number;
   entrepriseNom: string;
   montantNet: string | null;
+  lignes: { id: number; type: 'OPTION' | 'VARIANTE'; libelle: string; montant: string }[];
 }
 
 // ---------------------------------------------------------------------
@@ -24,8 +25,8 @@ interface OffreAdjugeable {
 /**
  * Inviter une entreprise à soumissionner.
  *
- * L'invitation n'envoie pas encore le dossier : elle enregistre qui a été
- * consulté. C'est ce qui donne son sens au compteur « offres reçues sur
+ * L'invitation inscrit l'entreprise sur la liste ; le dossier part ensuite,
+ * pour toutes à la fois, avec « Envoyer le dossier ». C'est ce qui donne son sens au compteur « offres reçues sur
  * entreprises consultées » — trois offres sur trois, ce n'est pas la même
  * consultation que trois sur douze.
  */
@@ -268,14 +269,22 @@ function FormulaireAdjudication({
   fermer: () => void;
 }) {
   const { envoyer, erreur, enCours } = useEnvoi();
+  const [offreId, setOffreId] = useState<number | null>(null);
+  const choisie = offres.find((o) => o.id === offreId);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
+    const variante = champ(d.get('variante'));
+    const lignesRetenues = [
+      ...d.getAll('option').map((v) => Number(v)),
+      ...(variante ? [Number(variante)] : []),
+    ];
     const ok = await envoyer(
       `/operations/${operationId}/soumissions/${soumissionId}/adjudication`,
       {
         offreId: Number(d.get('offreId')),
+        lignesRetenues,
         commentaire: champ(d.get('commentaire')),
       },
     );
@@ -292,7 +301,12 @@ function FormulaireAdjudication({
       <div className="grille-2">
         <label>
           Offre retenue
-          <select name="offreId" required defaultValue="">
+          <select
+            name="offreId"
+            required
+            defaultValue=""
+            onChange={(e) => setOffreId(Number(e.target.value) || null)}
+          >
             <option value="" disabled>
               — choisir —
             </option>
@@ -308,6 +322,36 @@ function FormulaireAdjudication({
           <input name="commentaire" placeholder="Références chantier et délai d'exécution" />
         </label>
       </div>
+      {choisie && choisie.lignes.length > 0 && (
+        <fieldset>
+          <legend>Ce que vous retenez de cette offre</legend>
+          {choisie.lignes
+            .filter((l) => l.type === 'VARIANTE')
+            .map((l) => (
+              <label key={l.id} className="case">
+                <input type="radio" name="variante" value={l.id} defaultChecked={false} /> Variante
+                : {l.libelle} — {montant(l.montant)} (à la place de l&apos;offre de base)
+              </label>
+            ))}
+          {choisie.lignes.some((l) => l.type === 'VARIANTE') && (
+            <label className="case">
+              <input type="radio" name="variante" value="" defaultChecked /> Offre de base
+            </label>
+          )}
+          {choisie.lignes
+            .filter((l) => l.type === 'OPTION')
+            .map((l) => (
+              <label key={l.id} className="case">
+                <input type="checkbox" name="option" value={l.id} /> Option : {l.libelle} —{' '}
+                {montant(l.montant)}
+              </label>
+            ))}
+          <p className="meta">
+            Le montant adjugé est calculé par le serveur : base ou variante, plus les options
+            retenues, remise déduite.
+          </p>
+        </fieldset>
+      )}
       {erreur && <p className="ko">{erreur}</p>}
       <button type="submit" className="principal" disabled={enCours}>
         {enCours ? 'Adjudication…' : "Prononcer l'adjudication"}

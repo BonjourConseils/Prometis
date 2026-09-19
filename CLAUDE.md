@@ -32,6 +32,9 @@ Le **passeport numérique** propose ses équipements par l'IA **Infomaniak** (Su
 OpenAI) ; chaque proposition cite son extrait et n'existe qu'après validation humaine.
 La **facturation Stripe** (un abonnement par société, un élément par module) est écrite mais
 **fermée par défaut** (`BILLING_DISABLED`) ; elle change les modules par `ModulesService.changer`.
+Les **appels d'offres** se mènent en ligne : lien personnel + code par e-mail pour chaque
+entreprise, dépôt des offres **sous pli scellé** jusqu'à la date limite, notation multicritère.
+Une entreprise n'a pas de compte : elle ne voit que sa propre invitation.
 
 Une EG ou un architecte se connecte **en tant que tel** et ne voit que la gestion de chantier —
 aucune « simulation » de promoteur.
@@ -118,7 +121,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité et les modules commerciaux du 18 — 551 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité, les modules commerciaux, le passeport et la facturation du 18, la consultation des entreprises du 19 — 641 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de

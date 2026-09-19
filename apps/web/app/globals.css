@@ -1347,3 +1347,34 @@ td.avertir {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Espace entreprise (consultation) ------------------------------ */
+.espace-entreprise {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.espace-entete {
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+.espace-pied {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
+.texte-libre {
+  white-space: pre-wrap;
+}
+.details-offres details {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 6px 0;
+}
+.details-offres summary {
+  cursor: pointer;
+  font-weight: 600;
+}
