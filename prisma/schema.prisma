@@ -1236,6 +1236,35 @@ model Facture {
   validePar      Int?      @map("valide_par")
   dateValidation DateTime? @map("date_validation")
 
+  // Capture — la pièce d'origine, conservée telle quelle : c'est la preuve.
+  /// SAISIE, UPLOAD, CAMERA, EMAIL — pour le diagnostic, jamais pour un
+  /// traitement différent.
+  source         String  @default("SAISIE")
+  fichierCle     String? @map("fichier_cle")
+  fichierNom     String? @map("fichier_nom")
+  fichierMime    String? @map("fichier_mime")
+  fichierTaille  Int?    @map("fichier_taille")
+  /// Empreinte SHA-256 : la même pièce déposée deux fois ne fait pas deux factures.
+  fichierSha256  String? @map("fichier_sha256")
+  lectureMethode String? @map("lecture_methode")
+  lectureErreur  String? @map("lecture_erreur")
+  /// Ce que la lecture a proposé, champ par champ, avec son ancrage dans le
+  /// texte (ancrée / proposée / absente) et l'extrait qui la justifie.
+  lecture        Json?
+
+  // Ce que la facture dit en plus des montants
+  montantTVA      Decimal?  @map("montant_tva") @db.Decimal(12, 2)
+  retenueGarantie Decimal?  @map("retenue_garantie") @db.Decimal(12, 2)
+  /// Acomptes antérieurs que la facture déclare déduire (situation cumulative).
+  acomptesDeduits Decimal?  @map("acomptes_deduits") @db.Decimal(12, 2)
+  dateEcheance    DateTime? @map("date_echeance")
+  iban            String?
+  referenceQR     String?   @map("reference_qr")
+
+  /// Le rapport de contrôle — calculé par le code, jamais par le modèle.
+  controles  Json?
+  controleLe DateTime? @map("controle_le")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1246,11 +1275,58 @@ model Facture {
   cfcNode    CfcNode?              @relation(fields: [cfcNodeId], references: [id])
   paiements  PaiementFournisseur[]
   documents  Document[]
+  lignes     FactureLigne[]
+  visas      FactureVisa[]
 
+  @@unique([societeId, fichierSha256])
   @@index([operationId])
   @@index([cfcNodeId])
   @@index([statut])
   @@map("factures")
+}
+
+/// Une ligne de facture : ce qui est facturé, et à quel poste CFC.
+model FactureLigne {
+  id          Int     @id @default(autoincrement())
+  factureId   Int     @map("facture_id")
+  designation String
+  /// Code CFC ou position tel qu'écrit sur la facture (« 211.32 »).
+  codeCfc     String? @map("code_cfc")
+  montant     Decimal @db.Decimal(12, 2)
+  ordre       Int     @default(0)
+
+  facture Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+  @@map("facture_lignes")
+}
+
+enum VisaEtape {
+  /// La direction des travaux, quand l'opération en a nommé une.
+  DIRECTION_TRAVAUX
+  PROMOTEUR
+}
+
+enum VisaDecision {
+  APPROUVE
+  REFUSE
+}
+
+/// Chaque signature du circuit de validation : qui, à quelle étape, quand,
+/// et pourquoi. Un visa ne se modifie pas ; un nouvel avis s'ajoute.
+model FactureVisa {
+  id          Int          @id @default(autoincrement())
+  factureId   Int          @map("facture_id")
+  etape       VisaEtape
+  decision    VisaDecision
+  parId       Int          @map("par_id")
+  commentaire String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  facture Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+
+  @@index([factureId])
+  @@map("facture_visas")
 }
 
 /// Paiement effectué à une entreprise (rapprochement ISO 20022 pain/camt).

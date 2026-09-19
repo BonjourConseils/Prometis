@@ -140,6 +140,13 @@ const envSchema = z.object({
   /** Arguments, séparés par des virgules. `{fichier}` reçoit le chemin du PDF. */
   OCR_ARGUMENTS: z.string().default('-layout,{fichier},-'),
   OCR_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  /**
+   * Reconnaissance de caractères des scans et des photos (Tesseract 5, local).
+   * `brew install tesseract tesseract-lang` ; sur Debian :
+   * `apt install tesseract-ocr tesseract-ocr-fra tesseract-ocr-deu tesseract-ocr-ita`.
+   */
+  OCR_TESSERACT: z.string().default('tesseract'),
+  OCR_LANGUES: z.string().default('fra+deu+ita'),
 
   // --- Passerelle Kolabimo ---------------------------------------------
   //

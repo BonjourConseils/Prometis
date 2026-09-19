@@ -26,6 +26,11 @@ export interface DonneesFacture {
   montantTTC?: Prisma.Decimal | null;
   fichierUrl?: string | null;
   ocrTexte?: string | null;
+  montantTVA?: Prisma.Decimal | null;
+  retenueGarantie?: Prisma.Decimal | null;
+  acomptesDeduits?: Prisma.Decimal | null;
+  dateEcheance?: Date | null;
+  iban?: string | null;
 }
 
 /** États depuis lesquels une facture est encore modifiable. */
@@ -110,6 +115,97 @@ export class FacturesService {
   // ===================================================================
   //  Saisie
   // ===================================================================
+
+  /** Tout ce que l'écran d'une facture affiche : pièce, lecture, rapport, visas. */
+  async detail(operationId: number, factureId: number) {
+    return this.db.run(async (tx) => {
+      const f = await tx.facture.findFirst({
+        where: { id: factureId, operationId },
+        include: {
+          entreprise: { select: { id: true, nom: true, ide: true } },
+          contrat: {
+            select: {
+              id: true,
+              reference: true,
+              montant: true,
+              retenueGarantiePct: true,
+              cfcNode: { select: { code: true, libelle: true } },
+            },
+          },
+          cfcNode: { select: { id: true, code: true, libelle: true } },
+          lignes: { orderBy: { ordre: 'asc' } },
+          visas: { orderBy: { id: 'asc' } },
+          paiements: { select: { id: true, montant: true, dateValeur: true } },
+          operation: { select: { nom: true, directionTravauxId: true } },
+        },
+      });
+      if (!f) throw new NotFoundException(`Facture ${factureId} introuvable dans cette opération.`);
+      const signataires = await tx.membership.findMany({
+        where: {
+          id: {
+            in: [
+              ...f.visas.map((v) => v.parId),
+              ...(f.operation.directionTravauxId ? [f.operation.directionTravauxId] : []),
+            ],
+          },
+        },
+        select: {
+          id: true,
+          compte: { select: { prenom: true, nom: true, email: true } },
+          acteur: { select: { societeNom: true } },
+        },
+      });
+      const nom = (id: number) => {
+        const m = signataires.find((x) => x.id === id);
+        if (!m) return `membre ${id}`;
+        const n = [m.compte.prenom, m.compte.nom].filter(Boolean).join(' ') || m.compte.email;
+        return m.acteur?.societeNom ? `${n} (${m.acteur.societeNom})` : n;
+      };
+      // Le texte brut reste en base, pas dans la réponse : il peut être long.
+      const { ocrTexte, ...reste } = f;
+      return {
+        ...reste,
+        texteDisponible: !!ocrTexte,
+        directionTravaux: f.operation.directionTravauxId
+          ? {
+              membershipId: f.operation.directionTravauxId,
+              nom: nom(f.operation.directionTravauxId),
+            }
+          : null,
+        visas: f.visas.map((v) => ({ ...v, par: nom(v.parId) })),
+      };
+    });
+  }
+
+  /** Les lignes corrigées à la main remplacent celles de la lecture. */
+  async fixerLignes(
+    operationId: number,
+    factureId: number,
+    lignes: { designation: string; codeCfc?: string | null; montant: Prisma.Decimal }[],
+  ) {
+    return this.db.run(async (tx) => {
+      const f = await this.factureDeLOperation(tx, operationId, factureId);
+      if (!MODIFIABLES.includes(f.statut)) {
+        throw new BadRequestException('Facture validée : ses lignes ne se modifient plus.');
+      }
+      await tx.factureLigne.deleteMany({ where: { factureId } });
+      await tx.factureLigne.createMany({
+        data: lignes.map((l, i) => ({
+          factureId,
+          designation: l.designation,
+          codeCfc: l.codeCfc ?? null,
+          montant: l.montant,
+          ordre: i,
+        })),
+      });
+      await this.audit.enregistrer(tx, {
+        action: 'facture.lignes_corrigees',
+        entite: 'Facture',
+        entiteId: factureId,
+        donnees: { operationId, lignes: lignes.length },
+      });
+    });
+  }
 
   async lister(operationId: number, statut?: FactureStatut) {
     return this.db.run((tx) =>
@@ -298,6 +394,46 @@ export class FacturesService {
       if (facture.statut === 'VALIDEE' || facture.statut === 'PAYEE') {
         throw new BadRequestException('Cette facture est déjà validée.');
       }
+      if (facture.statut === 'EN_LECTURE') {
+        throw new BadRequestException('La facture est en cours de lecture : attendez le rapport.');
+      }
+
+      // La direction des travaux, quand elle est nommée, a la main : sans son
+      // visa favorable — le plus récent —, le promoteur ne valide pas.
+      const operation = await tx.operation.findUniqueOrThrow({
+        where: { id: operationId },
+        select: { directionTravauxId: true },
+      });
+      if (operation.directionTravauxId) {
+        const dernier = await tx.factureVisa.findFirst({
+          where: { factureId, etape: 'DIRECTION_TRAVAUX' },
+          orderBy: { id: 'desc' },
+          select: { decision: true },
+        });
+        if (dernier?.decision !== 'APPROUVE') {
+          throw new BadRequestException(
+            dernier
+              ? 'La direction des travaux a refusé cette facture : elle doit la viser à nouveau avant validation.'
+              : 'La direction des travaux doit d’abord viser cette facture.',
+          );
+        }
+      }
+
+      // Un constat critique du contrôle (compte bancaire changé, doublon)
+      // arrête la validation, comme un dépassement : on passe outre en le
+      // disant, et c'est journalisé.
+      const rapport = facture.controles as {
+        constats?: { code: string; gravite: string; titre: string }[];
+      } | null;
+      const critiques = (rapport?.constats ?? []).filter(
+        (k) => k.gravite === 'critique' && k.code !== 'depassement',
+      );
+      if (critiques.length && !donnees.forcer) {
+        throw new BadRequestException({
+          message: `Contrôle : ${critiques.map((k) => k.titre).join(' · ')} Confirmez en connaissance de cause pour valider.`,
+          critiques: critiques.map((k) => k.code),
+        });
+      }
       if (facture.montantHT === null || facture.montantHT.lessThanOrEqualTo(0)) {
         throw new BadRequestException(
           "Le montant hors taxe est requis pour valider : c'est lui qui entre dans le fil rouge.",
@@ -365,6 +501,10 @@ export class FacturesService {
         },
       });
 
+      await tx.factureVisa.create({
+        data: { factureId, etape: 'PROMOTEUR', decision: 'APPROUVE', parId: membershipId },
+      });
+
       await this.audit.enregistrer(tx, {
         action: 'facture.validee',
         entite: 'Facture',
@@ -377,6 +517,7 @@ export class FacturesService {
           contratId,
           // Un forçage doit rester lisible dans la piste d'audit.
           depassementForce: controle?.depasse ? controle.depassement : null,
+          constatsForces: critiques.map((k) => k.code),
         },
       });
 

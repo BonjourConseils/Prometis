@@ -8,11 +8,16 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Res,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { LectureFacturesService } from './lecture-factures.service';
 import { typeAccepte } from '../securite/type-fichier';
 import { z } from 'zod';
 import { TAILLE_MAX_OCTETS } from '../stockage/chemin';
@@ -47,6 +52,35 @@ const factureSchema = z.object({
   montantTTC: montant.nullish(),
   fichierUrl: z.string().trim().max(500).nullish(),
   ocrTexte: z.string().max(50_000).nullish(),
+  montantTVA: montant.nullish(),
+  retenueGarantie: montantPositif.nullish(),
+  acomptesDeduits: montantPositif.nullish(),
+  dateEcheance: z.coerce.date().nullish(),
+  iban: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\s+/g, '').toUpperCase())
+    .refine((v) => /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v), 'IBAN invalide.')
+    .nullish(),
+});
+
+const depotSchema = z.object({ source: z.enum(['UPLOAD', 'CAMERA']).default('UPLOAD') });
+
+const lignesSchema = z.object({
+  lignes: z
+    .array(
+      z.object({
+        designation: z.string().trim().min(1).max(300),
+        codeCfc: z.string().trim().max(20).nullish(),
+        montant,
+      }),
+    )
+    .max(80),
+});
+
+const visaSchema = z.object({
+  decision: z.enum(['APPROUVE', 'REFUSE']),
+  commentaire: z.string().trim().max(2000).nullish(),
 });
 
 const validerSchema = z.object({
@@ -76,7 +110,109 @@ const paiementSchema = z.object({
 @RequireModule('FACTURES')
 @Controller('operations/:operationId/factures')
 export class FacturesController {
-  constructor(private readonly factures: FacturesService) {}
+  constructor(
+    private readonly factures: FacturesService,
+    private readonly lecture: LectureFacturesService,
+  ) {}
+
+  /**
+   * Déposer une ou plusieurs factures — fichiers, ou photos prises au
+   * téléphone. La lecture part après la réponse ; chaque pièce dit ce qu'elle
+   * est devenue (reçue, doublon, refusée).
+   */
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
+  @Post('depots')
+  @HttpCode(200)
+  @UseInterceptors(FilesInterceptor('fichiers', 20, { limits: { fileSize: TAILLE_MAX_OCTETS } }))
+  deposer(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @UploadedFiles() fichiers: Express.Multer.File[] | undefined,
+    @Body(new ZodBody(depotSchema)) body: z.infer<typeof depotSchema>,
+  ) {
+    if (!fichiers?.length) throw new BadRequestException('Aucun fichier reçu.');
+    return this.lecture.deposer(
+      operationId,
+      fichiers.map((f) => ({ nom: f.originalname, octets: f.buffer })),
+      body.source,
+    );
+  }
+
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
+  @Get(':factureId')
+  detail(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+  ) {
+    return this.factures.detail(operationId, factureId);
+  }
+
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
+  @Get(':factureId/fichier')
+  async fichier(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const f = await this.lecture.fichier(operationId, factureId);
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Length', f.contenu.length);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(f.nom)}`,
+    );
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.send(f.contenu);
+  }
+
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
+  @Post(':factureId/relire')
+  @HttpCode(200)
+  relire(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+  ) {
+    return this.lecture.relancer(operationId, factureId);
+  }
+
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
+  @Post(':factureId/recontroler')
+  @HttpCode(200)
+  recontroler(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+  ) {
+    return this.lecture.recontroler(operationId, factureId);
+  }
+
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
+  @Put(':factureId/lignes')
+  async fixerLignes(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+    @Body(new ZodBody(lignesSchema)) body: z.infer<typeof lignesSchema>,
+  ) {
+    await this.factures.fixerLignes(operationId, factureId, body.lignes);
+    return this.lecture.recontroler(operationId, factureId);
+  }
+
+  /** Le visa de la direction des travaux — elle seule, là où elle est nommée. */
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
+  @Post(':factureId/visa-direction-travaux')
+  @HttpCode(200)
+  viser(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('factureId', ParseIntPipe) factureId: number,
+    @Body(new ZodBody(visaSchema)) body: z.infer<typeof visaSchema>,
+  ) {
+    return this.lecture.viserDirectionTravaux(
+      operationId,
+      factureId,
+      body.decision,
+      body.commentaire ?? null,
+    );
+  }
 
   @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
   @Get()
@@ -99,12 +235,15 @@ export class FacturesController {
 
   @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
   @Patch(':factureId')
-  modifier(
+  async modifier(
     @Param('operationId', ParseIntPipe) operationId: number,
     @Param('factureId', ParseIntPipe) factureId: number,
     @Body(new ZodBody(factureSchema.partial())) body: Partial<z.infer<typeof factureSchema>>,
   ) {
-    return this.factures.modifier(operationId, factureId, body);
+    const facture = await this.factures.modifier(operationId, factureId, body);
+    // Une correction humaine relance le contrôle : le rapport suit les chiffres.
+    await this.lecture.recontroler(operationId, factureId);
+    return facture;
   }
 
   /**
@@ -158,10 +297,9 @@ export class FacturesController {
   /**
    * Validation humaine — le seul chemin vers la colonne « facturé ».
    *
-   * Le schéma ne porte qu'un validateur (`validePar`) : le circuit à plusieurs
-   * niveaux du plan est ici assuré par les rôles et les statuts, et tracé
-   * transition par transition dans `AuditLog`. Un registre formel de plusieurs
-   * approbateurs par facture demanderait une extension du modèle.
+   * C'est l'approbation du promoteur. Quand l'opération a nommé une direction
+   * des travaux, son visa favorable la précède (`facture_visas`) ; la
+   * comptabilité règle ensuite.
    */
   @Roles('OWNER', 'ADMIN', 'CHEF_PROJET', 'COMPTABILITE')
   @RequireOperationAccess({ level: 'OPERATE', module: 'FACTURES' })
