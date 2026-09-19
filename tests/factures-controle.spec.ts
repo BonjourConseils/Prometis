@@ -39,7 +39,7 @@ const base = (): EntreeControle => ({
     avenants: D('74500'),
     retenueGarantiePct: D('10'),
     cfc: { code: '211', libelle: 'Maçonnerie' },
-    perimetre: ['211'],
+    perimetre: ['211', '211.31'],
     dejaFacture: D('670648'),
     enAttente: { nombre: 0, montant: D(0) },
   },
@@ -144,6 +144,12 @@ describe('les autres contrôles', () => {
     expect(codes).toContain('arithmetique');
   });
 
+  it('un budget non détaillé ne permet pas de juger un poste plus fin', () => {
+    const e = base();
+    e.contrat!.perimetre = ['211'];
+    expect(controler(e).constats.some((c) => c.code === 'poste_inconnu')).toBe(false);
+  });
+
   it('un poste relevant d’un autre contrat est nommé', () => {
     const e = base();
     e.facture.lignes = [{ designation: 'Menuiseries', codeCfc: '221.1', montant: D('1000') }];
@@ -217,6 +223,7 @@ describe('lecture ancrée', () => {
     expect(a.champs.dateFacture.ancrage).toBe('ancree');
     expect(a.champs.montantHT.ancrage).toBe('ancree');
     expect(a.champs.montantTTC.ancrage).toBe('proposee');
+    expect(a.champs.tvaPct.ancrage).toBe('ancree');
     expect(a.champs.ide.ancrage).toBe('absente');
     expect(a.champs.type.ancrage).toBe('proposee');
   });

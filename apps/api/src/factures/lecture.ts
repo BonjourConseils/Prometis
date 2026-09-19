@@ -290,11 +290,11 @@ export function ancrer(
         ? { valeur: l.type, ancrage: 'proposee', extrait: null }
         : { valeur: null, ancrage: 'absente', extrait: null },
       montantHT: champ(l.montantHT, source),
-      tvaPct: champ(l.tvaPct, source),
+      tvaPct: champPourcent(l.tvaPct, source),
       montantTVA: champ(l.montantTVA, source),
       montantTTC: champ(l.montantTTC, source),
       retenueGarantie: champ(l.retenueGarantie, source),
-      retenueGarantiePct: champ(l.retenueGarantiePct, source),
+      retenueGarantiePct: champPourcent(l.retenueGarantiePct, source),
       acomptesDeduits: champ(l.acomptesDeduits, source),
       referenceContrat: champ(l.referenceContrat, source),
       iban: local.iban
@@ -310,6 +310,23 @@ export function ancrer(
       montant: x.montant,
       ancrage: estAncree(x.montant, source) ? 'ancree' : 'proposee',
     })),
+  };
+}
+
+/** Un taux est ancré s'il figure suivi de « % » : « 8.1 % », « 8,1% », « 10 % ». */
+function champPourcent(valeur: number | null, source: string): Champ<number> {
+  if (valeur === null) return { valeur: null, ancrage: 'absente', extrait: null };
+  const n = String(valeur).replace('.', '[.,]');
+  const m = new RegExp(`(^|[^0-9])${n}0?\\s?%`).exec(source);
+  return {
+    valeur,
+    ancrage: m ? 'ancree' : 'proposee',
+    extrait: m
+      ? source
+          .slice(Math.max(0, m.index - 30), m.index + m[0].length + 10)
+          .replace(/\s+/g, ' ')
+          .trim()
+      : null,
   };
 }
 

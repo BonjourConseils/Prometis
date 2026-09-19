@@ -143,7 +143,14 @@ export class OcrService {
           .filter((f) => f.startsWith('page') && f.endsWith('.png'))
           .sort();
         const lus: string[] = [];
-        for (const image of images) lus.push(await this.ocr(join(dossier, image)));
+        try {
+          for (const image of images) lus.push(await this.ocr(join(dossier, image)));
+        } catch (e) {
+          // Pas d'OCR sur ce serveur, mais une couche texte, même mince : on
+          // la garde plutôt que d'échouer — la relecture humaine fera le reste.
+          if (couche.trim()) return { texte: couche.trim(), methode: 'texte-pdf' };
+          throw e;
+        }
         const ocr = lus.join('\n\f\n').trim();
         return couche.trim()
           ? { texte: `${couche.trim()}\n\n${ocr}`, methode: 'texte-pdf+ocr' }

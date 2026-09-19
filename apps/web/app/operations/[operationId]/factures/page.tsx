@@ -11,6 +11,7 @@ import {
   EnregistrerPaiement,
   ValiderFacture,
 } from './saisie';
+import { RafraichirPendantLecture, ZoneDepot } from './capture';
 
 interface NoeudBudget {
   id: number;
@@ -47,6 +48,9 @@ interface Facture {
   cfcNode: { id: number; code: string; libelle: string } | null;
   contrat: { id: number; reference: string | null } | null;
   paiements: { id: number; montant: string; dateValeur: string }[];
+  source: string;
+  lectureErreur: string | null;
+  controles: { constats: { gravite: string }[] } | null;
 }
 
 interface Operation {
@@ -132,6 +136,9 @@ export default async function FacturesPage({
   }
 
   const aValider = factures.filter((f) => f.statut === 'RECUE' || f.statut === 'A_VALIDER');
+  const enLecture = factures.some((f) => f.statut === 'EN_LECTURE');
+  const compte = (f: Facture, g: string) =>
+    f.controles?.constats.filter((c) => c.gravite === g).length ?? 0;
 
   const id = Number(operationId);
   const postes = aplatirPostes(budget?.arbre ?? []);
@@ -156,6 +163,18 @@ export default async function FacturesPage({
         <span aria-hidden="true">›</span> Factures
       </div>
 
+      <RafraichirPendantLecture actif={enLecture} />
+
+      <section>
+        <h2>Recevoir des factures</h2>
+        <p className="note">
+          Déposez le PDF reçu ou photographiez la facture papier : Prometis la lit, la rapproche du
+          contrat et la contrôle — cumul, avenants, retenue de garantie, postes hors contrat, compte
+          bancaire. Rien n&apos;est imputé sans validation humaine.
+        </p>
+        <ZoneDepot operationId={id} />
+      </section>
+
       <section>
         <h2>Factures fournisseurs</h2>
         <p className="note">
@@ -176,6 +195,7 @@ export default async function FacturesPage({
                   <th className="droite">HT</th>
                   <th className="droite">TTC</th>
                   <th className="droite">Payé</th>
+                  <th>Contrôle</th>
                   <th>Statut</th>
                   <th>Traitement</th>
                 </tr>
@@ -186,7 +206,9 @@ export default async function FacturesPage({
                   return (
                     <tr key={f.id}>
                       <td>
-                        <strong>{f.numero ?? `#${f.id}`}</strong>
+                        <Link href={`/operations/${operationId}/factures/${f.id}`}>
+                          <strong>{f.numero ?? `#${f.id}`}</strong>
+                        </Link>
                         <br />
                         <span className="meta">
                           {date(f.dateFacture)} · {lisible(f.type)}
@@ -217,6 +239,29 @@ export default async function FacturesPage({
                       <td className="droite">{montant(f.montantHT)}</td>
                       <td className="droite">{montant(f.montantTTC)}</td>
                       <td className="droite">{paye > 0 ? montant(String(paye)) : '—'}</td>
+                      <td>
+                        {f.statut === 'EN_LECTURE' ? (
+                          <span className="meta">lecture en cours…</span>
+                        ) : f.lectureErreur ? (
+                          <span className="ko">{f.lectureErreur}</span>
+                        ) : f.controles ? (
+                          <Link href={`/operations/${operationId}/factures/${f.id}`}>
+                            {compte(f, 'critique') > 0 && (
+                              <span className="badge danger">{compte(f, 'critique')} critique</span>
+                            )}
+                            {compte(f, 'attention') > 0 && (
+                              <span className="badge alerte">
+                                {compte(f, 'attention')} à vérifier
+                              </span>
+                            )}
+                            {compte(f, 'critique') + compte(f, 'attention') === 0 && (
+                              <span className="badge succes">conforme</span>
+                            )}
+                          </Link>
+                        ) : (
+                          <span className="meta">—</span>
+                        )}
+                      </td>
                       <td className={CLASSE_STATUT[f.statut] ?? ''}>
                         {LIBELLE_STATUT[f.statut] ?? lisible(f.statut)}
                       </td>

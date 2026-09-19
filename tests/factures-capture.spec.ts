@@ -42,7 +42,7 @@ async function deposer(
   token = christophe,
 ) {
   const form = new FormData();
-  for (const f of fichiers) form.append('fichiers', new Blob([f.octets], { type: f.type }), f.nom);
+  for (const f of fichiers) form.append('fichiers', new Blob([new Uint8Array(f.octets)], { type: f.type }), f.nom);
   const res = await fetch(`${API}/operations/${operationId}/factures/depots`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },

@@ -1389,3 +1389,48 @@ td.avertir {
   flex-wrap: wrap;
   gap: 4px 14px;
 }
+
+/* --- Contrôle des factures ---------------------------------------- */
+.zone-depot-bloc {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.zone-depot {
+  width: 100%;
+  border: 2px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 28px 16px;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  cursor: pointer;
+}
+.zone-depot.survol {
+  border-color: var(--text-muted);
+  background: var(--warning-bg);
+}
+.resultats-depot {
+  margin: 0;
+  padding-left: 18px;
+}
+.rapport-facture li {
+  margin: 6px 0;
+}
+.constat {
+  border-left: 4px solid var(--border-default);
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+.constat.critique {
+  border-left-color: #b42318;
+}
+.constat.attention {
+  border-left-color: var(--warning-fg);
+}
+.ancrage-proposee {
+  color: var(--warning-fg);
+}
+.ancrage-absente {
+  color: var(--text-muted);
+}

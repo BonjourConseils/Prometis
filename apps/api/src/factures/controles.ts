@@ -275,6 +275,10 @@ export function controler(e: EntreeControle): Rapport {
       const dansPerimetre = k.perimetre.some((p) => couvre(p, code));
       const noeud = e.arbre.find((n) => n.code === code);
       if (dansPerimetre && noeud) continue;
+      // Un poste plus fin que le budget ne dit rien si le budget ne détaille
+      // pas le poste du contrat : on ne peut juger que ce qu'on connaît.
+      const detaille = k.perimetre.length > 1;
+      if (dansPerimetre && !detaille) continue;
       signales.add(code);
       if (!dansPerimetre) {
         const ailleurs = e.arbre.find((n) => couvre(n.code, code) && n.contrat);

@@ -268,11 +268,14 @@ export function ValiderFacture({
   factureId,
   postes,
   contrats,
+  critiques = [],
 }: {
   operationId: number;
   factureId: number;
   postes: Poste[];
   contrats: ContratChoisi[];
+  /** Constats critiques du contrôle : ils exigent une confirmation explicite. */
+  critiques?: string[];
 }) {
   return (
     <Repliable libelle="Valider">
@@ -282,6 +285,7 @@ export function ValiderFacture({
           factureId={factureId}
           postes={postes}
           contrats={contrats}
+          critiques={critiques}
           fermer={fermer}
         />
       )}
@@ -294,12 +298,14 @@ function FormulaireValidation({
   factureId,
   postes,
   contrats,
+  critiques,
   fermer,
 }: {
   operationId: number;
   factureId: number;
   postes: Poste[];
   contrats: ContratChoisi[];
+  critiques: string[];
   fermer: () => void;
 }) {
   const { envoyer, erreur, enCours } = useEnvoi();
@@ -371,11 +377,17 @@ function FormulaireValidation({
           </select>
         </label>
       </div>
-      {controle?.depasse && (
+      {(controle?.depasse || critiques.length > 0) && (
         <label className="case">
           <input name="forcer" type="checkbox" />
           <span>
-            Valider malgré le dépassement
+            {critiques.length > 0 && (
+              <>
+                {critiques.join(' · ')}
+                <br />
+              </>
+            )}
+            Valider malgré {controle?.depasse ? 'le dépassement' : 'ces constats'}
             <span className="meta">Le passage en force est tracé dans la piste d&apos;audit.</span>
           </span>
         </label>
