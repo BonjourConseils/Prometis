@@ -73,9 +73,9 @@ describe('les portes sans session', () => {
   });
 
   it('passe quotidienne sans secret : 401', async () => {
-    const res = await fetch(`${API}/internal/facturation/passe-quotidienne`, { method: 'POST' });
+    const res = await fetch(`${API}/internal/passe-quotidienne`, { method: 'POST' });
     expect(res.status).toBe(401);
-    const res2 = await fetch(`${API}/internal/facturation/passe-quotidienne`, {
+    const res2 = await fetch(`${API}/internal/passe-quotidienne`, {
       method: 'POST',
       headers: { 'x-passe-secret': 'devine' },
     });

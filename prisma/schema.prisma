@@ -888,16 +888,24 @@ enum SoumissionStatut {
 
 /// Appel d'offres pour un poste CFC / corps de métier.
 model Soumission {
-  id          Int              @id @default(autoincrement())
-  operationId Int              @map("operation_id")
-  cfcNodeId   Int?             @map("cfc_node_id")
-  intitule    String
-  corpsMetier String?          @map("corps_metier")
-  statut      SoumissionStatut @default(BROUILLON)
-  dateEnvoi   DateTime?        @map("date_envoi")
-  dateLimite  DateTime?        @map("date_limite")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id             Int              @id @default(autoincrement())
+  operationId    Int              @map("operation_id")
+  cfcNodeId      Int?             @map("cfc_node_id")
+  intitule       String
+  corpsMetier    String?          @map("corps_metier")
+  statut         SoumissionStatut @default(BROUILLON)
+  dateEnvoi      DateTime?        @map("date_envoi")
+  dateLimite     DateTime?        @map("date_limite")
+  /// Le dossier envoyé aux entreprises : ce qu'on demande, et à quelles conditions.
+  descriptif     String?          @db.Text
+  conditions     String?          @db.Text
+  delaiExecution String?          @map("delai_execution")
+  /// Offres déposées par l'espace entreprise : invisibles au promoteur avant
+  /// la date limite. Ouvertes toutes ensemble — aucune ne peut s'aligner sur
+  /// une autre, et personne ne peut en être soupçonné.
+  offresScellees Boolean          @default(true) @map("offres_scellees")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
   operation    Operation              @relation(fields: [operationId], references: [id], onDelete: Cascade)
   cfcNode      CfcNode?               @relation(fields: [cfcNodeId], references: [id])
@@ -905,6 +913,8 @@ model Soumission {
   offres       Offre[]
   adjudication Adjudication?
   documents    Document[]
+  criteres     CritereSoumission[]
+  questions    QuestionSoumission[]
 
   @@index([operationId])
   @@map("soumissions")
@@ -917,9 +927,25 @@ model SoumissionInvitation {
   entrepriseId Int       @map("entreprise_id")
   dateEnvoi    DateTime? @map("date_envoi")
   aRepondu     Boolean   @default(false) @map("a_repondu")
+  /// L'adresse à laquelle l'invitation est partie — figée : changer l'adresse
+  /// de l'entreprise ensuite ne redirige pas un lien déjà envoyé.
+  email        String?
+  /// Empreinte du lien d'accès à l'espace entreprise. Le lien lui-même n'est
+  /// jamais stocké : une copie de la base ne donne accès à aucune consultation.
+  jetonHash    String?   @unique @map("jeton_hash")
+  revoqueeLe   DateTime? @map("revoquee_le")
+  consulteeLe  DateTime? @map("consultee_le")
+  /// Code à usage unique envoyé par e-mail : le lien seul ne suffit pas.
+  codeHash     String?   @map("code_hash")
+  codeExpireLe DateTime? @map("code_expire_le")
+  codeEssais   Int       @default(0) @map("code_essais")
+  relanceLe    DateTime? @map("relance_le")
+  refuseLe     DateTime? @map("refuse_le")
+  motifRefus   String?   @map("motif_refus")
 
-  soumission Soumission @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
-  entreprise Entreprise @relation(fields: [entrepriseId], references: [id])
+  soumission Soumission           @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  entreprise Entreprise           @relation(fields: [entrepriseId], references: [id])
+  questions  QuestionSoumission[]
 
   @@unique([soumissionId, entrepriseId])
   @@map("soumission_invitations")
@@ -933,6 +959,85 @@ enum OffreStatut {
   ECARTEE
 }
 
+enum OffreLigneType {
+  OPTION
+  VARIANTE
+}
+
+/// Une option (en plus de l'offre de base) ou une variante (à sa place).
+/// `retenue` se pose à l'adjudication : le montant adjugé en découle.
+model OffreLigne {
+  id        Int            @id @default(autoincrement())
+  offreId   Int            @map("offre_id")
+  type      OffreLigneType
+  libelle   String
+  montant   Decimal        @db.Decimal(12, 2)
+  retenue   Boolean        @default(false)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  offre Offre @relation(fields: [offreId], references: [id], onDelete: Cascade)
+
+  @@index([offreId])
+  @@map("offre_lignes")
+}
+
+/// Un critère d'adjudication et son poids. Le prix est un critère comme un
+/// autre, mais sa note se calcule : elle ne se saisit pas.
+model CritereSoumission {
+  id           Int      @id @default(autoincrement())
+  soumissionId Int      @map("soumission_id")
+  libelle      String
+  /// Pondération en pour-cent ; la somme des critères fait 100.
+  poids        Decimal  @db.Decimal(5, 2)
+  estPrix      Boolean  @default(false) @map("est_prix")
+  ordre        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  soumission Soumission  @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  notes      NoteOffre[]
+
+  @@index([soumissionId])
+  @@map("criteres_soumission")
+}
+
+/// La note d'une offre sur un critère, de 0 à 10, avec sa justification.
+model NoteOffre {
+  id          Int      @id @default(autoincrement())
+  offreId     Int      @map("offre_id")
+  critereId   Int      @map("critere_id")
+  note        Decimal  @db.Decimal(4, 2)
+  commentaire String?
+  /// Membership qui a noté.
+  noteParId   Int?     @map("note_par_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  offre   Offre             @relation(fields: [offreId], references: [id], onDelete: Cascade)
+  critere CritereSoumission @relation(fields: [critereId], references: [id], onDelete: Cascade)
+
+  @@unique([offreId, critereId])
+  @@map("notes_offres")
+}
+
+/// Une question d'un soumissionnaire, et la réponse. Publiée, la réponse part
+/// à TOUS les invités, sans le nom de celui qui a demandé : l'égalité de
+/// traitement entre soumissionnaires en dépend.
+model QuestionSoumission {
+  id           Int       @id @default(autoincrement())
+  soumissionId Int       @map("soumission_id")
+  invitationId Int?      @map("invitation_id")
+  question     String    @db.Text
+  reponse      String?   @db.Text
+  reponduLe    DateTime? @map("repondu_le")
+  publiee      Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  soumission Soumission            @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  invitation SoumissionInvitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
+  @@index([soumissionId])
+  @@map("questions_soumission")
+}
+
 /// Offre (prix) reçue d'une entreprise pour une soumission.
 model Offre {
   id            Int         @id @default(autoincrement())
@@ -943,11 +1048,16 @@ model Offre {
   statut        OffreStatut @default(ATTENDUE)
   dateReception DateTime?   @map("date_reception")
   note          String?
+  /// SAISIE (par le promoteur) ou PORTAIL (déposée par l'entreprise).
+  source        String      @default("SAISIE")
   createdAt     DateTime    @default(now()) @map("created_at")
 
   soumission   Soumission    @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
   entreprise   Entreprise    @relation(fields: [entrepriseId], references: [id])
   adjudication Adjudication?
+  lignes       OffreLigne[]
+  notes        NoteOffre[]
+  documents    Document[]
 
   @@index([soumissionId])
   @@map("offres")
@@ -1473,6 +1583,8 @@ model Document {
   operationId      Int? @map("operation_id")
   lotId            Int? @map("lot_id")
   soumissionId     Int? @map("soumission_id")
+  /// La pièce d'une offre (le PDF déposé par l'entreprise).
+  offreId          Int? @map("offre_id")
   contratId        Int? @map("contrat_id")
   factureId        Int? @map("facture_id")
   reservationId    Int? @map("reservation_id")
@@ -1488,6 +1600,7 @@ model Document {
   operation      Operation?      @relation(fields: [operationId], references: [id], onDelete: Cascade)
   lot            Lot?            @relation(fields: [lotId], references: [id])
   soumission     Soumission?     @relation(fields: [soumissionId], references: [id])
+  offre          Offre?          @relation(fields: [offreId], references: [id], onDelete: SetNull)
   contrat        Contrat?        @relation(fields: [contratId], references: [id])
   facture        Facture?        @relation(fields: [factureId], references: [id])
   reservation    Reservation?    @relation(fields: [reservationId], references: [id])

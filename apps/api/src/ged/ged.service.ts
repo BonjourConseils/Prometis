@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { DocumentCategorie } from '@prisma/client';
+import type { DocumentCategorie, Prisma } from '@prisma/client';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
@@ -19,12 +19,47 @@ export interface Rattachements {
   mandatCourtageId?: number | null;
   /** Notice, garantie, certificat d'un équipement du passeport. */
   equipementId?: number | null;
+  /** Le PDF d'une offre saisie par le promoteur (celles de l'espace entreprise y arrivent seules). */
+  offreId?: number | null;
 }
 
 export interface Fichier {
   nomOriginal: string;
   mimeType: string;
   contenu: Buffer;
+}
+
+/**
+ * Une offre déposée par l'espace entreprise, sous pli scellé, n'existe pas
+ * pour la GED avant la date limite : ni dans la liste, ni au téléchargement.
+ * Sans ce filtre, la GED serait la porte dérobée du scellé.
+ */
+function horsPlisScelles(maintenant: Date = new Date()): Prisma.DocumentWhereInput {
+  return {
+    OR: [
+      { offreId: null },
+      {
+        offre: {
+          is: {
+            OR: [
+              { source: { not: 'PORTAIL' } },
+              {
+                soumission: {
+                  is: {
+                    OR: [
+                      { offresScellees: false },
+                      { dateLimite: null },
+                      { dateLimite: { lte: maintenant } },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ],
+  };
 }
 
 @Injectable()
@@ -138,10 +173,16 @@ export class GedService {
           parcelleId: true,
           ppeId: true,
           mandatCourtageId: true,
+          offreId: true,
         },
       }),
     );
     if (!courant) throw new NotFoundException(`Document ${documentId} introuvable.`);
+    if (courant.offreId !== null) {
+      throw new BadRequestException(
+        'La pièce d’une offre ne se remplace que par l’entreprise, ou par une nouvelle saisie de l’offre.',
+      );
+    }
 
     // La racine de la chaîne, jamais un maillon : sinon les versions
     // formeraient un arbre au lieu d'une suite, et « dernière version » n'aurait
@@ -157,7 +198,7 @@ export class GedService {
 
     return this.db.run(async (tx) => {
       const derniere = await tx.document.aggregate({
-        where: { OR: [{ id: racineId }, { parentDocumentId: racineId }] },
+        where: { OR: [{ id: racineId }, { parentDocumentId: racineId }], AND: [horsPlisScelles()] },
         _max: { version: true },
       });
 
@@ -236,6 +277,7 @@ export class GedService {
             ? {}
             : { visibiliteExterne: filtres.visibiliteExterne }),
           ...rattachements,
+          AND: [horsPlisScelles()],
         },
         include: {
           _count: { select: { versions: true } },
@@ -270,7 +312,7 @@ export class GedService {
   async telecharger(operationId: number, documentId: number) {
     const document = await this.db.run((tx) =>
       tx.document.findFirst({
-        where: { id: documentId, operationId },
+        where: { id: documentId, operationId, AND: [horsPlisScelles()] },
         select: { id: true, fileName: true, filePath: true, mimeType: true, fileSize: true },
       }),
     );
@@ -297,9 +339,19 @@ export class GedService {
     return this.db.run(async (tx) => {
       const existant = await tx.document.findFirst({
         where: { id: documentId, operationId },
-        select: { id: true, visibiliteExterne: true, titre: true },
+        select: {
+          id: true,
+          visibiliteExterne: true,
+          titre: true,
+          offre: { select: { source: true } },
+        },
       });
       if (!existant) throw new NotFoundException(`Document ${documentId} introuvable.`);
+      if (existant.offre?.source === 'PORTAIL') {
+        throw new BadRequestException(
+          'Pièce déposée par une entreprise dans sa consultation : elle ne se modifie pas.',
+        );
+      }
 
       const document = await tx.document.update({ where: { id: documentId }, data: donnees });
 
@@ -337,10 +389,16 @@ export class GedService {
           titre: true,
           filePath: true,
           parentDocumentId: true,
+          offre: { select: { source: true } },
           _count: { select: { versions: true } },
         },
       });
       if (!document) throw new NotFoundException(`Document ${documentId} introuvable.`);
+      if (document.offre?.source === 'PORTAIL') {
+        throw new BadRequestException(
+          'Pièce déposée par une entreprise dans sa consultation : elle fait foi et ne se supprime pas.',
+        );
+      }
       if (document.parentDocumentId !== null) {
         throw new BadRequestException(
           "Cette pièce est une version d'un document : supprimer le document entier, ou " +
@@ -451,6 +509,19 @@ export class GedService {
           }),
       ],
       [
+        rattachements.offreId,
+        'offre',
+        () =>
+          tx.offre.findFirst({
+            where: {
+              id: rattachements.offreId!,
+              source: 'SAISIE',
+              soumission: { operationId },
+            },
+            select: { id: true },
+          }),
+      ],
+      [
         rattachements.equipementId,
         'équipement',
         () =>
@@ -509,6 +580,7 @@ function extraireRattachements(source: Rattachements): Rattachements {
     'ppeId',
     'mandatCourtageId',
     'equipementId',
+    'offreId',
   ];
   const retenu: Rattachements = {};
   for (const cle of cles) {

@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -16,6 +17,7 @@ import { montant, montantPositif, nombreDecimal } from '../common/zod-decimal';
 import { RequireModule, RequireOperationAccess, Roles } from '../auth/decorators';
 import { SoumissionsService } from './soumissions.service';
 import { ContratsService } from '../contrats/contrats.service';
+import { ConsultationService } from './consultation.service';
 
 const texteOptionnel = z.string().trim().min(1).max(500).nullish();
 
@@ -45,6 +47,57 @@ const soumissionSchema = z.object({
     .optional(),
   dateEnvoi: z.coerce.date().nullish(),
   dateLimite: z.coerce.date().nullish(),
+  descriptif: z.string().trim().max(20_000).nullish(),
+  conditions: z.string().trim().max(20_000).nullish(),
+  delaiExecution: z.string().trim().max(500).nullish(),
+  offresScellees: z.boolean().optional(),
+});
+
+const criteresSchema = z.object({
+  criteres: z
+    .array(
+      z.object({
+        libelle: z.string().trim().min(1).max(120),
+        poids: montantPositif,
+        estPrix: z.boolean().default(false),
+      }),
+    )
+    .max(10),
+});
+
+const notesSchema = z.object({
+  notes: z
+    .array(
+      z.object({
+        critereId: z.number().int().positive(),
+        note: nombreDecimal.refine((n) => n.greaterThanOrEqualTo(0) && n.lessThanOrEqualTo(10), {
+          message: 'Une note va de 0 à 10.',
+        }),
+        commentaire: z.string().trim().max(1000).nullish(),
+      }),
+    )
+    .max(10),
+});
+
+const lignesSchema = z.object({
+  lignes: z
+    .array(
+      z.object({
+        type: z.enum(['OPTION', 'VARIANTE']),
+        libelle: z.string().trim().min(1).max(200),
+        montant: montantPositif,
+      }),
+    )
+    .max(30),
+});
+
+const envoiSchema = z.object({
+  entrepriseIds: z.array(z.number().int().positive()).max(50).optional(),
+});
+
+const reponseSchema = z.object({
+  reponse: z.string().trim().min(1).max(5000),
+  publier: z.boolean().default(false),
 });
 
 const offreSchema = z.object({
@@ -58,6 +111,7 @@ const offreSchema = z.object({
 
 const adjudicationSchema = z.object({
   offreId: z.number().int().positive(),
+  lignesRetenues: z.array(z.number().int().positive()).max(30).optional(),
   commentaire: texteOptionnel,
 });
 
@@ -120,6 +174,7 @@ export class SoumissionsController {
   constructor(
     private readonly soumissions: SoumissionsService,
     private readonly contrats: ContratsService,
+    private readonly consultation: ConsultationService,
   ) {}
 
   // --- Soumissions -----------------------------------------------------
@@ -185,6 +240,110 @@ export class SoumissionsController {
     @Param('soumissionId', ParseIntPipe) soumissionId: number,
   ) {
     return this.soumissions.comparaison(operationId, soumissionId);
+  }
+
+  // --- Consultation : critères, notes, options, envoi, questions ------------
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'SOUMISSIONS' })
+  @Put('soumissions/:soumissionId/criteres')
+  fixerCriteres(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Body(new ZodBody(criteresSchema)) body: z.infer<typeof criteresSchema>,
+  ) {
+    return this.consultation.fixerCriteres(operationId, soumissionId, body.criteres);
+  }
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'SOUMISSIONS' })
+  @Put('soumissions/:soumissionId/offres/:offreId/notes')
+  noter(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Param('offreId', ParseIntPipe) offreId: number,
+    @Body(new ZodBody(notesSchema)) body: z.infer<typeof notesSchema>,
+  ) {
+    return this.consultation.noter(operationId, soumissionId, offreId, body.notes);
+  }
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'SOUMISSIONS' })
+  @Put('soumissions/:soumissionId/offres/:offreId/lignes')
+  fixerLignes(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Param('offreId', ParseIntPipe) offreId: number,
+    @Body(new ZodBody(lignesSchema)) body: z.infer<typeof lignesSchema>,
+  ) {
+    return this.consultation.fixerLignes(operationId, soumissionId, offreId, body.lignes);
+  }
+
+  /** L'IA lit le PDF de l'offre et propose montants et options — rien n'est enregistré. */
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'SOUMISSIONS' })
+  @Post('soumissions/:soumissionId/offres/:offreId/lecture')
+  @HttpCode(200)
+  lireOffre(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Param('offreId', ParseIntPipe) offreId: number,
+  ) {
+    return this.consultation.lireOffre(operationId, soumissionId, offreId);
+  }
+
+  // Envoyer engage la société auprès des entreprises : geste de gestion.
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'MANAGE', module: 'SOUMISSIONS' })
+  @Post('soumissions/:soumissionId/envoyer')
+  @HttpCode(200)
+  envoyer(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Body(new ZodBody(envoiSchema)) body: z.infer<typeof envoiSchema>,
+  ) {
+    return this.consultation.envoyer(operationId, soumissionId, body.entrepriseIds);
+  }
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'MANAGE', module: 'SOUMISSIONS' })
+  @Post('soumissions/:soumissionId/invitations/:invitationId/revoquer')
+  @HttpCode(200)
+  revoquer(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+  ) {
+    return this.consultation.revoquer(operationId, soumissionId, invitationId);
+  }
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'SOUMISSIONS' })
+  @Get('soumissions/:soumissionId/questions')
+  questions(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+  ) {
+    return this.consultation.questions(operationId, soumissionId);
+  }
+
+  @RequireModule('SOUMISSIONS')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'SOUMISSIONS' })
+  @Post('soumissions/:soumissionId/questions/:questionId/reponse')
+  @HttpCode(200)
+  repondre(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('soumissionId', ParseIntPipe) soumissionId: number,
+    @Param('questionId', ParseIntPipe) questionId: number,
+    @Body(new ZodBody(reponseSchema)) body: z.infer<typeof reponseSchema>,
+  ) {
+    return this.consultation.repondre(
+      operationId,
+      soumissionId,
+      questionId,
+      body.reponse,
+      body.publier,
+    );
   }
 
   // --- Adjudication -----------------------------------------------------

@@ -8,21 +8,16 @@ import {
   Put,
   Query,
   Req,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
-import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { NoWorkspace, Public, Roles } from '../auth/decorators';
 import { RequestContext } from '../context/request-context';
 import { ZodBody } from '../common/zod-body.pipe';
 import { ExploitantGuard } from '../modules/exploitant.guard';
-import { loadEnv } from '../config/env';
 import { FacturationService } from './facturation.service';
-
-const env = loadEnv();
 
 const demarrerSchema = z.object({
   modules: z.array(z.string().min(1).max(40)).min(1).max(10),
@@ -105,35 +100,6 @@ export class WebhookStripeController {
   @HttpCode(200)
   recevoir(@Req() requete: RawBodyRequest<Request>) {
     return this.facturation.recevoirWebhook(requete.rawBody, requete.header('stripe-signature'));
-  }
-}
-
-function egal(a: string, b: string): boolean {
-  const ta = Buffer.from(a);
-  const tb = Buffer.from(b);
-  return ta.length === tb.length && timingSafeEqual(ta, tb);
-}
-
-/**
- * La passe quotidienne, appelée par le cron du serveur.
- *
- * Sa barrière est le secret, vérifié ici — pas le nom d'hôte : le cron
- * l'appelle par le réseau interne, et un contrôle d'hôte l'aurait refusée
- * chaque nuit sans bruit (vécu, My New Job AI).
- */
-@Controller('internal/facturation')
-export class PasseQuotidienneController {
-  constructor(private readonly facturation: FacturationService) {}
-
-  @Public()
-  @Post('passe-quotidienne')
-  @HttpCode(200)
-  passe(@Req() requete: Request) {
-    const recu = requete.header('x-passe-secret') ?? '';
-    if (!env.PASSE_QUOTIDIENNE_SECRET || !egal(recu, env.PASSE_QUOTIDIENNE_SECRET)) {
-      throw new UnauthorizedException();
-    }
-    return this.facturation.passeQuotidienne();
   }
 }
 

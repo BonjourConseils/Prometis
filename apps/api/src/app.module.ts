@@ -19,10 +19,14 @@ import { PasseportModule } from './passeport/passeport.module';
 import { FacturationModule } from './facturation/facturation.module';
 import {
   FacturationController,
-  PasseQuotidienneController,
   TarifsController,
   WebhookStripeController,
 } from './facturation/facturation.controller';
+import {
+  PasseQuotidienneController,
+  PasseQuotidienneModule,
+} from './passe-quotidienne/passe-quotidienne';
+import { EspaceEntrepriseController } from './soumissions/espace-entreprise.controller';
 import { PasseportController } from './passeport/passeport.controller';
 import { ExploitantController, ModulesController } from './modules/modules.controller';
 import { GedModule } from './ged/ged.module';
@@ -75,6 +79,7 @@ import { CourtageController, TresorerieController } from './courtage/courtage.co
     ModulesModule,
     PasseportModule,
     FacturationModule,
+    PasseQuotidienneModule,
     GedModule,
     SeancesModule,
     CourtageModule,
@@ -131,6 +136,9 @@ export class AppModule implements NestModule {
       WebhookStripeController,
       PasseQuotidienneController,
       TarifsController,
+      // L'espace entreprise est `@Public` : le middleware lui donne l'adresse
+      // du client (limite de tentatives, journal), rien d'autre.
+      EspaceEntrepriseController,
     );
   }
 }

@@ -3,7 +3,9 @@ import { Prisma, type OffreStatut, type SoumissionStatut } from '@prisma/client'
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
+import { ConsultationService } from './consultation.service';
 import { comparerOffres, type OffreSource } from './comparaison';
+import { offreScellee, scorer } from './consultation-regles';
 
 export interface DonneesEntreprise {
   nom: string;
@@ -21,6 +23,10 @@ export interface DonneesSoumission {
   statut?: SoumissionStatut;
   dateEnvoi?: Date | null;
   dateLimite?: Date | null;
+  descriptif?: string | null;
+  conditions?: string | null;
+  delaiExecution?: string | null;
+  offresScellees?: boolean;
 }
 
 export interface DonneesOffre {
@@ -39,6 +45,7 @@ export class SoumissionsService {
   constructor(
     private readonly db: TenantPrismaService,
     private readonly audit: AuditService,
+    private readonly consultation: ConsultationService,
   ) {}
 
   // ===================================================================
@@ -165,7 +172,8 @@ export class SoumissionsService {
     soumissionId: number,
     donnees: Partial<DonneesSoumission>,
   ) {
-    return this.db.run(async (tx) => {
+    let dateDeplacee: Date | null | undefined;
+    const resultat = await this.db.run(async (tx) => {
       const avant = await this.soumissionDeLOperation(tx, operationId, soumissionId);
       if (avant.statut === 'ADJUGEE') {
         throw new BadRequestException(
@@ -173,10 +181,38 @@ export class SoumissionsService {
         );
       }
 
+      const actuelle = await tx.soumission.findUniqueOrThrow({ where: { id: soumissionId } });
+      const envoyee = ['ENVOYEE', 'OUVERTE'].includes(actuelle.statut);
+      if (envoyee && donnees.offresScellees === false && actuelle.offresScellees) {
+        // Desceller en cours de consultation ouvrirait les offres déjà
+        // déposées avant l'heure promise aux entreprises.
+        throw new BadRequestException(
+          'Les entreprises ont été invitées sous pli scellé : ce choix ne se change plus.',
+        );
+      }
+      if (
+        envoyee &&
+        donnees.dateLimite !== undefined &&
+        actuelle.dateLimite &&
+        (!donnees.dateLimite || donnees.dateLimite < actuelle.dateLimite)
+      ) {
+        // Avancer ou lever la date limite après l'envoi ouvrirait les plis
+        // avant l'heure annoncée aux entreprises. On peut la repousser.
+        throw new BadRequestException(
+          'La date limite annoncée aux entreprises ne s’avance plus : elle peut seulement être repoussée.',
+        );
+      }
       const soumission = await tx.soumission.update({
         where: { id: soumissionId },
         data: donnees,
       });
+      if (
+        envoyee &&
+        donnees.dateLimite !== undefined &&
+        donnees.dateLimite?.getTime() !== actuelle.dateLimite?.getTime()
+      ) {
+        dateDeplacee = donnees.dateLimite ?? null;
+      }
       await this.audit.enregistrer(tx, {
         action: 'soumission.modifiee',
         entite: 'Soumission',
@@ -185,6 +221,18 @@ export class SoumissionsService {
       });
       return soumission;
     });
+    // Un délai déplacé se dit à tous les invités, dans les mêmes termes.
+    if (dateDeplacee !== undefined) {
+      await this.consultation.informer(
+        RequestContext.requireSocieteId(),
+        soumissionId,
+        'Date limite modifiée',
+        dateDeplacee
+          ? `La date limite de remise des offres est désormais fixée au ${dateDeplacee.toLocaleString('fr-CH', { timeZone: 'Europe/Zurich', dateStyle: 'long', timeStyle: 'short' })}.`
+          : 'La date limite de remise des offres a été levée.',
+      );
+    }
+    return resultat;
   }
 
   /** Invite une entreprise à soumissionner. Idempotent : réinviter ne duplique pas. */
@@ -242,8 +290,23 @@ export class SoumissionsService {
 
       const existante = await tx.offre.findFirst({
         where: { soumissionId, entrepriseId: donnees.entrepriseId },
-        select: { id: true },
+        select: { id: true, source: true },
       });
+      if (existante?.source === 'PORTAIL') {
+        const etat = await tx.soumission.findUniqueOrThrow({ where: { id: soumissionId } });
+        if (offreScellee(etat, existante)) {
+          throw new BadRequestException(
+            'Cette entreprise a déposé son offre elle-même : elle est scellée jusqu’à la date limite.',
+          );
+        }
+        // Après ouverture, le promoteur peut changer le statut ou la note —
+        // jamais les montants que l'entreprise a déposés.
+        if (donnees.montant !== undefined || donnees.remisePct !== undefined) {
+          throw new BadRequestException(
+            'Les montants d’une offre déposée par l’entreprise ne se modifient pas.',
+          );
+        }
+      }
 
       const offre = existante
         ? await tx.offre.update({ where: { id: existante.id }, data: donnees })
@@ -296,7 +359,15 @@ export class SoumissionsService {
 
       const offres = await tx.offre.findMany({
         where: { soumissionId },
-        include: { entreprise: { select: { id: true, nom: true } } },
+        include: {
+          entreprise: { select: { id: true, nom: true } },
+          lignes: { orderBy: { id: 'asc' } },
+          notes: true,
+          documents: {
+            where: { isCourant: true },
+            select: { id: true, fileName: true, createdAt: true },
+          },
+        },
         orderBy: { id: 'asc' },
       });
 
@@ -332,15 +403,45 @@ export class SoumissionsService {
       return { soumission, offres, budgete };
     });
 
+    // Une offre scellée entre dans le tableau sans son contenu : on sait
+    // qu'elle est là, on ne sait pas ce qu'elle dit.
+    const maintenant = new Date();
+    const scellees = new Set(
+      offres.filter((o) => offreScellee(soumission, o, maintenant)).map((o) => o.id),
+    );
     const sources: OffreSource[] = offres.map((o) => ({
       id: o.id,
       entrepriseId: o.entrepriseId,
       entrepriseNom: o.entreprise.nom,
-      montant: o.montant,
-      remisePct: o.remisePct,
+      montant: scellees.has(o.id) ? null : o.montant,
+      remisePct: scellees.has(o.id) ? null : o.remisePct,
       statut: o.statut,
       dateReception: o.dateReception,
     }));
+    const comparaison = comparerOffres(sources, budgete);
+    const criteres = await this.db.run((tx) =>
+      tx.critereSoumission.findMany({ where: { soumissionId }, orderBy: { ordre: 'asc' } }),
+    );
+    const invitations = await this.db.run((tx) =>
+      tx.soumissionInvitation.findMany({
+        where: { soumissionId },
+        select: {
+          id: true,
+          entrepriseId: true,
+          email: true,
+          dateEnvoi: true,
+          consulteeLe: true,
+          aRepondu: true,
+          relanceLe: true,
+          refuseLe: true,
+          motifRefus: true,
+          revoqueeLe: true,
+          jetonHash: true,
+          entreprise: { select: { nom: true, email: true } },
+        },
+        orderBy: { id: 'asc' },
+      }),
+    );
 
     return {
       soumission: {
@@ -351,8 +452,39 @@ export class SoumissionsService {
         dateLimite: soumission.dateLimite,
         cfcNode: soumission.cfcNode,
       },
+      dossier: {
+        descriptif: soumission.descriptif,
+        conditions: soumission.conditions,
+        delaiExecution: soumission.delaiExecution,
+        offresScellees: soumission.offresScellees,
+        dateEnvoi: soumission.dateEnvoi,
+      },
       adjudication: soumission.adjudication,
-      ...comparerOffres(sources, budgete),
+      criteres,
+      invitations: invitations.map(({ jetonHash, ...i }) => ({ ...i, lienEnvoye: !!jetonHash })),
+      ...comparaison,
+      offres: comparaison.offres.map((c) => {
+        const o = offres.find((x) => x.id === c.id)!;
+        const scellee = scellees.has(o.id);
+        const score = scorer(o.id, criteres, new Map(o.notes.map((n) => [n.critereId, n.note])), {
+          net: c.motifExclusion ? null : c.montantNet,
+          moinsDisant: comparaison.moinsDisant,
+        });
+        return {
+          ...c,
+          source: o.source,
+          scellee,
+          motifExclusion: scellee ? 'Scellée jusqu’à la date limite' : c.motifExclusion,
+          note: scellee ? null : o.note,
+          lignes: scellee ? [] : o.lignes,
+          documents: scellee ? [] : o.documents,
+          notes: scellee ? [] : o.notes,
+          score: scellee || !criteres.length ? null : score,
+        };
+      }),
+      // Tant qu'une offre est scellée, rien ne s'adjuge : ce serait décider
+      // sans avoir tout lu.
+      adjudicable: scellees.size === 0,
     };
   }
 }

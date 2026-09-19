@@ -53,6 +53,7 @@ const depotSchema = z.object({
   ppeId: identifiant,
   mandatCourtageId: identifiant,
   equipementId: identifiant,
+  offreId: identifiant,
 });
 
 const modificationSchema = z.object({

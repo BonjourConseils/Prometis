@@ -688,7 +688,7 @@ par module**. Code : `apps/api/src/facturation/` (`regles.ts` pur et testé, `fa
   `evenements_stripe`, abonnement **relu par le SDK épinglé** (`2026-08-26.dahlia` : la fin de
   période est sur les éléments). Société retrouvée par `app.societe_pour_client_stripe()`.
 - **Tout passe par `ModulesService.changer`** (source `STRIPE`) — idempotent pour Stripe.
-- **J-3** : webhook `trial_will_end` ET passe quotidienne (`POST /internal/facturation/passe-quotidienne`,
+- **J-3** : webhook `trial_will_end` ET passe quotidienne (`POST /internal/passe-quotidienne`,
   secret en en-tête, trace dans `passes_quotidiennes`), même clé dans `emails_facturation`. Le
   cron du serveur est à poser au déploiement.
 - **Tests Stripe réels** : à faire en mode test avec les clés du gérant — les tests du dépôt

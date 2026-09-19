@@ -289,11 +289,11 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 48 tables tenant du modèle', async () => {
+  it('couvre les 52 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(48);
+    expect(Number(rows[0]!.count)).toBe(52);
   });
 
   it('les taux de frais d’acquisition sont propres à chaque société', async () => {
@@ -335,6 +335,45 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
       if (ligne.stripeCustomerId === 'cus_test_rls_isolation') {
         await ownerDb.abonnementSociete.delete({ where: { id: ligne.id } });
       }
+    }
+  });
+
+  it('critères, notes, options et questions d’une consultation ne traversent pas les sociétés', async () => {
+    // Ce qu'un promoteur demande, comment il note et ce que les entreprises
+    // lui ont demandé : rien de cela ne se lit depuis une autre société.
+    const soumission = await ownerDb.soumission.findFirstOrThrow({
+      where: { operation: { societeId: CB } },
+      include: { offres: { take: 1 } },
+    });
+    const critere = await ownerDb.critereSoumission.create({
+      data: { soumissionId: soumission.id, libelle: 'test-rls', poids: 100, estPrix: false },
+    });
+    const question = await ownerDb.questionSoumission.create({
+      data: { soumissionId: soumission.id, question: 'test-rls ?' },
+    });
+    const offre = soumission.offres[0];
+    const ligne = offre
+      ? await ownerDb.offreLigne.create({
+          data: { offreId: offre.id, type: 'OPTION', libelle: 'test-rls', montant: 1 },
+        })
+      : null;
+    try {
+      await asTenant(CONSTRUCTA, async (tx) => {
+        expect(await tx.critereSoumission.count({ where: { id: critere.id } })).toBe(0);
+        expect(await tx.questionSoumission.count({ where: { id: question.id } })).toBe(0);
+        if (ligne) expect(await tx.offreLigne.count({ where: { id: ligne.id } })).toBe(0);
+      });
+      await expect(
+        asTenant(CONSTRUCTA, (tx) =>
+          tx.questionSoumission.create({
+            data: { soumissionId: soumission.id, question: 'intrusion' },
+          }),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await ownerDb.critereSoumission.delete({ where: { id: critere.id } });
+      await ownerDb.questionSoumission.delete({ where: { id: question.id } });
+      if (ligne) await ownerDb.offreLigne.delete({ where: { id: ligne.id } });
     }
   });
 

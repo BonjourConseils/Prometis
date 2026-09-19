@@ -755,27 +755,15 @@ export class FacturationService {
     );
   }
 
-  async passeQuotidienne() {
-    const trace = await this.prisma.passeQuotidienne.create({ data: {} });
+  /** Pour la passe quotidienne : les essais qui finissent dans trois jours. */
+  async avertirFinsEssai(): Promise<number> {
+    const essais = await this.prisma.$queryRaw<{ societe_id: number }[]>`
+      SELECT societe_id FROM app.essais_a_prevenir(${new Date(Date.now() + AVANCE_AVERTISSEMENT_MS)}::timestamp)`;
     let envoyes = 0;
-    try {
-      const essais = await this.prisma.$queryRaw<{ societe_id: number }[]>`
-        SELECT societe_id FROM app.essais_a_prevenir(${new Date(Date.now() + AVANCE_AVERTISSEMENT_MS)}::timestamp)`;
-      for (const { societe_id } of essais) {
-        if (await this.avertirFinEssai(societe_id)) envoyes++;
-      }
-      await this.prisma.passeQuotidienne.update({
-        where: { id: trace.id },
-        data: { fin: new Date(), envoyes },
-      });
-      return { passe: trace.id, essais: essais.length, envoyes };
-    } catch (e) {
-      await this.prisma.passeQuotidienne.update({
-        where: { id: trace.id },
-        data: { fin: new Date(), envoyes, erreur: (e as Error).message.slice(0, 500) },
-      });
-      throw e;
+    for (const { societe_id } of essais) {
+      if (await this.avertirFinEssai(societe_id)) envoyes++;
     }
+    return envoyes;
   }
 
   /**

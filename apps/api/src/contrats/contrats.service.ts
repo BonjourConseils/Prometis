@@ -3,8 +3,7 @@ import { Prisma, type ContratStatut } from '@prisma/client';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
-
-const CENT = new Prisma.Decimal(100);
+import { montantRetenu, offreScellee } from '../soumissions/consultation-regles';
 
 /** Délai de garantie SIA 118 : deux ans à compter de la réception. */
 const ANNEES_GARANTIE = 2;
@@ -68,7 +67,7 @@ export class ContratsService {
   async adjuger(
     operationId: number,
     soumissionId: number,
-    donnees: { offreId: number; commentaire?: string | null },
+    donnees: { offreId: number; commentaire?: string | null; lignesRetenues?: number[] },
   ) {
     const membershipId = RequestContext.requireWorkspace().membershipId;
 
@@ -88,8 +87,16 @@ export class ContratsService {
 
       const offre = await tx.offre.findFirst({
         where: { id: donnees.offreId, soumissionId },
-        include: { entreprise: { select: { id: true, nom: true } } },
+        include: { entreprise: { select: { id: true, nom: true } }, lignes: true },
       });
+      // Rien ne s'adjuge tant qu'une offre est scellée : ce serait décider
+      // sans avoir tout lu.
+      const offres = await tx.offre.findMany({ where: { soumissionId }, select: { source: true } });
+      if (offres.some((o) => offreScellee(soumission, o))) {
+        throw new BadRequestException(
+          'Des offres sont scellées jusqu’à la date limite : l’adjudication attend leur ouverture.',
+        );
+      }
       if (!offre) {
         throw new NotFoundException(`Offre ${donnees.offreId} introuvable sur cette soumission.`);
       }
@@ -99,10 +106,24 @@ export class ContratsService {
         );
       }
 
-      const montantAdjuge = offre.montant
-        .times(CENT.minus(offre.remisePct ?? 0))
-        .dividedBy(CENT)
-        .toDecimalPlaces(2);
+      const retenues = donnees.lignesRetenues ?? [];
+      const inconnues = retenues.filter((id) => !offre.lignes.some((l) => l.id === id));
+      if (inconnues.length) {
+        throw new BadRequestException('Option ou variante inconnue sur cette offre.');
+      }
+      let montantAdjuge: Prisma.Decimal;
+      try {
+        montantAdjuge = montantRetenu(offre, offre.lignes, retenues);
+      } catch (e) {
+        throw new BadRequestException((e as Error).message);
+      }
+      await tx.offreLigne.updateMany({ where: { offreId: offre.id }, data: { retenue: false } });
+      if (retenues.length) {
+        await tx.offreLigne.updateMany({
+          where: { id: { in: retenues } },
+          data: { retenue: true },
+        });
+      }
 
       const adjudication = await tx.adjudication.create({
         data: {
@@ -133,6 +154,12 @@ export class ContratsService {
           montantBrut: offre.montant,
           remisePct: offre.remisePct,
           montantAdjuge,
+          lignesRetenues: offre.lignes
+            .filter((l) => retenues.includes(l.id))
+            .map(
+              (l) =>
+                `${l.type === 'OPTION' ? 'option' : 'variante'} ${l.libelle} ${l.montant.toString()}`,
+            ),
           commentaire: donnees.commentaire ?? null,
         },
       });
@@ -175,6 +202,10 @@ export class ContratsService {
       await tx.offre.updateMany({
         where: { soumissionId: adjudication.soumissionId },
         data: { statut: 'RECUE' },
+      });
+      await tx.offreLigne.updateMany({
+        where: { offre: { soumissionId: adjudication.soumissionId } },
+        data: { retenue: false },
       });
 
       await this.audit.enregistrer(tx, {

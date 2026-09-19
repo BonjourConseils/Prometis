@@ -4,7 +4,6 @@ import { ExploitantGuard } from '../modules/exploitant.guard';
 import { FacturationService } from './facturation.service';
 import {
   FacturationController,
-  PasseQuotidienneController,
   TarifsController,
   WebhookStripeController,
 } from './facturation.controller';
@@ -12,12 +11,8 @@ import {
 /** La facturation Stripe par module. Change les modules par `ModulesService`, et lui seul. */
 @Module({
   imports: [ModulesModule],
-  controllers: [
-    FacturationController,
-    WebhookStripeController,
-    PasseQuotidienneController,
-    TarifsController,
-  ],
+  controllers: [FacturationController, WebhookStripeController, TarifsController],
   providers: [FacturationService, ExploitantGuard],
+  exports: [FacturationService],
 })
 export class FacturationModule {}
