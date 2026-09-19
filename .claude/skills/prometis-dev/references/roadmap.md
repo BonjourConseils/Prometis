@@ -31,7 +31,7 @@ l'accueillir sans réécriture.
 |---|---|---|
 | **OIDC** | non retenu pour l'instant : l'authentification par identifiants + MFA TOTP couvre le besoin pilote | `PasswordService` + `TokenService` |
 | ~~Notation multicritère des offres~~ | livrée le 19.09.2026 (critères pondérés, notes justifiées) | — |
-| **Circuit de validation multi-approbateurs** | `Facture.validePar` ne porte qu'un validateur | rôles + statuts + `AuditLog` |
+| ~~Circuit de validation multi-approbateurs~~ | livré le 19.09.2026 : visa DT puis promoteur (`facture_visas`) | — |
 | **Encaissements vers Kolabimo** | aucune route Kolabimo ne les reçoit ; sa trésorerie n'a pas de modèle pour un encaissement Prometis — décision produit, pas un oubli de code | `KolabimoClient.publierEvenement()` le dit sans rien poster ; l'événement reste en boîte d'envoi |
 
 Levé le 16 septembre 2026 : **identité d'un dossier déjà passé le palier** — la route
@@ -172,6 +172,16 @@ notation multicritère, relance J-3, lecture de l'offre par l'IA. 641 tests.
 
 **Reste** : import CAN/NPK (V2) ; comparaison position par position (suppose des offres
 détaillées) ; signature électronique des offres.
+
+### Équipe et contrôle des factures ✅ (19 septembre 2026)
+Invitations d'employés et d'intervenants externes (architecte, direction des travaux) ; direction
+des travaux nommée par promotion. Capture des factures (dépôt multiple, photo, e-mail par
+promotion), lecture IA ancrée, contrôle déterministe (cumul, avenants, budget, retenue, postes hors
+contrat, doublons, IBAN), circuit DT → promoteur → comptabilité. 698 tests.
+
+**Reste** : Tesseract sur le serveur ; sous-domaine de réception, son MX et la boîte catch-all ;
+chiffrement applicatif des pièces par société (securite-saas §4, toute la GED) ; file de travail
+persistante si le volume le demande (aujourd'hui en processus, relance manuelle).
 
 ## V2 / V3
 

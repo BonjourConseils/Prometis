@@ -35,6 +35,11 @@ La **facturation Stripe** (un abonnement par société, un élément par module)
 Les **appels d'offres** se mènent en ligne : lien personnel + code par e-mail pour chaque
 entreprise, dépôt des offres **sous pli scellé** jusqu'à la date limite, notation multicritère.
 Une entreprise n'a pas de compte : elle ne voit que sa propre invitation.
+**Équipe** : un administrateur invite un employé ou un intervenant externe (architecte, direction
+des travaux) par lien personnel ; la **direction des travaux** nommée sur une promotion vise chaque
+facture avant le promoteur. **Contrôle des factures** : dépôt, photo ou e-mail (une adresse par
+promotion, fermée aux inconnus) ; l'IA lit, **le code contrôle** (cumul sur contrat + avenants,
+budget, retenue, postes hors contrat, doublons, IBAN changé) ; rien n'est imputé sans visas.
 
 Une EG ou un architecte se connecte **en tant que tel** et ne voit que la gestion de chantier —
 aucune « simulation » de promoteur.
@@ -121,7 +126,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité, les modules commerciaux, le passeport et la facturation du 18, la consultation des entreprises du 19 — 641 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité, les modules commerciaux, le passeport et la facturation du 18, la consultation des entreprises, l'équipe et le contrôle des factures du 19 — 698 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de

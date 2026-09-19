@@ -10,14 +10,20 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
+  UnauthorizedException,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { LectureFacturesService } from './lecture-factures.service';
+import { EmailsEntrantsService } from './emails-entrants.service';
+import { timingSafeEqual } from 'node:crypto';
+import { Public } from '../auth/decorators';
+import { loadEnv } from '../config/env';
 import { typeAccepte } from '../securite/type-fichier';
 import { z } from 'zod';
 import { TAILLE_MAX_OCTETS } from '../stockage/chemin';
@@ -78,6 +84,8 @@ const lignesSchema = z.object({
     .max(80),
 });
 
+const ouvertureSchema = z.object({ ouverte: z.boolean() });
+
 const visaSchema = z.object({
   decision: z.enum(['APPROUVE', 'REFUSE']),
   commentaire: z.string().trim().max(2000).nullish(),
@@ -113,7 +121,59 @@ export class FacturesController {
   constructor(
     private readonly factures: FacturesService,
     private readonly lecture: LectureFacturesService,
+    private readonly emails: EmailsEntrantsService,
   ) {}
+
+  // --- La boîte e-mail de la promotion ---------------------------------
+  // Déclarées avant `:factureId` : sinon « boite » serait lu comme un numéro.
+
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
+  @Get('boite')
+  boite(@Param('operationId', ParseIntPipe) operationId: number) {
+    return this.emails.boite(operationId);
+  }
+
+  @RequireOperationAccess({ level: 'MANAGE', module: 'FACTURES' })
+  @Post('boite/renouveler')
+  @HttpCode(200)
+  renouvelerBoite(@Param('operationId', ParseIntPipe) operationId: number) {
+    return this.emails.renouveler(operationId);
+  }
+
+  @RequireOperationAccess({ level: 'MANAGE', module: 'FACTURES' })
+  @Put('boite/ouverture')
+  ouvrirBoite(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Body(new ZodBody(ouvertureSchema)) body: z.infer<typeof ouvertureSchema>,
+  ) {
+    return this.emails.ouvrir(operationId, body.ouverte);
+  }
+
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'FACTURES' })
+  @Get('emails')
+  listerEmails(@Param('operationId', ParseIntPipe) operationId: number) {
+    return this.emails.lister(operationId);
+  }
+
+  @RequireOperationAccess({ level: 'MANAGE', module: 'FACTURES' })
+  @Post('emails/:emailId/liberer')
+  @HttpCode(200)
+  liberer(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('emailId', ParseIntPipe) emailId: number,
+  ) {
+    return this.emails.liberer(operationId, emailId);
+  }
+
+  @RequireOperationAccess({ level: 'MANAGE', module: 'FACTURES' })
+  @Post('emails/:emailId/rejeter')
+  @HttpCode(200)
+  rejeterEmail(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('emailId', ParseIntPipe) emailId: number,
+  ) {
+    return this.emails.rejeter(operationId, emailId);
+  }
 
   /**
    * Déposer une ou plusieurs factures — fichiers, ou photos prises au
@@ -335,5 +395,37 @@ export class FacturesController {
     @Body(new ZodBody(paiementSchema)) body: z.infer<typeof paiementSchema>,
   ) {
     return this.factures.enregistrerPaiement(operationId, factureId, body);
+  }
+}
+
+const env = loadEnv();
+const messageSchema = z.object({ message: z.string().min(1).max(45_000_000) });
+
+/**
+ * Déposer un message brut, comme s'il arrivait par la boîte catch-all. Sert
+ * au diagnostic et aux tests. Fermée sans secret ; la barrière est le secret,
+ * comparé à temps constant.
+ */
+@Controller('internal/emails-entrants')
+export class EmailsEntrantsInterneController {
+  constructor(private readonly emails: EmailsEntrantsService) {}
+
+  @Public()
+  @Post()
+  @HttpCode(200)
+  recevoir(
+    @Req() req: Request,
+    @Body(new ZodBody(messageSchema)) body: z.infer<typeof messageSchema>,
+  ) {
+    const recu = Buffer.from(req.header('x-email-secret') ?? '');
+    const attendu = Buffer.from(env.EMAIL_ENTRANT_SECRET ?? '');
+    if (
+      !env.EMAIL_ENTRANT_SECRET ||
+      recu.length !== attendu.length ||
+      !timingSafeEqual(recu, attendu)
+    ) {
+      throw new UnauthorizedException();
+    }
+    return this.emails.traiterMessage(Buffer.from(body.message, 'base64'));
   }
 }

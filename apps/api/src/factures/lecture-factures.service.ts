@@ -17,7 +17,7 @@ import { configFournisseur, masquer } from '../ia/fournisseur';
 import { typeAccepte } from '../securite/type-fichier';
 import { OcrService } from './ocr.service';
 import { extraireChamps } from './extraction';
-import { suggererImputation, type CandidatContrat } from './rapprochement';
+import { normaliserNom, suggererImputation, type CandidatContrat } from './rapprochement';
 import {
   SYSTEME_LECTURE,
   ancrer,
@@ -90,7 +90,7 @@ export class LectureFacturesService {
     operationId: number,
     pieces: Piece[],
     source: Source,
-    par: { membershipId?: number; emailEntrant?: string },
+    par: { membershipId?: number; emailEntrant?: string; entrepriseId?: number | null },
   ): Promise<ResultatDepot[]> {
     const resultats: ResultatDepot[] = [];
     const aLire: number[] = [];
@@ -139,6 +139,9 @@ export class LectureFacturesService {
             fichierMime: controle.type.mime,
             fichierTaille: objet.taille,
             fichierSha256: sha256,
+            // Reçue d'une adresse d'entreprise connue et authentifiée : c'est
+            // elle qui facture, avant même la lecture.
+            entrepriseId: par.entrepriseId ?? null,
           },
         });
         // La pièce rejoint aussi la GED : une facture est un document de la
@@ -288,6 +291,15 @@ export class LectureFacturesService {
                 ).find((x) => x.ide!.replace(/[^0-9]/g, '') === ide)
               : undefined;
           entrepriseId = parIde?.id ?? null;
+        }
+        // Sans contrat, un nom identique (formes juridiques et accents
+        // ignorés) désigne encore l'entreprise du répertoire.
+        if (!entrepriseId && lecture.fournisseur) {
+          const cle = normaliserNom(lecture.fournisseur);
+          const memeNom = (
+            await tx.entreprise.findMany({ select: { id: true, nom: true } })
+          ).filter((x) => normaliserNom(x.nom) === cle);
+          if (memeNom.length === 1) entrepriseId = memeNom[0]!.id;
         }
         const suggestion = suggererImputation(
           {

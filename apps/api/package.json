@@ -20,6 +20,8 @@
     "@prisma/client": "^6.19.3",
     "dotenv": "^17.4.2",
     "fflate": "0.8.3",
+    "imapflow": "2.0.5",
+    "mailparser": "3.9.28",
     "nodemailer": "^9.0.5",
     "pdfkit": "^0.19.1",
     "reflect-metadata": "^0.2.2",
@@ -32,6 +34,7 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
     "@types/express": "^5.0.6",
+    "@types/mailparser": "^3.4.6",
     "@types/multer": "^2.2.0",
     "@types/nodemailer": "^8.0.1",
     "@types/pdfkit": "^0.17.6"

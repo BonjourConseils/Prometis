@@ -10,7 +10,7 @@ conventions de code, mécanique RLS, commandes, et pièges vérifiés sur ce dé
 
 ## 0. Où en est le projet — à lire en premier
 
-**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux, passeport, facturation Stripe (18 septembre) et consultation des entreprises (19) · **641 tests verts** · dépôt
+**Lots 0 à 9 livrés** (15 août 2026), modules commerciaux, passeport, facturation Stripe (18 septembre) et consultation des entreprises, équipe et contrôle des factures (19) · **698 tests verts** · dépôt
 https://github.com/BonjourConseils/Prometis
 
 Le **fil rouge financier est complet** : `Budgété → Adjugé → Commandé → Facturé → Payé` se lit
@@ -730,6 +730,52 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   n'existe que pour une offre saisie par le promoteur.
 - **Passe quotidienne commune** : `POST /internal/passe-quotidienne` (secret en en-tête) — fins
   d'essai Stripe et relance J-3 des entreprises sans réponse, une seule fois (`relance_le`).
+
+## 4 vicies. Équipe et contrôle des factures (19 septembre 2026)
+
+### Inviter (`apps/api/src/acces/invitations.service.ts`, écran `/droits-acces`, page `/invitation/[jeton]`)
+- **Employé** (rôle interne) ou **intervenant externe** (`EXTERNE` + acteur : architecte, direction
+  des travaux…), avec ses promotions, un niveau et des modules par promotion (modules de chantier par
+  défaut, jamais ventes ni acquéreurs sans les cocher).
+- Lien : 32 octets, **empreinte seulement** (`invitations_membres.token_hash`), 14 jours, usage
+  unique (marqué dans la transaction d'acceptation), renvoyable (l'ancien meurt), révocable ;
+  chaque geste audité. Accepter est `@Public`, trouvé par `app.invitation_membre_de_jeton()`.
+- **Compte existant** : il prouve qu'il en est titulaire par son mot de passe ; un compte, plusieurs
+  sociétés. Nouveau compte : mot de passe ≥ 12 caractères. La connexion suit l'écran habituel (MFA).
+- **Direction des travaux** : `operations.direction_travaux_id` (un membre avec accès « opérer » aux
+  factures). Nommée, elle vise chaque facture avant le promoteur.
+
+### Contrôler les factures (`apps/api/src/factures/`)
+- **Capture** (`lecture-factures.service.ts`) : `POST …/factures/depots` (plusieurs pièces, `source`
+  UPLOAD/CAMERA), type par les octets, **SHA-256 dédoublonné par société**, pièce conservée
+  (`fichier_cle`) et versée à la GED, lecture **après la réponse** (`setImmediate`) ; « Relancer la
+  lecture » reprend une facture restée en lecture après un redémarrage.
+- **Texte** (`ocr.service.ts#texte`) : couche PDF (`pdftotext`), OCR Tesseract sous 120 caractères
+  par page (8 pages, 200 dpi) ; sans Tesseract, la couche mince est gardée plutôt que d'échouer.
+- **Lecture** (`lecture.ts`) : IA Infomaniak sur texte masqué, schéma imposé ; **ancrage calculé**
+  (ancrée / proposée / absente) ; IBAN (clé mod 97) et référence QR **lus localement**, jamais
+  envoyés au modèle. Sans IA : motifs du Lot 5. La lecture complète les vides, ne réécrit rien.
+  Entreprise : IDE lu > expéditeur e-mail authentifié > nom identique normalisé > rapprochement.
+- **Contrôle** (`controles.ts`, pur) : avancement facturé cumulé (validées + celle-ci) ÷ (contrat +
+  avenants) ; dépassement du commandé ; dépassement potentiel avec les factures en attente ;
+  commandé > budget du poste ; retenue de garantie absente / au mauvais taux (situations et
+  acomptes) ; acomptes déduits ≠ validés ; poste hors périmètre (nommant le contrat qui le couvre)
+  ou absent de l'adjudication (seulement si le budget détaille le poste) ; doublon de numéro ;
+  HT + TVA ≠ TTC ; taux abrogé (7.7) ; **IBAN changé** (critique). Stocké dans `factures.controles`,
+  recalculé à chaque correction. **Aucun chiffre ne vient du modèle.**
+- **Circuit** : `facture_visas` (ligne par avis, jamais réécrite). DT nommée → son **dernier** visa
+  doit être favorable avant `valider` ; un refus exige un motif et met en litige. Constat critique
+  (hors dépassement) → `forcer` requis, journalisé (`constatsForces`).
+- **E-mail** (`emails-entrants.service.ts`, `emails-regles.ts`) : adresse
+  `<slug>-<jeton 12>@FACTURES_EMAIL_DOMAINE` par promotion (`operations.boite_factures_jeton`),
+  renouvelable. Relève IMAP de la boîte catch-all (message marqué lu quoi qu'il arrive, trace en
+  base), ou `POST /internal/emails-entrants` (secret). Jeton trouvé dans To/Cc/Delivered-To/
+  X-Original-To → `app.operation_de_boite_factures()`. **Fermée par défaut** : expéditeur connu
+  (répertoire des entreprises, membres) ET premier `Authentication-Results` non en échec ; sinon
+  quarantaine (libérable). Message brut conservé, `Message-ID` dédoublonné, 10 pièces au plus,
+  images incorporées ignorées. Réponse seulement à un expéditeur connu (jamais à une adresse
+  peut-être usurpée).
+- `scripts/verifier.sh` fixe un domaine `.test`, un secret jetable et **coupe la relève IMAP**.
 
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 

@@ -1434,3 +1434,7 @@ td.avertir {
 .ancrage-absente {
   color: var(--text-muted);
 }
+.adresse-boite {
+  user-select: all;
+  word-break: break-all;
+}

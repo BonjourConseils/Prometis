@@ -36,6 +36,13 @@ if lsof -ti:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then
   exit 1
 fi
 
+# Réception des factures par e-mail, en test : un domaine réservé (.test,
+# RFC 2606), un secret jetable pour la route interne, et AUCUNE relève IMAP —
+# une suite de tests ne doit pas marquer lus les messages d'une vraie boîte.
+export FACTURES_EMAIL_DOMAINE="factures.prometis.test"
+export EMAIL_ENTRANT_SECRET="$(openssl rand -hex 24)"
+export EMAIL_ENTRANT_IMAP_HOTE=""
+
 echo "→ Démarrage de l'API sur le port $PORT"
 node apps/api/dist/main.js > "$JOURNAL" 2>&1 &
 API_PID=$!

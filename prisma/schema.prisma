@@ -141,6 +141,7 @@ model Societe {
   historiqueModules  HistoriqueModule[]
   abonnement         AbonnementSociete?
   invitationsMembres InvitationMembre[]
+  emailsEntrants     EmailEntrant[]
   emailsFacturation  EmailFacturation[]
   appelsIa           AppelIa[]
   auditLogs          AuditLog[]
@@ -316,6 +317,37 @@ model SouscriptionModule {
 
   @@unique([societeId, module])
   @@map("souscriptions_modules")
+}
+
+/// Un e-mail reçu à l'adresse d'une promotion. Le message brut est gardé :
+/// c'est la preuve de ce qui est arrivé, et ce qui permet de libérer une
+/// quarantaine sans rien redemander à l'expéditeur.
+model EmailEntrant {
+  id               Int       @id @default(autoincrement())
+  societeId        Int       @map("societe_id")
+  operationId      Int       @map("operation_id")
+  /// En-tête Message-ID : un message relu deux fois ne crée rien deux fois.
+  messageId        String    @map("message_id")
+  expediteur       String
+  sujet            String?
+  recuLe           DateTime  @map("recu_le")
+  /// ACCEPTE, QUARANTAINE, REJETE
+  statut           String
+  motif            String?
+  authentification String?
+  brutCle          String?   @map("brut_cle")
+  pieces           Int       @default(0)
+  piecesAcceptees  Int       @default(0) @map("pieces_acceptees")
+  traiteLe         DateTime? @map("traite_le")
+  traiteParId      Int?      @map("traite_par_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  societe   Societe   @relation(fields: [societeId], references: [id], onDelete: Cascade)
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@unique([societeId, messageId])
+  @@index([operationId, createdAt])
+  @@map("emails_entrants")
 }
 
 /// Invitation d'une personne à rejoindre la société : un employé, ou un
@@ -612,20 +644,27 @@ enum ModeRealisation {
 
 /// La promotion / le projet. Mappé à une promotion Kolabimo via kolabimoPromotionId.
 model Operation {
-  id                  Int             @id @default(autoincrement())
-  societeId           Int             @map("societe_id")
-  nom                 String
-  description         String?
-  commune             String?
-  canton              String?
-  parcelle            String?
-  statut              OperationStatut @default(MONTAGE)
-  dateDebut           DateTime?       @map("date_debut")
-  dateLivraisonPrevue DateTime?       @map("date_livraison_prevue")
+  id                   Int             @id @default(autoincrement())
+  societeId            Int             @map("societe_id")
+  nom                  String
+  description          String?
+  commune              String?
+  canton               String?
+  parcelle             String?
+  statut               OperationStatut @default(MONTAGE)
+  dateDebut            DateTime?       @map("date_debut")
+  dateLivraisonPrevue  DateTime?       @map("date_livraison_prevue")
   /// La direction des travaux de l'opération (un membre). Nommée, elle vise
   /// chaque facture avant l'approbation du promoteur.
-  directionTravauxId  Int?            @map("direction_travaux_id")
-  directionTravaux    Membership?     @relation("DirectionTravaux", fields: [directionTravauxId], references: [id], onDelete: SetNull)
+  directionTravauxId   Int?            @map("direction_travaux_id")
+  directionTravaux     Membership?     @relation("DirectionTravaux", fields: [directionTravauxId], references: [id], onDelete: SetNull)
+  /// Adresse de réception des factures : `<nom>-<jeton>@<domaine>`. Le jeton
+  /// aléatoire la rend impossible à deviner ; le renouveler ferme l'ancienne.
+  boiteFacturesJeton   String?         @unique @map("boite_factures_jeton")
+  /// Accepter tout expéditeur. Faux par défaut : seuls les expéditeurs connus
+  /// de la promotion passent, les autres vont en quarantaine.
+  boiteFacturesOuverte Boolean         @default(false) @map("boite_factures_ouverte")
+  emailsEntrants       EmailEntrant[]
 
   /// Recettes attendues, saisies AVANT le plan de vente.
   ///

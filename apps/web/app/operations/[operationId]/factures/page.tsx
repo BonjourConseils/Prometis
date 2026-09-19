@@ -11,7 +11,7 @@ import {
   EnregistrerPaiement,
   ValiderFacture,
 } from './saisie';
-import { RafraichirPendantLecture, ZoneDepot } from './capture';
+import { BoiteEmail, RafraichirPendantLecture, ZoneDepot } from './capture';
 
 interface NoeudBudget {
   id: number;
@@ -116,12 +116,21 @@ export default async function FacturesPage({
 
   // Contrats, entreprises et postes ne servent qu'aux listes déroulantes de
   // saisie ; un refus sur l'un d'eux ne doit pas priver l'écran des factures.
-  const [factures, contrats, entreprises, budget] = await Promise.all([
+  const [factures, contrats, entreprises, budget, boite, emails, droits] = await Promise.all([
     apiGet<Facture[]>(`/operations/${operationId}/factures`),
     apiGet<Contrat[]>(`/operations/${operationId}/contrats`),
     apiGet<Entreprise[]>('/entreprises'),
     apiGet<{ arbre: NoeudBudget[] }>(`/operations/${operationId}/budget`),
+    apiGet<{ disponible: boolean; adresse: string | null; ouverte: boolean }>(
+      `/operations/${operationId}/factures/boite`,
+    ),
+    apiGet<Parameters<typeof BoiteEmail>[0]['emails']>(
+      `/operations/${operationId}/factures/emails`,
+    ),
+    apiGet<{ operations: { id: number; accessLevel: string }[] }>('/acces/mes-droits'),
   ]);
+  const gerer =
+    droits?.operations.find((o) => o.id === Number(operationId))?.accessLevel === 'MANAGE';
 
   if (factures === null) {
     return (
@@ -173,6 +182,22 @@ export default async function FacturesPage({
           bancaire. Rien n&apos;est imputé sans validation humaine.
         </p>
         <ZoneDepot operationId={id} />
+        {boite?.disponible && (
+          <>
+            <h3>Recevoir par e-mail</h3>
+            <p className="meta">
+              Une adresse propre à cette promotion : communiquez-la aux entreprises, ou transférez-y
+              les factures reçues. Les pièces jointes suivent le même chemin qu’un dépôt.
+            </p>
+            <BoiteEmail
+              operationId={id}
+              adresse={boite.adresse}
+              ouverte={boite.ouverte}
+              gerer={gerer}
+              emails={emails ?? []}
+            />
+          </>
+        )}
       </section>
 
       <section>

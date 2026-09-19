@@ -27,6 +27,7 @@ import {
   PasseQuotidienneModule,
 } from './passe-quotidienne/passe-quotidienne';
 import { EspaceEntrepriseController } from './soumissions/espace-entreprise.controller';
+import { EmailsEntrantsInterneController } from './factures/factures.controller';
 import { PasseportController } from './passeport/passeport.controller';
 import { ExploitantController, ModulesController } from './modules/modules.controller';
 import { GedModule } from './ged/ged.module';
@@ -140,6 +141,7 @@ export class AppModule implements NestModule {
       // L'espace entreprise est `@Public` : le middleware lui donne l'adresse
       // du client (limite de tentatives, journal), rien d'autre.
       EspaceEntrepriseController,
+      EmailsEntrantsInterneController,
     );
   }
 }

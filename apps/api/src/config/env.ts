@@ -221,6 +221,25 @@ const envSchema = z.object({
    * interne n'a pas d'autre barrière : 32 caractères minimum.
    */
   PASSE_QUOTIDIENNE_SECRET: z.string().min(32).optional(),
+  // --- Réception des factures par e-mail --------------------------------
+  /**
+   * Sous-domaine des adresses de réception, ex. `factures.prometis.ch`. Son MX
+   * pointe vers une boîte « catch-all » (tout ce qui arrive sur le
+   * sous-domaine), relevée en IMAP. Absent : la réception par e-mail est
+   * éteinte, le dépôt de fichiers reste.
+   */
+  FACTURES_EMAIL_DOMAINE: z.string().optional(),
+  EMAIL_ENTRANT_IMAP_HOTE: z.string().optional(),
+  EMAIL_ENTRANT_IMAP_PORT: z.coerce.number().int().positive().default(993),
+  EMAIL_ENTRANT_IMAP_UTILISATEUR: z.string().optional(),
+  EMAIL_ENTRANT_IMAP_MOT_DE_PASSE: z.string().optional(),
+  /** Intervalle de relève, en secondes. */
+  EMAIL_ENTRANT_INTERVALLE_S: z.coerce.number().int().min(15).default(60),
+  /**
+   * Secret de la route interne qui accepte un message brut — diagnostic, et
+   * tests. 32 caractères minimum ; absente, la route est fermée.
+   */
+  EMAIL_ENTRANT_SECRET: z.string().min(32).optional(),
   API_PORT: z.coerce.number().int().positive().default(3001),
   CORS_ORIGINS: z
     .string()

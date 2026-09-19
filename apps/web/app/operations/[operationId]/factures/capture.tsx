@@ -139,3 +139,164 @@ export function RafraichirPendantLecture({ actif }: { actif: boolean }) {
   }, [actif, router]);
   return null;
 }
+
+interface EmailRecu {
+  id: number;
+  expediteur: string;
+  sujet: string | null;
+  recuLe: string;
+  statut: 'ACCEPTE' | 'QUARANTAINE' | 'REJETE';
+  motif: string | null;
+  pieces: number;
+  piecesAcceptees: number;
+}
+
+async function appeler(chemin: string, methode: string, corps?: unknown) {
+  const res = await fetch(`/api/prometis${chemin}`, {
+    method: methode,
+    headers: { 'Content-Type': 'application/json' },
+    body: corps === undefined ? undefined : JSON.stringify(corps),
+  }).catch(() => null);
+  if (!res) return 'Service injoignable.';
+  if (res.ok) return null;
+  const d = (await res.json().catch(() => ({}))) as { message?: string };
+  return d.message ?? `Refusé (${res.status}).`;
+}
+
+/**
+ * L'adresse e-mail de la promotion : on la communique aux entreprises, ou on
+ * y transfère les factures reçues. Fermée par défaut aux inconnus — ce qui
+ * n'est pas sûr attend en quarantaine, sans être perdu.
+ */
+export function BoiteEmail({
+  operationId,
+  adresse,
+  ouverte,
+  gerer,
+  emails,
+}: {
+  operationId: number;
+  adresse: string | null;
+  ouverte: boolean;
+  gerer: boolean;
+  emails: EmailRecu[];
+}) {
+  const router = useRouter();
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [copie, setCopie] = useState(false);
+  const base = `/operations/${operationId}/factures`;
+
+  async function faire(chemin: string, methode = 'POST', corps?: unknown) {
+    setErreur(await appeler(`${base}${chemin}`, methode, corps));
+    router.refresh();
+  }
+
+  return (
+    <div className="form">
+      {adresse ? (
+        <p>
+          <code className="adresse-boite">{adresse}</code>{' '}
+          <button
+            type="button"
+            onClick={async () => {
+              await navigator.clipboard.writeText(adresse).catch(() => undefined);
+              setCopie(true);
+            }}
+          >
+            {copie ? 'Copiée' : 'Copier'}
+          </button>
+        </p>
+      ) : (
+        <p className="meta">Pas encore d’adresse pour cette promotion.</p>
+      )}
+      {gerer && (
+        <p>
+          <button type="button" onClick={() => faire('/boite/renouveler')}>
+            {adresse ? 'Renouveler l’adresse' : 'Créer l’adresse'}
+          </button>
+          {adresse && <span className="meta"> — l’ancienne cessera aussitôt de recevoir.</span>}
+        </p>
+      )}
+      {adresse && (
+        <label className="case">
+          <input
+            type="checkbox"
+            checked={ouverte}
+            disabled={!gerer}
+            onChange={(e) => faire('/boite/ouverture', 'PUT', { ouverte: e.target.checked })}
+          />{' '}
+          Accepter tout expéditeur
+          <span className="meta">
+            {ouverte
+              ? ' — ouverte : une facture d’une entreprise absente du répertoire est lue directement.'
+              : ' — fermée : seules les entreprises du répertoire et les membres de la société passent ; les autres attendent en quarantaine.'}
+          </span>
+        </label>
+      )}
+      {erreur && <p className="ko">{erreur}</p>}
+      {emails.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>Reçu</th>
+              <th>Expéditeur</th>
+              <th>Pièces</th>
+              <th>Sort</th>
+            </tr>
+          </thead>
+          <tbody>
+            {emails.map((e) => (
+              <tr key={e.id} className={e.statut === 'REJETE' ? 'attenue' : ''}>
+                <td>
+                  {new Date(e.recuLe).toLocaleString('fr-CH', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </td>
+                <td>
+                  {e.expediteur}
+                  {e.sujet && (
+                    <>
+                      <br />
+                      <span className="meta">{e.sujet}</span>
+                    </>
+                  )}
+                </td>
+                <td>
+                  {e.piecesAcceptees}/{e.pieces}
+                </td>
+                <td>
+                  {e.statut === 'ACCEPTE' && <span className="ok">acceptée</span>}
+                  {e.statut === 'REJETE' && (
+                    <span className="meta">rejetée{e.motif ? ` — ${e.motif}` : ''}</span>
+                  )}
+                  {e.statut === 'QUARANTAINE' && (
+                    <>
+                      <span className="ko">quarantaine</span>
+                      {e.motif && <span className="meta"> — {e.motif}</span>}
+                      {gerer && (
+                        <>
+                          <br />
+                          <button type="button" onClick={() => faire(`/emails/${e.id}/liberer`)}>
+                            Libérer les pièces
+                          </button>{' '}
+                          <button
+                            type="button"
+                            className="lien"
+                            onClick={() => faire(`/emails/${e.id}/rejeter`)}
+                          >
+                            Rejeter
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
