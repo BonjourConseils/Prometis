@@ -126,23 +126,24 @@ model Societe {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  memberships       Membership[]
-  actionnaires      Actionnaire[]
-  operations        Operation[]
-  acteurs           Acteur[]
-  entreprises       Entreprise[]
-  tauxAcquisition   TauxFraisAcquisition[]
-  acquereurs        Acquereur[]
-  factures          Facture[]
-  documents         Document[]
-  apiKeys           ApiKey[]
-  connexionKolabimo ConnexionKolabimo?
-  souscriptions     SouscriptionModule[]
-  historiqueModules HistoriqueModule[]
-  abonnement        AbonnementSociete?
-  emailsFacturation EmailFacturation[]
-  appelsIa          AppelIa[]
-  auditLogs         AuditLog[]
+  memberships        Membership[]
+  actionnaires       Actionnaire[]
+  operations         Operation[]
+  acteurs            Acteur[]
+  entreprises        Entreprise[]
+  tauxAcquisition    TauxFraisAcquisition[]
+  acquereurs         Acquereur[]
+  factures           Facture[]
+  documents          Document[]
+  apiKeys            ApiKey[]
+  connexionKolabimo  ConnexionKolabimo?
+  souscriptions      SouscriptionModule[]
+  historiqueModules  HistoriqueModule[]
+  abonnement         AbonnementSociete?
+  invitationsMembres InvitationMembre[]
+  emailsFacturation  EmailFacturation[]
+  appelsIa           AppelIa[]
+  auditLogs          AuditLog[]
 
   @@map("societes")
 }
@@ -203,6 +204,7 @@ model Membership {
   societe           Societe           @relation(fields: [societeId], references: [id], onDelete: Cascade)
   acteur            Acteur?           @relation(fields: [acteurId], references: [id])
   operationAccesses OperationAccess[]
+  directionTravaux  Operation[]       @relation("DirectionTravaux")
 
   @@unique([compteId, societeId])
   @@index([societeId])
@@ -314,6 +316,40 @@ model SouscriptionModule {
 
   @@unique([societeId, module])
   @@map("souscriptions_modules")
+}
+
+/// Invitation d'une personne à rejoindre la société : un employé, ou un
+/// intervenant externe (architecte, direction des travaux…) avec ses accès
+/// par opération. Le lien n'est stocké qu'en empreinte, vaut quatorze jours
+/// et ne sert qu'une fois.
+model InvitationMembre {
+  id                 Int             @id @default(autoincrement())
+  societeId          Int             @map("societe_id")
+  email              String
+  prenom             String?
+  nom                String?
+  role               UtilisateurRole
+  fonction           String?
+  /// Intervenant externe : le type et la société qu'il représente. Un
+  /// acteur est créé (ou retrouvé) à l'acceptation.
+  acteurType         ActeurType?     @map("acteur_type")
+  societeNom         String?         @map("societe_nom")
+  /// Accès accordés à l'acceptation : [{ operationId, accessLevel, modules }].
+  acces              Json            @default("[]")
+  /// Nommer cette personne direction des travaux de ces opérations.
+  directionTravauxDe Int[]           @default([]) @map("direction_travaux_de")
+  tokenHash          String          @unique @map("token_hash")
+  expireLe           DateTime        @map("expire_le")
+  accepteeLe         DateTime?       @map("acceptee_le")
+  revoqueeLe         DateTime?       @map("revoquee_le")
+  compteId           Int?            @map("compte_id")
+  creeParId          Int?            @map("cree_par_id")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
+
+  @@index([societeId, accepteeLe])
+  @@map("invitations_membres")
 }
 
 /// Prix d'un module commercial. Catalogue de la PLATEFORME, commun à toutes
@@ -561,6 +597,9 @@ enum ActeurType {
   COURTIER
   MAITRE_OUVRAGE
   PILOTE
+  /// Direction des travaux : nommée sur une opération, elle mène le
+  /// contrôle des factures (visa avant l'approbation du promoteur).
+  DIRECTION_TRAVAUX
   AUTRE
 }
 
@@ -583,6 +622,10 @@ model Operation {
   statut              OperationStatut @default(MONTAGE)
   dateDebut           DateTime?       @map("date_debut")
   dateLivraisonPrevue DateTime?       @map("date_livraison_prevue")
+  /// La direction des travaux de l'opération (un membre). Nommée, elle vise
+  /// chaque facture avant l'approbation du promoteur.
+  directionTravauxId  Int?            @map("direction_travaux_id")
+  directionTravaux    Membership?     @relation("DirectionTravaux", fields: [directionTravauxId], references: [id], onDelete: SetNull)
 
   /// Recettes attendues, saisies AVANT le plan de vente.
   ///

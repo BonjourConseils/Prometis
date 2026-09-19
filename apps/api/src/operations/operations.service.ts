@@ -34,6 +34,8 @@ export interface OperationListItem {
   /** Promotion Kolabimo rattachée : une opération n'en porte qu'une. */
   kolabimoPromotionId: number | null;
   nbBiens: number;
+  /** Le membre nommé direction des travaux, s'il y en a un. */
+  directionTravauxId: number | null;
 }
 
 @Injectable()
@@ -122,6 +124,7 @@ export class OperationsService {
           canton: true,
           commercialisationActive: true,
           kolabimoPromotionId: true,
+          directionTravauxId: true,
           _count: { select: { biens: true } },
         },
         orderBy: { nom: 'asc' },
@@ -135,6 +138,7 @@ export class OperationsService {
         canton: o.canton,
         commercialisationActive: o.commercialisationActive,
         kolabimoPromotionId: o.kolabimoPromotionId,
+        directionTravauxId: o.directionTravauxId,
         nbBiens: o._count.biens,
       }));
     });

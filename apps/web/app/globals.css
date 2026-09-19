@@ -1378,3 +1378,14 @@ td.avertir {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* --- Équipe et droits d'accès ------------------------------------- */
+.acces-operation {
+  border-top: 1px solid var(--border-default);
+  padding: 6px 0;
+}
+.acces-operation fieldset.modules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}

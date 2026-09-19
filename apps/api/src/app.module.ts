@@ -34,7 +34,7 @@ import { SeancesModule } from './seances/seances.module';
 import { CourtageModule } from './courtage/courtage.module';
 import { AuthContextMiddleware } from './auth/auth-context.middleware';
 import { AuthController } from './auth/auth.controller';
-import { AccesController } from './acces/acces.controller';
+import { AccesController, InvitationsPubliquesController } from './acces/acces.controller';
 import { SocieteController } from './societe/societe.controller';
 import { TauxAcquisitionController } from './societe/taux-acquisition.controller';
 import { OperationsController } from './operations/operations.controller';
@@ -125,6 +125,7 @@ export class AppModule implements NestModule {
       CourtageController,
       TresorerieController,
       AccesController,
+      InvitationsPubliquesController,
       AuditController,
       MailController,
       ModulesController,

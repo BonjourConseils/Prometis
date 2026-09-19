@@ -14,8 +14,10 @@ beforeAll(async () => {
   // Les identifiants sont relevés avec le rôle propriétaire : les tests ont
   // besoin de connaître les ids de l'AUTRE tenant pour prouver qu'ils ne
   // peuvent pas les atteindre.
+  // Par son nom : sans critère, « la première » dépend de l'ordre physique
+  // des lignes, qui change dès qu'une autre suite modifie une opération.
   const opCb = await ownerDb.operation.findFirstOrThrow({
-    where: { societeId: CB },
+    where: { societeId: CB, nom: 'Les Jardins de Prilly' },
     include: { biens: { include: { lots: { include: { parkings: true } } } } },
   });
   const bienCb = opCb.biens[0]!;
@@ -23,6 +25,7 @@ beforeAll(async () => {
 
   const opConstructa = await ownerDb.operation.findFirstOrThrow({
     where: { societeId: CONSTRUCTA },
+    orderBy: { id: 'asc' },
     include: { biens: { include: { lots: true } } },
   });
   const bienConstructa = opConstructa.biens[0]!;
@@ -289,11 +292,11 @@ describe('inventaire : aucune table ne passe entre les mailles', () => {
   // Ce compte est un garde-fou volontaire : ajouter une table métier sans
   // policy fait échouer ici, et c'est le but. Le mettre à jour est un geste
   // délibéré, qui suppose d'avoir écrit la policy juste au-dessus.
-  it('couvre les 52 tables tenant du modèle', async () => {
+  it('couvre les 53 tables tenant du modèle', async () => {
     const rows = await appDb.$queryRaw<{ count: bigint }[]>`
       SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
     `;
-    expect(Number(rows[0]!.count)).toBe(52);
+    expect(Number(rows[0]!.count)).toBe(53);
   });
 
   it('les taux de frais d’acquisition sont propres à chaque société', async () => {
