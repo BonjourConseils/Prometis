@@ -35,6 +35,8 @@ export interface EntreeControle {
     iban: string | null;
     /** Montant du bulletin QR, s'il y en a un : ce que l'entreprise demande de payer. */
     montantQr?: Prisma.Decimal | null;
+    /** Un bulletin QR a été lu (avec ou sans montant). */
+    bulletinQr?: boolean;
     lignes: { designation: string; codeCfc: string | null; montant: Prisma.Decimal }[];
   };
   entreprise: { nom: string } | null;
@@ -71,6 +73,9 @@ export interface Rapport {
     avancementPct: string | null;
     depassement: string | null;
     budgetPoste: string | null;
+    /** Ce qui partira à la banque, et d'où vient le chiffre. */
+    aPayer: string | null;
+    aPayerSource: 'bulletin' | 'facture' | null;
   };
   resume: string[];
 }
@@ -133,8 +138,31 @@ export function controler(e: EntreeControle): Rapport {
   // Le bulletin porte le net à payer : TTC moins la retenue et les acomptes
   // que la facture déduit elle-même. Un écart, c'est un bulletin qui ne
   // correspond pas à la facture — erreur, ou bulletin substitué.
-  if (f.montantQr && f.montantTTC) {
-    const net = f.montantTTC.minus(f.retenueGarantie ?? 0).minus(f.acomptesDeduits ?? 0);
+  const netFacture = f.montantTTC
+    ? f.montantTTC.minus(f.retenueGarantie ?? 0).minus(f.acomptesDeduits ?? 0)
+    : null;
+  const aPayer = f.montantQr ?? netFacture;
+  if (f.bulletinQr && !f.montantQr) {
+    // Un bulletin vierge (montant laissé libre) : le montant à payer se lit
+    // sur la facture, et il faudra l'écrire à la main dans l'ordre de paiement.
+    c.push(
+      netFacture
+        ? {
+            code: 'qr_sans_montant',
+            gravite: 'info',
+            titre: `Bulletin QR sans montant : ${formater(netFacture)} à payer, repris de la facture.`,
+            detail: 'Le montant est à reporter tel quel sur l’ordre de paiement.',
+          }
+        : {
+            code: 'qr_sans_montant',
+            gravite: 'attention',
+            titre:
+              'Bulletin QR sans montant, et montant de la facture non lu : à saisir avant paiement.',
+          },
+    );
+  }
+  if (f.montantQr && f.montantTTC && netFacture) {
+    const net = netFacture;
     const ecart = f.montantQr.minus(net).abs();
     if (ecart.greaterThan(0.05) && !f.montantQr.minus(f.montantTTC).abs().lessThanOrEqualTo(0.05)) {
       c.push({
@@ -334,7 +362,9 @@ export function controler(e: EntreeControle): Rapport {
           : '.'),
     );
   }
-  for (const k of c.filter((x) => x.gravite !== 'info' || x.code === 'avancement'))
+  for (const k of c.filter(
+    (x) => x.gravite !== 'info' || x.code === 'avancement' || x.code === 'qr_sans_montant',
+  ))
     resume.push(k.titre);
 
   return {
@@ -345,6 +375,8 @@ export function controler(e: EntreeControle): Rapport {
       avancementPct: avancement?.toFixed(1) ?? null,
       depassement: depassement?.toFixed(2) ?? null,
       budgetPoste: e.budgetPoste?.toFixed(2) ?? null,
+      aPayer: aPayer?.toFixed(2) ?? null,
+      aPayerSource: f.montantQr ? 'bulletin' : aPayer ? 'facture' : null,
     },
     resume,
   };

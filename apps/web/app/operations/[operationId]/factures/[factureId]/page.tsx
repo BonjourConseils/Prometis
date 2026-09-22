@@ -54,7 +54,11 @@ interface Detail {
       detail?: string;
     }[];
     resume: string[];
-    chiffres: { avancementPct: string | null };
+    chiffres: {
+      avancementPct: string | null;
+      aPayer?: string | null;
+      aPayerSource?: 'bulletin' | 'facture' | null;
+    };
   } | null;
   controleLe: string | null;
   entreprise: { id: number; nom: string } | null;
@@ -179,6 +183,19 @@ export default async function FacturePage({
                 );
               })}
             </ul>
+            {f.controles.chiffres.aPayer && (
+              <p>
+                <strong>À payer :</strong> CHF{' '}
+                {Number(f.controles.chiffres.aPayer)
+                  .toFixed(2)
+                  .replace(/\B(?=(\d{3})+(?!\d))/g, '’')}{' '}
+                <span className="meta">
+                  {f.controles.chiffres.aPayerSource === 'bulletin'
+                    ? '— montant du bulletin QR'
+                    : '— TTC de la facture, net de retenue et d’acomptes'}
+                </span>
+              </p>
+            )}
             {f.controles.constats.some((c) => c.detail) && (
               <details>
                 <summary>Le détail des constats</summary>
@@ -285,9 +302,13 @@ export default async function FacturePage({
               Lecture :{' '}
               {f.lectureMethode === 'qr'
                 ? 'bulletin QR seul, le texte de la pièce n’a pas pu être lu'
-                : f.lectureMethode === 'ocr'
-                  ? 'reconnaissance de caractères'
-                  : 'texte du PDF'}
+                : f.lectureMethode === 'texte-pdf-partiel'
+                  ? 'texte partiel du PDF, la reconnaissance de caractères n’est pas disponible'
+                  : f.lectureMethode === 'texte-pdf+ocr'
+                    ? 'texte du PDF et reconnaissance de caractères'
+                    : f.lectureMethode === 'ocr'
+                      ? 'reconnaissance de caractères'
+                      : 'texte du PDF'}
               {f.lecture.modele === 'bulletin-qr'
                 ? ''
                 : f.lecture.modele === 'lecture-locale'

@@ -151,8 +151,9 @@ export class OcrService {
           for (const image of images) lus.push(await this.ocr(join(dossier, image)));
         } catch (e) {
           // Pas d'OCR sur ce serveur, mais une couche texte, même mince : on
-          // la garde plutôt que d'échouer — la relecture humaine fera le reste.
-          if (couche.trim()) return { texte: couche.trim(), methode: 'texte-pdf' };
+          // la garde, marquée partielle. Sur un scan, c'est souvent celle d'un
+          // tampon ajouté après coup (visa, dates) et non de la facture.
+          if (couche.trim()) return { texte: couche.trim(), methode: 'texte-pdf-partiel' };
           throw e;
         }
         const ocr = lus.join('\n\f\n').trim();

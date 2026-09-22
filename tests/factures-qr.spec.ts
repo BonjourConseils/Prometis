@@ -190,6 +190,33 @@ describe('contrôle : le montant du bulletin', () => {
   it('ni l’un ni l’autre : signalé', () =>
     expect(code(entree('210000'))?.titre).toMatch(/CHF 210’000\.00.*CHF 183’868\.83/));
   it('sans bulletin : rien à dire', () => expect(code(entree(null))).toBeUndefined());
+
+  it('à payer : le montant du bulletin quand il y en a un', () => {
+    expect(controler(entree('183868.83')).chiffres).toMatchObject({
+      aPayer: '183868.83',
+      aPayerSource: 'bulletin',
+    });
+  });
+
+  /** Procéram, 01.09.2026 : bulletin vierge, 50'000 TTC écrits sur la facture. */
+  it('bulletin vierge : le montant à payer est repris de la facture, et dit', () => {
+    const e = entree(null);
+    e.facture.bulletinQr = true;
+    const r = controler(e);
+    expect(r.chiffres).toMatchObject({ aPayer: '183868.83', aPayerSource: 'facture' });
+    const k = r.constats.find((c) => c.code === 'qr_sans_montant');
+    expect(k?.gravite).toBe('info');
+    expect(r.resume).toContain(k!.titre);
+  });
+
+  it('bulletin vierge et montant non lu : à saisir avant paiement', () => {
+    const e = entree(null);
+    e.facture.bulletinQr = true;
+    e.facture.montantTTC = null;
+    const r = controler(e);
+    expect(r.constats.find((c) => c.code === 'qr_sans_montant')?.gravite).toBe('attention');
+    expect(r.chiffres.aPayer).toBeNull();
+  });
 });
 
 const poppler = (() => {

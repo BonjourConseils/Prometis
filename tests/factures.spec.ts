@@ -117,6 +117,31 @@ describe('extraction complète', () => {
     expect(incoherent.tvaPct).toBeNull();
   });
 
+  /** Les écritures relevées sur des factures d'artisans réelles (La Praille, 09.2026). */
+  describe('comme les artisans les écrivent', () => {
+    it('facture finale : « Total net CHF », après prorata et acomptes', () => {
+      const c = extraireChamps(
+        "31.08.2026\n03.09.2026\nCouverture et ferblanterie\nTotal brut 136'177.75\nTVA 8.10 % 36'632.75 2'967.25\nTotal net CHF 39'600.00",
+      );
+      expect(c.montantTTC!.equals(d('39600'))).toBe(true);
+      expect(c.fournisseurNom).toBe('Couverture et ferblanterie'); // pas la date du tampon
+    });
+
+    it('acompte « TVA incluse » : le TTC est lu, le HT se calcule', () => {
+      const c = extraireChamps(
+        "Facture N° 24633\n- Acompte N° 2 1 50'000.00 8.10% 50'000.00\nTOTAL 50'000.00\nTVA incluse 8.10% / CHF 50'000.00: CHF 3'746.55",
+      );
+      expect(c.montantTTC!.equals(d('50000'))).toBe(true);
+      expect(c.tvaPct!.equals(d('8.1'))).toBe(true);
+      expect(c.montantHT!.equals(d('46253.47'))).toBe(true);
+    });
+
+    it('« Montant CHF TVA incluse »', () => {
+      const c = extraireChamps("Facture 26M0138\nMontant CHF TVA incluse 1'409.95");
+      expect(c.montantTTC!.equals(d('1409.95'))).toBe(true);
+    });
+  });
+
   it('ne plante pas sur un texte vide', () => {
     const vide = extraireChamps('');
     expect(vide.numero).toBeNull();

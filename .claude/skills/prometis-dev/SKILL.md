@@ -751,7 +751,14 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   (`fichier_cle`) et versée à la GED, lecture **après la réponse** (`setImmediate`) ; « Relancer la
   lecture » reprend une facture restée en lecture après un redémarrage.
 - **Texte** (`ocr.service.ts#texte`) : couche PDF (`pdftotext`), OCR Tesseract sous 120 caractères
-  par page (8 pages, 200 dpi) ; sans Tesseract, la couche mince est gardée plutôt que d'échouer.
+  par page (8 pages, 200 dpi) ; sans Tesseract, la couche mince est gardée mais marquée
+  `texte-pdf-partiel` — et **ignorée s'il y a un bulletin QR**. Vécu (La Praille, 09.2026) : sur un
+  scan passé par iLovePDF, la seule couche texte est celle du **tampon de visa** de la DT (dates,
+  CFC) ; la lire comme la facture ferait prendre une date pour le fournisseur.
+- **Sans IA** (`extraction.ts`) : les totaux se cherchent par étiquettes dans l'ordre des factures
+  d'artisans — « Total net CHF », « Montant CHF TVA incluse », « Total TTC », « TOTAL » — le
+  premier montant de la ligne ; « TVA incluse » seule → HT calculé (donc « proposé ») ; le
+  fournisseur est la première ligne qui contient un mot, pas une date de tampon.
 - **Bulletin QR** (`qr-lu.ts` pur, `ocr.service.ts#lireQr`) : lu **avant** le texte. Dernière
   puis première page rendues par `pdftoppm` (300, puis 600 ppp), décodées par `zxing-wasm` + `jimp`
   sur le serveur ; une photo est décodée telle quelle. Contenu SPC (types d'adresse S et K,
@@ -773,7 +780,9 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   acomptes) ; acomptes déduits ≠ validés ; poste hors périmètre (nommant le contrat qui le couvre)
   ou absent de l'adjudication (seulement si le budget détaille le poste) ; doublon de numéro ;
   HT + TVA ≠ TTC ; taux abrogé (7.7) ; **IBAN changé** (critique) ; montant du bulletin QR ≠ net à
-  payer. Stocké dans `factures.controles`,
+  payer ; bulletin **vierge** (montant laissé libre, fréquent chez les artisans) → `qr_sans_montant`,
+  montant à payer repris de la facture. `chiffres.aPayer` / `aPayerSource` (bulletin | facture) :
+  ce qui partira à la banque. Stocké dans `factures.controles`,
   recalculé à chaque correction. **Aucun chiffre ne vient du modèle.**
 - **Circuit** : `facture_visas` (ligne par avis, jamais réécrite). DT nommée → son **dernier** visa
   doit être favorable avant `valider` ; un refus exige un motif et met en litige. Constat critique

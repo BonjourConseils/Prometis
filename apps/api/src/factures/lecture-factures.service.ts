@@ -267,6 +267,13 @@ export class LectureFacturesService {
         texte = '';
         methode = 'qr';
       }
+      // Un scan sans OCR dont la seule couche texte est celle d'un tampon :
+      // la lire comme la facture ferait inventer des valeurs. Le bulletin,
+      // s'il existe, dit seul ce qui est sûr.
+      if (methode === 'texte-pdf-partiel' && bulletin) {
+        texte = '';
+        methode = 'qr';
+      }
 
       // Lus localement, avant tout masquage : le compte bancaire n'a pas à
       // partir chez le modèle, et c'est lui que le contrôle de fraude compare.
@@ -544,6 +551,7 @@ export class LectureFacturesService {
           acomptesDeduits: f.acomptesDeduits,
           iban: f.iban,
           montantQr: montantDuBulletin(f.lecture),
+          bulletinQr: Boolean((f.lecture as { qr?: unknown } | null)?.qr),
           lignes: f.lignes.map((l) => ({
             designation: l.designation,
             codeCfc: l.codeCfc,

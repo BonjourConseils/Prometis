@@ -64,6 +64,27 @@ export function lireDate(brut: string): Date | null {
 const APRES_ETIQUETTE = (etiquettes: string[]): RegExp =>
   new RegExp(`(?:${etiquettes.join('|')})\\s*[:\\s]\\s*([^\\n]{1,40})`, 'i');
 
+/** Un montant écrit à la suisse : 50'000.00, 1 409,95, ou un entier nu (108100). */
+const MONTANT =
+  /-?\d{1,3}(?:[’'`\u00a0\u202f ]\d{3})+(?:[.,]\d{2})?|-?\d+[.,]\d{2}|-?\d{2,}(?![\d.,])/;
+
+/**
+ * Le premier montant qui suit l'une des étiquettes, sur la même ligne — dans
+ * l'ordre des étiquettes, pas dans l'ordre du texte. Une étiquette suivie de
+ * texte (« Total net CHF 39'600.00 ») se lit aussi.
+ */
+function montantApres(texte: string, etiquettes: string[]): Prisma.Decimal | null {
+  for (const e of etiquettes) {
+    const motif = new RegExp(`(?:${e})([^\\n]{0,60})`, 'gim');
+    for (const m of texte.matchAll(motif)) {
+      const brut = MONTANT.exec(m[1] ?? '')?.[0];
+      const montant = brut ? lireMontant(brut) : null;
+      if (montant && montant.greaterThan(0)) return montant;
+    }
+  }
+  return null;
+}
+
 function premiereCapture(texte: string, motif: RegExp): string | null {
   const m = texte.match(motif);
   return m?.[1]?.trim() ?? null;
@@ -101,18 +122,28 @@ export function extraireChamps(texte: string): ChampsExtraits {
     APRES_ETIQUETTE(['date\\s*de\\s*facture', 'date', 'datum']),
   );
 
-  const htBrut = premiereCapture(
-    texte,
-    APRES_ETIQUETTE(['total\\s*ht', 'montant\\s*ht', 'sous-total', 'net\\s*ht']),
-  );
-  const ttcBrut = premiereCapture(
-    texte,
-    APRES_ETIQUETTE(['total\\s*ttc', 'montant\\s*ttc', 'total\\s*à\\s*payer', 'total\\s*general']),
-  );
-  const tvaBrut = premiereCapture(texte, /tva\s*(?:\(|à|:)?\s*(\d{1,2}[.,]\d{1,2})\s*%/i);
-
-  const montantHT = htBrut ? lireMontant(htBrut) : null;
-  const montantTTC = ttcBrut ? lireMontant(ttcBrut) : null;
+  let montantHT = montantApres(texte, [
+    'total\\s*ht',
+    'montant\\s*ht',
+    'net\\s*ht',
+    'total\\s*hors\\s*taxes?',
+    'sous-total',
+  ]);
+  // Ce que la facture demande de payer, dans l'ordre où les factures suisses
+  // l'écrivent : « Total net CHF », « Montant CHF TVA incluse », « Total TTC »,
+  // puis un simple « TOTAL ».
+  const montantTTC = montantApres(texte, [
+    'total\\s*net(?!\\s*ht)',
+    'net\\s*à\\s*payer',
+    'total\\s*à\\s*payer',
+    'montant\\s*(?:chf\\s*)?tva\\s*incl(?:use|\\.)?',
+    'total\\s*ttc',
+    'montant\\s*ttc',
+    'total\\s*(?:chf\\s*)?tva\\s*incl(?:use|\\.)?',
+    'total\\s*g[ée]n[ée]ral',
+    '^\\s*total(?:\\s*chf)?(?=\\s)',
+  ]);
+  const tvaBrut = premiereCapture(texte, /tva[^\n%]{0,20}?(\d{1,2}[.,]\d{1,2})\s*%/i);
   let tvaPct = tvaBrut ? lireMontant(tvaBrut) : null;
 
   // Taux déduit quand HT et TTC sont là mais pas le taux : mieux vaut le
@@ -120,6 +151,12 @@ export function extraireChamps(texte: string): ChampsExtraits {
   if (!tvaPct && montantHT && montantTTC && !montantHT.isZero()) {
     const deduit = montantTTC.minus(montantHT).dividedBy(montantHT).times(100).toDecimalPlaces(2);
     if (deduit.greaterThan(0) && deduit.lessThan(30)) tvaPct = deduit;
+  }
+
+  // « TVA incluse » : beaucoup de factures d'artisans ne donnent que le TTC.
+  // Le HT se calcule alors — il sera marqué « proposé », jamais « lu ».
+  if (!montantHT && montantTTC && tvaPct && tvaPct.greaterThan(0)) {
+    montantHT = montantTTC.dividedBy(tvaPct.dividedBy(100).plus(1)).toDecimalPlaces(2);
   }
 
   return {
@@ -132,6 +169,8 @@ export function extraireChamps(texte: string): ChampsExtraits {
     // Heuristique volontairement simple : l'en-tête d'une facture porte le
     // nom de l'émetteur. Le rapprochement se fait ensuite par comparaison au
     // répertoire des entreprises, pas sur cette seule ligne.
-    fournisseurNom: lignes[0] ?? null,
+    // Les lignes sans mot (dates, montants d'un tampon ajouté au scan) ne
+    // sont pas un nom.
+    fournisseurNom: lignes.find((l) => /[A-Za-zÀ-ÿ]{3,}/.test(l)) ?? null,
   };
 }

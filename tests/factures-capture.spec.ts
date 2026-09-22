@@ -42,7 +42,8 @@ async function deposer(
   token = christophe,
 ) {
   const form = new FormData();
-  for (const f of fichiers) form.append('fichiers', new Blob([new Uint8Array(f.octets)], { type: f.type }), f.nom);
+  for (const f of fichiers)
+    form.append('fichiers', new Blob([new Uint8Array(f.octets)], { type: f.type }), f.nom);
   const res = await fetch(`${API}/operations/${operationId}/factures/depots`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -110,7 +111,7 @@ describe('déposer', () => {
     expect(f.numero).toBe('T-4821');
     expect(f.montantHT?.toString()).toBe('187430');
     expect(f.iban).toBe('CH9300762011623852957');
-    expect(f.lectureMethode).toBe('texte-pdf');
+    expect(f.lectureMethode).toMatch(/^texte-pdf/); // court : l'OCR complète si Tesseract est là
     expect(await ownerDb.document.count({ where: { factureId } })).toBe(1);
   });
 
@@ -127,9 +128,7 @@ describe('déposer', () => {
   });
 
   it('la même pièce redéposée : doublon, pas une seconde facture', async () => {
-    const r = await deposer([
-      { nom: 'copie.pdf', octets: piece, type: 'application/pdf' },
-    ]);
+    const r = await deposer([{ nom: 'copie.pdf', octets: piece, type: 'application/pdf' }]);
     expect(r.body.resultats[0]).toMatchObject({ statut: 'doublon', factureId });
   });
 
