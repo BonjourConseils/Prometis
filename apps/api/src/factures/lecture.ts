@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { BulletinQr } from './qr-lu';
 import { z } from 'zod';
 
 /**
@@ -18,7 +19,11 @@ import { z } from 'zod';
  * clé de contrôle.
  */
 
-export type Ancrage = 'ancree' | 'proposee' | 'absente';
+/**
+ * `qr` : lue dans le bulletin QR suisse, écrit par l'émetteur lui-même — elle
+ * fait foi sur ce que le modèle a pu lire dans le texte.
+ */
+export type Ancrage = 'qr' | 'ancree' | 'proposee' | 'absente';
 
 export interface Champ<T> {
   valeur: T | null;
@@ -264,6 +269,13 @@ export interface LectureAncree {
     iban: Champ<string>;
     referenceQR: Champ<string>;
   };
+  /** Ce que dit le bulletin QR et que la facture ne porte pas en champ. */
+  qr: {
+    montant: number | null;
+    monnaie: string;
+    debiteur: string | null;
+    typeReference: string;
+  } | null;
   lignes: { designation: string; codeCfc: string | null; montant: number; ancrage: Ancrage }[];
 }
 
@@ -277,9 +289,83 @@ export function ancrer(
   source: string,
   modele: string,
   local: { iban: string | null; referenceQR: string | null },
+  bulletin: BulletinQr | null = null,
 ): LectureAncree {
+  const qr = <T>(valeur: T | null | undefined, sinon: Champ<T>): Champ<T> =>
+    valeur !== null && valeur !== undefined ? { valeur, ancrage: 'qr', extrait: null } : sinon;
+  const a = ancrerTexte(l, source, local);
   return {
     modele,
+    champs: bulletin
+      ? {
+          ...a.champs,
+          fournisseur: qr(bulletin.creancier, a.champs.fournisseur),
+          ide: qr(bulletin.ide, a.champs.ide),
+          numero: qr(bulletin.numero, a.champs.numero),
+          dateFacture: qr(bulletin.dateFacture, a.champs.dateFacture),
+          dateEcheance: qr(bulletin.dateEcheance, a.champs.dateEcheance),
+          iban: qr(bulletin.iban, a.champs.iban),
+          referenceQR: qr(bulletin.reference, a.champs.referenceQR),
+        }
+      : a.champs,
+    qr: bulletin
+      ? {
+          montant: bulletin.montant,
+          monnaie: bulletin.monnaie,
+          debiteur: bulletin.debiteur,
+          typeReference: bulletin.typeReference,
+        }
+      : null,
+    lignes: a.lignes,
+  };
+}
+
+/**
+ * Ce que le bulletin QR impose à la lecture du modèle : le créancier est
+ * l'émetteur (le modèle confond volontiers avec le débiteur, écrit juste à
+ * côté), et les informations de facturation Swico sont exactes par nature.
+ * Les montants ne sont pas imposés : le bulletin porte le net à payer, pas
+ * le HT ni le TTC.
+ */
+export function imposerBulletin(l: Lecture, b: BulletinQr | null): Lecture {
+  if (!b) return l;
+  return {
+    ...l,
+    fournisseur: b.creancier,
+    ide: b.ide ?? l.ide,
+    numero: b.numero ?? l.numero,
+    dateFacture: b.dateFacture ?? l.dateFacture,
+    dateEcheance: b.dateEcheance ?? l.dateEcheance,
+  };
+}
+
+/** Une lecture sans texte exploitable, que seul le bulletin renseigne. */
+export function lectureVide(): Lecture {
+  return {
+    fournisseur: null,
+    ide: null,
+    numero: null,
+    dateFacture: null,
+    dateEcheance: null,
+    type: null,
+    montantHT: null,
+    tvaPct: null,
+    montantTVA: null,
+    montantTTC: null,
+    retenueGarantie: null,
+    retenueGarantiePct: null,
+    acomptesDeduits: null,
+    referenceContrat: null,
+    lignes: [],
+  };
+}
+
+function ancrerTexte(
+  l: Lecture,
+  source: string,
+  local: { iban: string | null; referenceQR: string | null },
+): Pick<LectureAncree, 'champs' | 'lignes'> {
+  return {
     champs: {
       fournisseur: champ(l.fournisseur, source),
       ide: champ(l.ide, source),

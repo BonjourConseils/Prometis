@@ -1,16 +1,20 @@
 import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { loadEnv, type Env } from '../config/env';
+import { lireBulletinQr, type BulletinQr } from './qr-lu';
 
 const executer = promisify(execFile);
 
 /** En deçà, la couche texte est celle d'un scan : on passe par l'OCR. */
 export const CARACTERES_PAR_PAGE = 120;
 export const PAGES_OCR_MAX = 8;
+/** 300 ppp suffisent à un PDF produit par un logiciel ; un scan flou demande 600. */
+const QR_RESOLUTIONS = [300, 600];
 const IMAGES = new Map([
   ['image/jpeg', '.jpg'],
   ['image/png', '.png'],
@@ -167,6 +171,88 @@ export class OcrService {
     }
   }
 
+  // ===================================================================
+  //  Bulletin QR suisse
+  // ===================================================================
+
+  /**
+   * Le bulletin QR de la pièce, s'il y en a un — sinon `null`, sans bruit :
+   * beaucoup de factures n'en portent pas, et son absence ne bloque rien.
+   *
+   * Le bulletin est sur la première page d'une facture d'une page, sur la
+   * dernière d'une facture qui en compte plusieurs : on regarde les deux.
+   * Le décodage se fait ici, sur le serveur, comme le reste de la lecture.
+   */
+  async lireQr(octets: Buffer, mime: string): Promise<BulletinQr | null> {
+    if (mime !== 'application/pdf' && !IMAGES.has(mime)) return null;
+    const dossier = await mkdtemp(join(tmpdir(), 'prometis-qr-'));
+    try {
+      if (IMAGES.has(mime)) {
+        const image = join(dossier, `piece${IMAGES.get(mime)}`);
+        await writeFile(image, octets);
+        return await this.bulletinDans(image);
+      }
+      const pdf = join(dossier, 'piece.pdf');
+      await writeFile(pdf, octets);
+      const pages = await this.nombrePages(pdf);
+      for (const resolution of QR_RESOLUTIONS) {
+        for (const page of pages > 1 ? [pages, 1] : [1]) {
+          const racine = join(dossier, `qr-${resolution}-${page}`);
+          await executer(
+            'pdftoppm',
+            [
+              '-r',
+              String(resolution),
+              '-f',
+              String(page),
+              '-l',
+              String(page),
+              '-png',
+              '-singlefile',
+              pdf,
+              racine,
+            ],
+            { timeout: this.env.OCR_TIMEOUT_MS },
+          );
+          const bulletin = await this.bulletinDans(`${racine}.png`);
+          if (bulletin) return bulletin;
+        }
+      }
+      return null;
+    } catch (erreur) {
+      this.logger.warn(`Bulletin QR illisible : ${String(erreur)}`);
+      return null;
+    } finally {
+      await rm(dossier, { recursive: true, force: true });
+    }
+  }
+
+  private async nombrePages(pdf: string): Promise<number> {
+    const { stdout } = await executer('pdfinfo', [pdf], { timeout: this.env.OCR_TIMEOUT_MS });
+    const n = Number(/^Pages:\s+(\d+)/m.exec(stdout)?.[1]);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+  }
+
+  private async bulletinDans(image: string): Promise<BulletinQr | null> {
+    const { Jimp } = await import('jimp');
+    const lu = await Jimp.read(image);
+    const codes = await (
+      await decodeur()
+    ).readBarcodes(
+      {
+        data: new Uint8ClampedArray(lu.bitmap.data),
+        width: lu.bitmap.width,
+        height: lu.bitmap.height,
+      },
+      { formats: ['QRCode'], tryHarder: true, maxNumberOfSymbols: 4 },
+    );
+    for (const c of codes) {
+      const bulletin = c.text ? lireBulletinQr(c.text) : null;
+      if (bulletin) return bulletin;
+    }
+    return null;
+  }
+
   private async coucheTexte(pdf: string): Promise<string> {
     const { stdout } = await executer('pdftotext', ['-layout', '-enc', 'UTF-8', pdf, '-'], {
       timeout: this.env.OCR_TIMEOUT_MS,
@@ -193,4 +279,33 @@ export class OcrService {
       );
     }
   }
+}
+
+/**
+ * Le décodeur de QR codes, chargé une fois.
+ *
+ * Par défaut, `zxing-wasm` télécharge son binaire depuis un CDN public au
+ * premier usage : du code distant, exécuté sur le serveur, à chaque
+ * démarrage. On lui donne celui du paquet installé, figé par le lockfile.
+ */
+let decodeurPret: Promise<typeof import('zxing-wasm/reader')> | null = null;
+function decodeur() {
+  decodeurPret ??= (async () => {
+    const zxing = await import('zxing-wasm/reader');
+    const binaire = readFileSync(require.resolve('zxing-wasm/reader/zxing_reader.wasm'));
+    await zxing.prepareZXingModule({
+      overrides: {
+        wasmBinary: binaire.buffer.slice(
+          binaire.byteOffset,
+          binaire.byteOffset + binaire.byteLength,
+        ),
+      },
+      fireImmediately: true,
+    });
+    return zxing;
+  })().catch((e: unknown) => {
+    decodeurPret = null; // un échec de chargement ne condamne pas les lectures suivantes
+    throw e;
+  });
+  return decodeurPret;
 }

@@ -1428,6 +1428,10 @@ td.avertir {
 .constat.attention {
   border-left-color: var(--warning-fg);
 }
+.ancrage-qr {
+  color: var(--success-fg, inherit);
+  font-weight: 600;
+}
 .ancrage-proposee {
   color: var(--warning-fg);
 }

@@ -179,6 +179,10 @@ des travaux nommée par promotion. Capture des factures (dépôt multiple, photo
 promotion), lecture IA ancrée, contrôle déterministe (cumul, avenants, budget, retenue, postes hors
 contrat, doublons, IBAN), circuit DT → promoteur → comptabilité. 698 tests.
 
+**22 septembre 2026 — bulletin QR décodé** (repris de Kourtagimo) : le QR suisse est lu sur la pièce
+(PDF ou photo) et fait foi sur l'IA pour le créancier, l'IBAN, la référence et les informations
+Swico ; son montant est contrôlé contre le net à payer. 721 tests.
+
 **Reste** : Tesseract sur le serveur ; sous-domaine de réception, son MX et la boîte catch-all ;
 chiffrement applicatif des pièces par société (securite-saas §4, toute la GED) ; file de travail
 persistante si le volume le demande (aujourd'hui en processus, relance manuelle).

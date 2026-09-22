@@ -28,6 +28,8 @@ import {
   schemaLecture,
   schemaLectureJson,
   type Lecture,
+  imposerBulletin,
+  lectureVide,
 } from './lecture';
 import { controler, type Rapport } from './controles';
 
@@ -245,22 +247,39 @@ export class LectureFacturesService {
     if (!facture?.fichierCle || !facture.fichierMime) return;
 
     try {
-      const { texte, methode } = await this.ocr.texte(
-        await this.stockage.lire(facture.fichierCle),
-        facture.fichierMime,
-      );
-      if (texte.replace(/\s+/g, '').length < 20) {
-        throw new BadRequestException(
-          'La pièce ne contient presque pas de texte lisible. Saisissez les montants à la main.',
-        );
+      const octets = await this.stockage.lire(facture.fichierCle);
+      // Le bulletin QR d'abord : il ne dépend ni du texte ni de l'OCR, et ce
+      // qu'il dit fait foi sur tout le reste.
+      const bulletin = await this.ocr.lireQr(octets, facture.fichierMime);
+      let texte = '';
+      let methode = 'qr';
+      try {
+        ({ texte, methode } = await this.ocr.texte(octets, facture.fichierMime));
+        if (texte.replace(/\s+/g, '').length < 20) {
+          throw new BadRequestException(
+            'La pièce ne contient presque pas de texte lisible. Saisissez les montants à la main.',
+          );
+        }
+      } catch (e) {
+        // Sans texte, un bulletin suffit encore à identifier l'émetteur, son
+        // compte et la référence ; les montants restent à saisir.
+        if (!bulletin) throw e;
+        texte = '';
+        methode = 'qr';
       }
 
       // Lus localement, avant tout masquage : le compte bancaire n'a pas à
       // partir chez le modèle, et c'est lui que le contrôle de fraude compare.
-      const local = { iban: lireIban(texte), referenceQR: lireReferenceQr(texte) };
+      const local = {
+        iban: bulletin?.iban ?? lireIban(texte),
+        referenceQR: bulletin?.reference ?? lireReferenceQr(texte),
+      };
       let lecture: Lecture;
       let modele: string;
-      if (this.ia.disponible) {
+      if (!texte) {
+        lecture = lectureVide();
+        modele = 'bulletin-qr';
+      } else if (this.ia.disponible) {
         lecture = await this.ia.completerJson(societeId, 'factures.lecture', {
           systeme: SYSTEME_LECTURE,
           utilisateur: messageLecture(masquer(texte)),
@@ -273,7 +292,8 @@ export class LectureFacturesService {
         lecture = lectureLocale(texte);
         modele = 'lecture-locale';
       }
-      const ancree = ancrer(lecture, texte, modele, local);
+      lecture = imposerBulletin(lecture, bulletin);
+      const ancree = ancrer(lecture, texte, modele, local, bulletin);
 
       await this.db.runInTenant(societeId, async (tx) => {
         const candidats = await candidatsContrats(tx, operationId);
@@ -523,6 +543,7 @@ export class LectureFacturesService {
           retenueGarantie: f.retenueGarantie,
           acomptesDeduits: f.acomptesDeduits,
           iban: f.iban,
+          montantQr: montantDuBulletin(f.lecture),
           lignes: f.lignes.map((l) => ({
             designation: l.designation,
             codeCfc: l.codeCfc,
@@ -657,4 +678,10 @@ async function candidatsContrats(tx: TenantDb, operationId: number): Promise<Can
     montantCommande: c.avenants.reduce<Prisma.Decimal>((t, a) => t.plus(a.montant), c.montant),
     dejaFacture: c.factures.reduce<Prisma.Decimal>((t, f) => t.plus(f.montantHT ?? 0), ZERO),
   }));
+}
+
+/** Le montant du bulletin QR, conservé dans la lecture. */
+function montantDuBulletin(lecture: Prisma.JsonValue | null): Prisma.Decimal | null {
+  const qr = (lecture as { qr?: { montant?: unknown } | null } | null)?.qr;
+  return typeof qr?.montant === 'number' ? new Prisma.Decimal(qr.montant) : null;
 }

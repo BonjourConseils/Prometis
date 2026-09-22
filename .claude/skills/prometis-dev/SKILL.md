@@ -752,8 +752,19 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   lecture » reprend une facture restée en lecture après un redémarrage.
 - **Texte** (`ocr.service.ts#texte`) : couche PDF (`pdftotext`), OCR Tesseract sous 120 caractères
   par page (8 pages, 200 dpi) ; sans Tesseract, la couche mince est gardée plutôt que d'échouer.
+- **Bulletin QR** (`qr-lu.ts` pur, `ocr.service.ts#lireQr`) : lu **avant** le texte. Dernière
+  puis première page rendues par `pdftoppm` (300, puis 600 ppp), décodées par `zxing-wasm` + `jimp`
+  sur le serveur ; une photo est décodée telle quelle. Contenu SPC (types d'adresse S et K,
+  références QRR/SCOR/NON) et informations Swico `//S1/` (n°, date, IDE, échéance par l'étiquette
+  40). **Il fait foi** : créancier, IBAN, référence, n°, dates et IDE remplacent la lecture du
+  modèle, ancrage `qr`. Il ne fixe pas les montants (il porte le net à payer) : le contrôle
+  `qr_montant` le compare au TTC net de retenue et d'acomptes. Sans texte lisible, le bulletin
+  suffit à créer la lecture (`lectureMethode = 'qr'`). Ce que le modèle ne sait pas de l'émetteur,
+  le bulletin le dit : c'est la parade à l'inversion créancier / débiteur (vécu Kourtagimo).
+  **Piège** : `zxing-wasm` télécharge par défaut son `.wasm` depuis jsDelivr au premier usage — on
+  lui passe `wasmBinary` lu dans `node_modules` (`prepareZXingModule`), aucun appel réseau.
 - **Lecture** (`lecture.ts`) : IA Infomaniak sur texte masqué, schéma imposé ; **ancrage calculé**
-  (ancrée / proposée / absente) ; IBAN (clé mod 97) et référence QR **lus localement**, jamais
+  (qr / ancrée / proposée / absente) ; IBAN (clé mod 97) et référence QR **lus localement**, jamais
   envoyés au modèle. Sans IA : motifs du Lot 5. La lecture complète les vides, ne réécrit rien.
   Entreprise : IDE lu > expéditeur e-mail authentifié > nom identique normalisé > rapprochement.
 - **Contrôle** (`controles.ts`, pur) : avancement facturé cumulé (validées + celle-ci) ÷ (contrat +
@@ -761,7 +772,8 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   commandé > budget du poste ; retenue de garantie absente / au mauvais taux (situations et
   acomptes) ; acomptes déduits ≠ validés ; poste hors périmètre (nommant le contrat qui le couvre)
   ou absent de l'adjudication (seulement si le budget détaille le poste) ; doublon de numéro ;
-  HT + TVA ≠ TTC ; taux abrogé (7.7) ; **IBAN changé** (critique). Stocké dans `factures.controles`,
+  HT + TVA ≠ TTC ; taux abrogé (7.7) ; **IBAN changé** (critique) ; montant du bulletin QR ≠ net à
+  payer. Stocké dans `factures.controles`,
   recalculé à chaque correction. **Aucun chiffre ne vient du modèle.**
 - **Circuit** : `facture_visas` (ligne par avis, jamais réécrite). DT nommée → son **dernier** visa
   doit être favorable avant `valider` ; un refus exige un motif et met en litige. Constat critique

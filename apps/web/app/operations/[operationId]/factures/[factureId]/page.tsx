@@ -10,7 +10,7 @@ import { CorrigerFacture, LignesFacture, Relire, ViserFacture } from './controle
 
 interface Champ {
   valeur: string | number | null;
-  ancrage: 'ancree' | 'proposee' | 'absente';
+  ancrage: 'qr' | 'ancree' | 'proposee' | 'absente';
   extrait: string | null;
 }
 
@@ -39,6 +39,12 @@ interface Detail {
     modele: string;
     rapprochement?: string;
     champs: Record<string, Champ>;
+    qr?: {
+      montant: number | null;
+      monnaie: string;
+      debiteur: string | null;
+      typeReference: string;
+    } | null;
   } | null;
   controles: {
     constats: {
@@ -94,6 +100,7 @@ const LIBELLES: [string, string][] = [
 ];
 
 const ANCRAGE: Record<string, string> = {
+  qr: 'lu dans le bulletin QR',
   ancree: 'lu dans la facture',
   proposee: 'proposé — à vérifier',
   absente: 'absent',
@@ -265,14 +272,30 @@ export default async function FacturePage({
                 })}
               </tbody>
             </table>
+            {f.lecture.qr && (
+              <p>
+                <strong>Bulletin QR</strong> : {f.lecture.qr.monnaie}{' '}
+                {f.lecture.qr.montant === null
+                  ? 'montant laissé libre'
+                  : `${f.lecture.qr.montant.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '’')} à payer`}
+                {f.lecture.qr.debiteur && ` · débiteur ${f.lecture.qr.debiteur}`}
+              </p>
+            )}
             <p className="meta">
               Lecture :{' '}
-              {f.lectureMethode === 'ocr' ? 'reconnaissance de caractères' : 'texte du PDF'}
-              {f.lecture.modele === 'lecture-locale'
-                ? ', motifs locaux'
-                : ', IA Infomaniak (Suisse)'}
-              . « Lu dans la facture » : la valeur figure telle quelle dans le document. « Proposé »
-              : à vérifier.
+              {f.lectureMethode === 'qr'
+                ? 'bulletin QR seul, le texte de la pièce n’a pas pu être lu'
+                : f.lectureMethode === 'ocr'
+                  ? 'reconnaissance de caractères'
+                  : 'texte du PDF'}
+              {f.lecture.modele === 'bulletin-qr'
+                ? ''
+                : f.lecture.modele === 'lecture-locale'
+                  ? ', motifs locaux'
+                  : ', IA Infomaniak (Suisse)'}
+              {f.lecture.qr ? ', bulletin QR décodé' : ''}. « Lu dans le bulletin QR » : écrit par
+              l’émetteur lui-même, fait foi. « Lu dans la facture » : la valeur figure telle quelle
+              dans le document. « Proposé » : à vérifier.
             </p>
           </div>
         ) : (

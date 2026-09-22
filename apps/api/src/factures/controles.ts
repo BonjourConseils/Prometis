@@ -33,6 +33,8 @@ export interface EntreeControle {
     retenueGarantie: Prisma.Decimal | null;
     acomptesDeduits: Prisma.Decimal | null;
     iban: string | null;
+    /** Montant du bulletin QR, s'il y en a un : ce que l'entreprise demande de payer. */
+    montantQr?: Prisma.Decimal | null;
     lignes: { designation: string; codeCfc: string | null; montant: Prisma.Decimal }[];
   };
   entreprise: { nom: string } | null;
@@ -125,6 +127,24 @@ export function controler(e: EntreeControle): Rapport {
       titre: `Même numéro déjà enregistré pour ${e.entreprise?.nom ?? 'cette entreprise'}.`,
       detail: `Facture ${d.id} (${d.operation}). Une facture payée deux fois ne se rattrape qu’à la main.`,
     });
+  }
+
+  // --- Bulletin QR ---------------------------------------------------
+  // Le bulletin porte le net à payer : TTC moins la retenue et les acomptes
+  // que la facture déduit elle-même. Un écart, c'est un bulletin qui ne
+  // correspond pas à la facture — erreur, ou bulletin substitué.
+  if (f.montantQr && f.montantTTC) {
+    const net = f.montantTTC.minus(f.retenueGarantie ?? 0).minus(f.acomptesDeduits ?? 0);
+    const ecart = f.montantQr.minus(net).abs();
+    if (ecart.greaterThan(0.05) && !f.montantQr.minus(f.montantTTC).abs().lessThanOrEqualTo(0.05)) {
+      c.push({
+        code: 'qr_montant',
+        gravite: 'attention',
+        titre: `Le bulletin QR demande ${formater(f.montantQr)}, la facture calcule ${formater(net)} à payer.`,
+        detail:
+          'Le montant du bulletin ne correspond ni au TTC ni au TTC net de retenue et d’acomptes. C’est lui que la banque paiera.',
+      });
+    }
   }
 
   // --- Arithmétique et TVA ----------------------------------------
