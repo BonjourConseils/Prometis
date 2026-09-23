@@ -5,6 +5,7 @@ import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
 import { extraireChamps } from './extraction';
 import { OcrService } from './ocr.service';
+import { valeurDansBase } from './controles';
 import {
   controlerCumul,
   suggererImputation,
@@ -94,9 +95,10 @@ export class FacturesService {
         cfcNodeId: true,
         entreprise: { select: { id: true, nom: true } },
         avenants: { select: { montant: true } },
+        base: true,
         factures: {
           where: { statut: { in: ['VALIDEE', 'PAYEE'] } },
-          select: { montantHT: true },
+          select: { montantHT: true, montantTTC: true, tvaPct: true },
         },
       },
     });
@@ -108,7 +110,11 @@ export class FacturesService {
       entrepriseNom: c.entreprise.nom,
       cfcNodeId: c.cfcNodeId,
       montantCommande: c.avenants.reduce<Prisma.Decimal>((t, a) => t.plus(a.montant), c.montant),
-      dejaFacture: c.factures.reduce<Prisma.Decimal>((t, f) => t.plus(f.montantHT ?? 0), ZERO),
+      base: c.base,
+      dejaFacture: c.factures.reduce<Prisma.Decimal>(
+        (t, f) => t.plus(valeurDansBase(f, c.base) ?? 0),
+        ZERO,
+      ),
     }));
   }
 
@@ -361,14 +367,13 @@ export class FacturesService {
 
       // La facture courante ne doit pas compter deux fois si elle est déjà
       // validée : on la retire du cumul avant de la réinjecter.
-      const dejaComptee = ['VALIDEE', 'PAYEE'].includes(facture.statut)
-        ? (facture.montantHT ?? ZERO)
-        : ZERO;
+      const valeur = valeurDansBase(facture, candidat.base) ?? ZERO;
+      const dejaComptee = ['VALIDEE', 'PAYEE'].includes(facture.statut) ? valeur : ZERO;
 
       return controlerCumul(
         candidat.montantCommande,
         candidat.dejaFacture.minus(dejaComptee),
-        facture.montantHT ?? ZERO,
+        valeur,
       );
     });
   }
@@ -470,7 +475,7 @@ export class FacturesService {
           controle = controlerCumul(
             candidat.montantCommande,
             candidat.dejaFacture,
-            facture.montantHT,
+            valeurDansBase(facture, candidat.base) ?? facture.montantHT,
           );
 
           if (controle.depasse && !donnees.forcer) {

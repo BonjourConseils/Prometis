@@ -43,6 +43,10 @@ export interface EntreeControle {
   contrat: {
     reference: string | null;
     montant: Prisma.Decimal;
+    /** Base des montants du contrat : c'est elle qui fixe celle de la comparaison. */
+    base: 'TTC' | 'HT';
+    /** Prix ferme, heures, ou les deux — ce qui a été validé au début. */
+    forme: 'FORFAIT' | 'REGIE' | 'FORFAIT_REGIE';
     avenants: Prisma.Decimal;
     retenueGarantiePct: Prisma.Decimal | null;
     cfc: { code: string; libelle: string } | null;
@@ -107,6 +111,33 @@ export function couvre(perimetre: string, code: string): boolean {
 export function codeLu(brut: string): string | null {
   const m = /(\d{1,3}(?:\.\d{1,3}){0,3})/.exec(brut);
   return m ? m[1]! : null;
+}
+
+/**
+ * Le montant de la facture dans la base du contrat.
+ *
+ * Un promoteur raisonne TTC : c'est en TTC que la soumission a été validée,
+ * et c'est en TTC qu'il faut cumuler. Quand la facture ne donne qu'un côté,
+ * l'autre se calcule au taux lu — approximation assumée, corrigeable à la
+ * main sur l'écran de la facture.
+ */
+export function valeurDansBase(
+  f: {
+    montantHT: Prisma.Decimal | null;
+    montantTTC: Prisma.Decimal | null;
+    tvaPct: Prisma.Decimal | null;
+  },
+  base: 'TTC' | 'HT',
+): Prisma.Decimal | null {
+  const taux = f.tvaPct ? f.tvaPct.dividedBy(CENT).plus(1) : null;
+  if (base === 'TTC') {
+    return (
+      f.montantTTC ?? (f.montantHT && taux ? f.montantHT.times(taux).toDecimalPlaces(2) : null)
+    );
+  }
+  return (
+    f.montantHT ?? (f.montantTTC && taux ? f.montantTTC.dividedBy(taux).toDecimalPlaces(2) : null)
+  );
 }
 
 export function controler(e: EntreeControle): Rapport {
@@ -234,15 +265,17 @@ export function controler(e: EntreeControle): Rapport {
     });
   } else {
     const k = e.contrat;
+    const valeur = valeurDansBase(f, k.base);
+    const enBase = k.base === 'TTC' ? 'TTC' : 'hors taxes';
     commande = k.montant.plus(k.avenants);
-    cumulApres = k.dejaFacture.plus(ht ?? ZERO);
+    cumulApres = k.dejaFacture.plus(valeur ?? ZERO);
     if (!commande.isZero()) {
       avancement = cumulApres.dividedBy(commande).times(CENT).toDecimalPlaces(1);
       c.push({
         code: 'avancement',
         gravite: 'info',
         titre: `Avancement facturé cumulé : ${avancement.toFixed(1)} % du commandé.`,
-        detail: `${formater(cumulApres)} facturés, cette facture comprise, sur ${formater(commande)} (contrat ${formater(k.montant)}${k.avenants.isZero() ? '' : ` + avenants ${formater(k.avenants)}`}).`,
+        detail: `${formater(cumulApres)} facturés ${enBase}, cette facture comprise, sur ${formater(commande)} (contrat ${formater(k.montant)}${k.avenants.isZero() ? '' : ` + avenants ${formater(k.avenants)}`}).`,
       });
     }
     if (cumulApres.greaterThan(commande)) {
@@ -269,18 +302,41 @@ export function controler(e: EntreeControle): Rapport {
           : undefined,
       });
     }
+    // --- Facture de solde ------------------------------------------
+    // « La facture finale sera tout sauf les acomptes payés, et cela doit
+    // correspondre au montant validé au début » (CB Promotions, 23.09.2026).
+    // Un contrat en régie, lui, ne peut pas se solder au franc près.
+    if (f.type === 'SOLDE' && valeur) {
+      const ecart = cumulApres.minus(commande);
+      if (ecart.abs().greaterThan(1)) {
+        const ferme = k.forme === 'FORFAIT';
+        c.push({
+          code: 'solde_ecart',
+          gravite: ferme ? 'attention' : 'info',
+          titre: ecart.isNegative()
+            ? `Facture finale : il resterait ${formater(ecart.abs())} non facturés sur le commandé.`
+            : `Facture finale : le cumul dépasse le commandé de ${formater(ecart)}.`,
+          detail: ferme
+            ? `Prix ferme de ${formater(commande)} ${enBase} ; acomptes et situations déjà validés ${formater(k.dejaFacture)}, cette facture ${formater(valeur)}. Un avenant manque, ou la facture se trompe.`
+            : `Contrat ${k.forme === 'REGIE' ? 'en régie' : 'au forfait complété de régie'} : l’écart peut venir des heures. À vérifier sur le décompte, pas à bloquer.`,
+        });
+      }
+    }
+
     if (e.budgetPoste && commande.greaterThan(e.budgetPoste)) {
       c.push({
         code: 'budget_depasse',
         gravite: 'attention',
         titre: `Le commandé dépasse le budget du poste de ${formater(commande.minus(e.budgetPoste))}.`,
-        detail: `Budget ${formater(e.budgetPoste)}${k.cfc ? ` (CFC ${k.cfc.code})` : ''}, commandé ${formater(commande)}.`,
+        detail: `Budget ${formater(e.budgetPoste)}${k.cfc ? ` (CFC ${k.cfc.code})` : ''}, commandé ${formater(commande)} ${enBase}.`,
       });
     }
 
     // --- Retenue de garantie ---------------------------------------
     const pct = k.retenueGarantiePct;
-    const soumise = ['SITUATION', 'ACOMPTE'].includes(f.type);
+    // Pas de retenue sur un acompte : chez CB Promotions, elle se prend sur
+    // les situations et sur le solde (décidé le 23.09.2026).
+    const soumise = ['SITUATION', 'SOLDE'].includes(f.type);
     if (pct && pct.greaterThan(0) && soumise) {
       if (!f.retenueGarantie || f.retenueGarantie.isZero()) {
         c.push({

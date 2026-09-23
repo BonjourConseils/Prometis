@@ -408,6 +408,8 @@ function FormulaireContrat({
       reference: champ(d.get('reference')),
       retenueGarantiePct: champ(d.get('retenueGarantiePct')),
       dateSignature: champ(d.get('dateSignature')),
+      base: champ(d.get('base')),
+      forme: champ(d.get('forme')),
     });
     if (ok) fermer();
   }
@@ -431,7 +433,28 @@ function FormulaireContrat({
           Date de signature
           <input name="dateSignature" type="date" />
         </label>
+        <label>
+          Montants
+          <select name="base" defaultValue="HT">
+            <option value="TTC">Toutes taxes comprises</option>
+            <option value="HT">Hors taxes</option>
+          </select>
+        </label>
+        <label>
+          Forme
+          <select name="forme" defaultValue="FORFAIT">
+            <option value="FORFAIT">Prix ferme (forfait)</option>
+            <option value="FORFAIT_REGIE">Forfait + travaux en régie</option>
+            <option value="REGIE">Régie</option>
+          </select>
+        </label>
       </div>
+      <p className="note">
+        L&apos;offre adjugée a été saisie <strong>hors taxes</strong> : c&apos;est elle qui donne le
+        montant du contrat. Basculer sur TTC suppose d&apos;y reporter le montant toutes taxes
+        comprises. Les factures se cumuleront dans cette base, et une facture de solde doit ramener
+        le cumul au montant validé — sauf en régie, où les heures peuvent le faire varier.
+      </p>
       {erreur && <p className="ko">{erreur}</p>}
       <button type="submit" disabled={enCours}>
         {enCours ? 'Génération…' : 'Générer le contrat'}

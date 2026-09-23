@@ -1180,6 +1180,10 @@ model Contrat {
   adjudicationId     Int?          @unique @map("adjudication_id")
   reference          String?
   montant            Decimal       @db.Decimal(12, 2)
+  /// Base des montants du contrat : les adjudications suisses se traitent en TTC.
+  base               BaseMontant   @default(TTC)
+  /// Forfait, régie, ou forfait complété de travaux en régie.
+  forme              FormeContrat  @default(FORFAIT)
   retenueGarantiePct Decimal?      @map("retenue_garantie_pct") @db.Decimal(4, 2)
   statut             ContratStatut @default(BROUILLON)
   dateSignature      DateTime?     @map("date_signature")
@@ -1223,6 +1227,19 @@ model Avenant {
 // =====================================================================
 //  5. FACTURES (avec lecture OCR/IA) & PAIEMENTS FOURNISSEURS
 // =====================================================================
+
+/// Un montant se lit TTC (le défaut chez un promoteur) ou hors taxes.
+enum BaseMontant {
+  TTC
+  HT
+}
+
+/// Ce qui a été validé au début : un prix ferme, des heures, ou les deux.
+enum FormeContrat {
+  FORFAIT
+  REGIE
+  FORFAIT_REGIE
+}
 
 enum FactureType {
   SITUATION // état d'avancement

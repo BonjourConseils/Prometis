@@ -35,6 +35,8 @@ const base = (): EntreeControle => ({
   entreprise: { nom: 'Entreprise X SA' },
   contrat: {
     reference: 'CTR-211',
+    base: 'HT',
+    forme: 'FORFAIT',
     montant: D('1180000'),
     avenants: D('74500'),
     retenueGarantiePct: D('10'),
@@ -226,5 +228,87 @@ describe('lecture ancrée', () => {
     expect(a.champs.tvaPct.ancrage).toBe('ancree');
     expect(a.champs.ide.ancrage).toBe('absente');
     expect(a.champs.type.ancrage).toBe('proposee');
+  });
+});
+
+describe('base des montants : TTC chez un promoteur', () => {
+  /** « En principe on parle de TTC » — CB Promotions, 23.09.2026. */
+  const ttc = (): EntreeControle => {
+    const e = base();
+    e.contrat!.base = 'TTC';
+    e.contrat!.montant = D('1275580'); // 1'180'000 HT + 8.1 %
+    e.contrat!.avenants = D('80534.50');
+    e.contrat!.dejaFacture = D('724970.51');
+    return e;
+  };
+
+  it('cumule le TTC de la facture, pas son HT', () => {
+    const r = controler(ttc());
+    expect(r.chiffres.commande).toBe('1356114.50');
+    expect(r.chiffres.cumulApres).toBe('927582.34'); // 724'970.51 + 202'611.83
+    expect(r.chiffres.avancementPct).toBe('68.4');
+  });
+
+  it('un TTC absent se calcule au taux lu, et le dit « proposé » ailleurs', () => {
+    const e = ttc();
+    e.facture.montantTTC = null;
+    expect(controler(e).chiffres.cumulApres).toBe('927582.34');
+  });
+
+  it('en base HT, rien ne change pour le cas de référence', () => {
+    expect(controler(base()).chiffres.avancementPct).toBe('68.4');
+  });
+});
+
+describe('facture de solde', () => {
+  const solde = (montantHT: string, forme: 'FORFAIT' | 'REGIE' = 'FORFAIT'): EntreeControle => {
+    const e = base();
+    e.facture.type = 'SOLDE';
+    e.facture.montantHT = D(montantHT);
+    e.facture.montantTVA = null;
+    e.facture.montantTTC = null;
+    e.facture.retenueGarantie = D('125450'); // 10 %, présente
+    e.contrat!.forme = forme;
+    e.contrat!.dejaFacture = D('1100000');
+    return e;
+  };
+
+  it('solde le commandé au franc près : rien à signaler', () => {
+    // 1'254'500 commandés − 1'100'000 déjà facturés = 154'500.
+    expect(controler(solde('154500')).constats.some((c) => c.code === 'solde_ecart')).toBe(false);
+  });
+
+  it('laisse un reliquat : on le dit', () => {
+    const k = controler(solde('140000')).constats.find((c) => c.code === 'solde_ecart');
+    expect(k?.gravite).toBe('attention');
+    expect(k?.titre).toMatch(/resterait CHF 14’500\.00 non facturés/);
+  });
+
+  it('en régie, l’écart n’est qu’une information', () => {
+    const k = controler(solde('140000', 'REGIE')).constats.find((c) => c.code === 'solde_ecart');
+    expect(k?.gravite).toBe('info');
+    expect(k?.detail).toMatch(/en régie/);
+  });
+
+  it('une situation ordinaire n’est jamais un solde', () => {
+    expect(controler(base()).constats.some((c) => c.code === 'solde_ecart')).toBe(false);
+  });
+});
+
+describe('retenue de garantie : pas sur les acomptes', () => {
+  it('un acompte sans retenue ne déclenche rien', () => {
+    const e = base();
+    e.facture.type = 'ACOMPTE';
+    expect(controler(e).constats.some((c) => c.code === 'retenue_absente')).toBe(false);
+  });
+
+  it('une situation sans retenue, si', () => {
+    expect(controler(base()).constats.some((c) => c.code === 'retenue_absente')).toBe(true);
+  });
+
+  it('une facture de solde sans retenue aussi', () => {
+    const e = base();
+    e.facture.type = 'SOLDE';
+    expect(controler(e).constats.some((c) => c.code === 'retenue_absente')).toBe(true);
   });
 });

@@ -31,7 +31,7 @@ import {
   imposerBulletin,
   lectureVide,
 } from './lecture';
-import { controler, type Rapport } from './controles';
+import { controler, valeurDansBase, type Rapport } from './controles';
 
 const ZERO = new Prisma.Decimal(0);
 
@@ -470,16 +470,19 @@ export class LectureFacturesService {
         const perimetre = noeuds.filter((n) => perimetreIds.has(n.id)).map((n) => n.code);
         const autres = await tx.facture.findMany({
           where: { contratId: k.id, id: { not: factureId } },
-          select: { statut: true, montantHT: true },
+          select: { statut: true, montantHT: true, montantTTC: true, tvaPct: true },
         });
+        // Cumulées dans la base du contrat — en TTC chez un promoteur.
         const somme = (xs: typeof autres) =>
-          xs.reduce<Prisma.Decimal>((t, x) => t.plus(x.montantHT ?? 0), ZERO);
+          xs.reduce<Prisma.Decimal>((t, x) => t.plus(valeurDansBase(x, k.base) ?? 0), ZERO);
         const attente = autres.filter((x) =>
           ['RECUE', 'EN_LECTURE', 'A_VALIDER'].includes(x.statut),
         );
         contrat = {
           reference: k.reference,
           montant: k.montant,
+          base: k.base,
+          forme: k.forme,
           avenants: k.avenants.reduce<Prisma.Decimal>((t, a) => t.plus(a.montant), ZERO),
           retenueGarantiePct: k.retenueGarantiePct,
           cfc: k.cfcNode ? { code: k.cfcNode.code, libelle: k.cfcNode.libelle } : null,
@@ -672,9 +675,13 @@ async function candidatsContrats(tx: TenantDb, operationId: number): Promise<Can
       reference: true,
       montant: true,
       cfcNodeId: true,
+      base: true,
       entreprise: { select: { id: true, nom: true } },
       avenants: { select: { montant: true } },
-      factures: { where: { statut: { in: ['VALIDEE', 'PAYEE'] } }, select: { montantHT: true } },
+      factures: {
+        where: { statut: { in: ['VALIDEE', 'PAYEE'] } },
+        select: { montantHT: true, montantTTC: true, tvaPct: true },
+      },
     },
   });
   return contrats.map((c) => ({
@@ -684,7 +691,11 @@ async function candidatsContrats(tx: TenantDb, operationId: number): Promise<Can
     entrepriseNom: c.entreprise.nom,
     cfcNodeId: c.cfcNodeId,
     montantCommande: c.avenants.reduce<Prisma.Decimal>((t, a) => t.plus(a.montant), c.montant),
-    dejaFacture: c.factures.reduce<Prisma.Decimal>((t, f) => t.plus(f.montantHT ?? 0), ZERO),
+    base: c.base,
+    dejaFacture: c.factures.reduce<Prisma.Decimal>(
+      (t, f) => t.plus(valeurDansBase(f, c.base) ?? 0),
+      ZERO,
+    ),
   }));
 }
 

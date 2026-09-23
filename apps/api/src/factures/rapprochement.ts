@@ -23,7 +23,9 @@ export interface CandidatContrat {
   cfcNodeId: number | null;
   /** Contrat + avenants. */
   montantCommande: Prisma.Decimal;
-  /** Factures déjà validées ou payées sur ce contrat, hors taxe. */
+  /** Base des montants du contrat — TTC chez un promoteur. */
+  base: 'TTC' | 'HT';
+  /** Factures déjà validées ou payées sur ce contrat, dans la base du contrat. */
   dejaFacture: Prisma.Decimal;
 }
 

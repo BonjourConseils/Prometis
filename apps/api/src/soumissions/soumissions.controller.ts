@@ -115,10 +115,15 @@ const adjudicationSchema = z.object({
   commentaire: texteOptionnel,
 });
 
+const baseMontant = z.enum(['TTC', 'HT']);
+const formeContrat = z.enum(['FORFAIT', 'REGIE', 'FORFAIT_REGIE']);
+
 const contratSchema = z.object({
   reference: texteOptionnel,
   retenueGarantiePct: nombreDecimal.nullish(),
   dateSignature: z.coerce.date().nullish(),
+  base: baseMontant.optional(),
+  forme: formeContrat.optional(),
 });
 
 const modifierContratSchema = z
@@ -128,6 +133,8 @@ const modifierContratSchema = z
     statut: z.enum(['BROUILLON', 'SIGNE', 'EN_COURS', 'RECEPTION', 'SOLDE', 'RESILIE']).optional(),
     dateSignature: z.coerce.date().nullish(),
     dateReception: z.coerce.date().nullish(),
+    base: baseMontant.optional(),
+    forme: formeContrat.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Aucun changement fourni.' });
 

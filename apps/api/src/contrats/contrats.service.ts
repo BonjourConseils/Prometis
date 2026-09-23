@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type ContratStatut } from '@prisma/client';
+import { Prisma, type BaseMontant, type ContratStatut, type FormeContrat } from '@prisma/client';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { RequestContext } from '../context/request-context';
 import { AuditService } from '../audit/audit.service';
@@ -12,6 +12,9 @@ export interface DonneesContrat {
   reference?: string | null;
   retenueGarantiePct?: Prisma.Decimal | null;
   dateSignature?: Date | null;
+  /** TTC par défaut : c'est ainsi que les adjudications se signent ici. */
+  base?: BaseMontant;
+  forme?: FormeContrat;
 }
 
 export interface DonneesAvenant {
@@ -283,6 +286,8 @@ export class ContratsService {
           retenueGarantiePct: donnees.retenueGarantiePct ?? null,
           statut: donnees.dateSignature ? 'SIGNE' : 'BROUILLON',
           dateSignature: donnees.dateSignature ?? null,
+          ...(donnees.base ? { base: donnees.base } : {}),
+          ...(donnees.forme ? { forme: donnees.forme } : {}),
         },
       });
 
@@ -316,6 +321,8 @@ export class ContratsService {
       statut?: ContratStatut;
       dateSignature?: Date | null;
       dateReception?: Date | null;
+      base?: BaseMontant;
+      forme?: FormeContrat;
     },
   ) {
     return this.db.run(async (tx) => {
