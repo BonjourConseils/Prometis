@@ -15,6 +15,7 @@ export interface DonneesActeur {
   localite?: string | null;
   email?: string | null;
   telephone?: string | null;
+  siteWeb?: string | null;
   ide?: string | null;
 }
 
@@ -105,6 +106,7 @@ export class ActeursService {
               prenom: true,
               email: true,
               telephone: true,
+              siteWeb: true,
               localite: true,
             },
           },

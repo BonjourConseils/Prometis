@@ -307,7 +307,10 @@ describe('annuaire des acteurs', () => {
   it('filtre par type', async () => {
     const res = await appel<{ type: string }[]>('/acteurs?type=NOTAIRE', { token: christophe });
     expect(res.body.every((a) => a.type === 'NOTAIRE')).toBe(true);
-    expect(res.body.length).toBe(1);
+    // Au moins celui du seed. Le nombre exact ne tient pas : l'annuaire se
+    // tient désormais depuis l'écran, et un notaire ajouté à la main ne doit
+    // pas faire échouer la suite.
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
   });
 
   it('refuse un deuxième mandataire général sur la même opération', async () => {

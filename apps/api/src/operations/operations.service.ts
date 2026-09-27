@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { ModeRealisation, OperationStatut, Prisma } from '@prisma/client';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { AccessService } from '../auth/access.service';
@@ -96,6 +96,82 @@ export class OperationsService {
         donnees: { champs: Object.keys(donnees) },
       });
       return tx.operation.findUniqueOrThrow({ where: { id: operationId } });
+    });
+  }
+
+  /**
+   * Supprime une promotion — et refuse de le faire dès qu'elle porte une
+   * trace d'argent.
+   *
+   * Une promotion se clôture, elle ne s'efface pas : factures, contrats,
+   * réservations et appels de fonds sont des pièces comptables, et leur
+   * suppression ne se rattrape pas. Ce qui se supprime, ce sont les
+   * promotions créées pour rien — un essai, un doublon, une démonstration.
+   */
+  async supprimer(operationId: number) {
+    return this.db.run(async (tx) => {
+      const operation = await tx.operation.findUnique({
+        where: { id: operationId },
+        select: {
+          id: true,
+          nom: true,
+          _count: {
+            select: {
+              factures: true,
+              contrats: true,
+              soumissions: true,
+              reservations: true,
+              ordresPaiement: true,
+              documents: true,
+            },
+          },
+        },
+      });
+      if (!operation) throw new NotFoundException(`Opération ${operationId} introuvable.`);
+
+      const appels = await tx.appelDeFonds.count({ where: { reservation: { operationId } } });
+
+      const pieces = [
+        [operation._count.factures, 'facture'],
+        [operation._count.contrats, 'contrat'],
+        [appels, 'appel de fonds'],
+        [operation._count.ordresPaiement, 'ordre de paiement'],
+        [operation._count.reservations, 'réservation'],
+      ] as const;
+      const bloquantes = pieces.filter(([n]) => n > 0);
+      if (bloquantes.length) {
+        throw new BadRequestException(
+          `« ${operation.nom} » porte ${bloquantes
+            .map(([n, mot]) => `${n} ${mot}${n > 1 ? 's' : ''}`)
+            .join(
+              ', ',
+            )} : ce sont des pièces comptables. Clôturez la promotion plutôt que de la supprimer.`,
+        );
+      }
+
+      // L'audit s'écrit AVANT : après la suppression, l'opération n'existe
+      // plus, et la trace de ce qu'on a effacé doit rester.
+      await this.audit.enregistrer(tx, {
+        action: 'operation.supprimee',
+        entite: 'Operation',
+        entiteId: operationId,
+        donnees: {
+          nom: operation.nom,
+          soumissions: operation._count.soumissions,
+          documents: operation._count.documents,
+        },
+      });
+
+      // La cascade ne suffit pas : `lignes_budget` référence `cfc_nodes` en
+      // Restrict, et l'ordre d'évaluation des cascades n'est pas garanti.
+      await tx.ligneBudget.deleteMany({ where: { budgetVersion: { operationId } } });
+      await tx.budgetVersion.deleteMany({ where: { operationId } });
+      await tx.cfcNode.deleteMany({ where: { operationId } });
+      await tx.parking.deleteMany({ where: { lot: { bien: { operationId } } } });
+      await tx.lot.deleteMany({ where: { bien: { operationId } } });
+      await tx.operation.delete({ where: { id: operationId } });
+
+      return { supprimee: true, nom: operation.nom };
     });
   }
 

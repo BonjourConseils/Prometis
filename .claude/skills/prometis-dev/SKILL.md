@@ -821,6 +821,25 @@ Le geste du terrain — « Ordre de paiement n° 11 » chez CB Promotions — re
 - **Non éprouvé** : aucun fichier n'a encore été chargé dans un e-banking réel. Le BIC est
   facultatif tant qu'une banque ne l'exige pas.
 
+### Tenir l'annuaire et la fiche promotion (`apps/web/app/acteurs/`, `operations/[id]/saisie.tsx`)
+- **Fiche promotion** : « Modifier la fiche » (nom, commune, canton, statut, dates, description) —
+  le nom d'une promotion change, et il ne se corrigeait qu'en base.
+- **Supprimer une promotion** (`operations.service.ts#supprimer`, `@Roles('OWNER','ADMIN')`) :
+  **refusée** dès qu'il existe une facture, un contrat, une réservation, un appel de fonds ou un
+  ordre de paiement — ce sont des pièces comptables, on clôture. L'audit s'écrit **avant** la
+  suppression. À l'écran, le nom se réécrit en toutes lettres pour confirmer.
+- **Annuaire** : ajouter et modifier un acteur ; le formulaire s'ouvre **sous** le tableau, jamais
+  dans une cellule (la grille à trois colonnes s'y écrasait).
+- **Équipe du projet** : rattacher un acteur de l'annuaire (rôle, précision, mandat, mandataire
+  général) et le détacher. Le **rôle suit le métier** de l'acteur choisi — un notaire ne se
+  rattache pas en architecte — et reste modifiable.
+- **Fiche depuis le site web** (`recherche/`) : le site est le premier champ, « Rechercher et
+  remplir » lit la page d'accueil puis `/contact`, `/impressum`… et **propose** les champs ; rien
+  n'est enregistré sans relecture. `PERPLEXITY_API_KEY` ajoute une recherche web complémentaire —
+  **le seul appel qui sorte de Suisse**, et il ne reçoit qu'une adresse de site publique.
+  **SSRF** : le serveur va chercher l'URL lui-même, donc protocole http(s) seulement, `localhost`
+  et toute IP privée refusées après résolution DNS (`site-web.ts`, `tests/recherche-site-web.spec.ts`).
+
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 
 Posées d'après le skill `securite-saas`, **avant** d'ajouter des modules : élargir un produit dont

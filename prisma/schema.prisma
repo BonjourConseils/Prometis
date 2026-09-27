@@ -747,6 +747,8 @@ model Acteur {
   localite   String?
   email      String?
   telephone  String?
+  /// Site internet de l'acteur, tel qu'on le donnerait à un tiers.
+  siteWeb    String?    @map("site_web")
   ide        String?
   createdAt  DateTime   @default(now()) @map("created_at")
   updatedAt  DateTime   @updatedAt @map("updated_at")

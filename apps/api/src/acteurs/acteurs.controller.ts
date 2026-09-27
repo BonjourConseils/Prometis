@@ -41,6 +41,23 @@ const acteurSchema = z.object({
   localite: texteOptionnel,
   email: z.string().email('Adresse e-mail invalide.').nullish(),
   telephone: texteOptionnel,
+  // Saisi « prometis.ch » aussi bien que « https://prometis.ch » : on ajoute
+  // le protocole plutôt que de refuser une adresse que tout le monde écrit
+  // ainsi.
+  siteWeb: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .transform((v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`))
+    .refine((v) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(v).protocol);
+      } catch {
+        return false;
+      }
+    }, 'Adresse de site web invalide.')
+    .nullish(),
   ide: texteOptionnel,
 });
 

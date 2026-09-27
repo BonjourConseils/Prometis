@@ -13,6 +13,8 @@ import { BudgetModule } from './budget/budget.module';
 import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
 import { PaiementsModule } from './paiements/paiements.module';
+import { RechercheModule } from './recherche/recherche.module';
+import { RechercheController } from './recherche/recherche.controller';
 import { OrdresPaiementController } from './paiements/ordres-paiement.controller';
 import { VentesModule } from './ventes/ventes.module';
 import { PasserelleModule } from './passerelle/passerelle.module';
@@ -78,6 +80,7 @@ import { CourtageController, TresorerieController } from './courtage/courtage.co
     SoumissionsModule,
     FacturesModule,
     PaiementsModule,
+    RechercheModule,
     VentesModule,
     PasserelleModule,
     ModulesModule,
@@ -116,6 +119,7 @@ export class AppModule implements NestModule {
       SoumissionsController,
       FacturesController,
       OrdresPaiementController,
+      RechercheController,
       AcquereursController,
       VentesController,
       // Le webhook Kolabimo est `@Public()` : il n'a pas de jeton, mais il

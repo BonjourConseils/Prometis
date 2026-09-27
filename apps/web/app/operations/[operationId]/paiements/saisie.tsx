@@ -67,12 +67,14 @@ export function CompteDePromotion({
         </label>
       </div>
       {erreur && <p className="ko">{erreur}</p>}
-      <button type="submit" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer'}
-      </button>{' '}
-      <button type="button" className="secondaire" onClick={() => setOuvert(false)}>
-        Annuler
-      </button>
+      <div className="actions">
+        <button type="submit" disabled={enCours}>
+          {enCours ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+        <button type="button" className="secondaire" onClick={() => setOuvert(false)}>
+          Annuler
+        </button>
+      </div>
     </form>
   );
 }

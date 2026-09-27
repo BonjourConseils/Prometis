@@ -193,6 +193,13 @@ const envSchema = z.object({
   INFOMANIAK_AI_TOKEN: z.string().optional(),
   INFOMANIAK_AI_PRODUCT_ID: z.string().optional(),
   INFOMANIAK_AI_MODEL: z.string().optional(),
+  /**
+   * Recherche web (Perplexity) pour préremplir la fiche d'un acteur depuis
+   * son site. Le seul appel de Prometis qui sorte de Suisse : seule une
+   * adresse de site publique y part. Absente, la lecture du site suffit.
+   */
+  PERPLEXITY_API_KEY: z.string().optional(),
+  PERPLEXITY_MODEL: z.string().default('sonar'),
   // --- Facturation Stripe (skill plans-payants) -------------------------
   /**
    * Fermeture de la souscription. **Vraie par défaut** : les paiements ne

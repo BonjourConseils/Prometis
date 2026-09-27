@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { ZodBody } from '../common/zod-body.pipe';
 import { montantPositif } from '../common/zod-decimal';
@@ -67,6 +67,15 @@ export class OperationsController {
     @Body(new ZodBody(operationSchema.partial())) body: Partial<z.infer<typeof operationSchema>>,
   ) {
     return this.operations.modifier(operationId, body);
+  }
+
+  /** Supprimer : réservé aux promotions sans pièce comptable (voir le service). */
+  @RequireModule('FONCIER')
+  @Roles('OWNER', 'ADMIN')
+  @RequireOperationAccess({ level: 'MANAGE', module: 'FONCIER' })
+  @Delete(':operationId')
+  async supprimer(@Param('operationId', ParseIntPipe) operationId: number) {
+    return this.operations.supprimer(operationId);
   }
 
   @RequireOperationAccess({ level: 'READ_ONLY' })

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../lib/session';
 import { AppHeader, type Me } from '../components/app-header';
 import { lisible } from '../../lib/format';
+import { AjouterActeur, TableauActeurs } from './saisie';
 
 interface Acteur {
   id: number;
@@ -13,6 +14,7 @@ interface Acteur {
   localite: string | null;
   email: string | null;
   telephone: string | null;
+  siteWeb: string | null;
   ide: string | null;
   _count: { operationActeurs: number };
 }
@@ -29,7 +31,10 @@ export default async function ActeursPage() {
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const acteurs = await apiGet<Acteur[]>('/acteurs');
+  const [acteurs, moi] = await Promise.all([apiGet<Acteur[]>('/acteurs'), apiGet<Me>('/auth/me')]);
+  // Tenir l'annuaire relève de l'administration : c'est un bien commun de la
+  // société, pas la fiche d'un intervenant de passage.
+  const tenir = ['OWNER', 'ADMIN', 'CHEF_PROJET'].includes(moi?.membership?.role ?? '');
 
   if (acteurs === null) {
     return (
@@ -65,6 +70,7 @@ export default async function ActeursPage() {
           {acteurs.length} intervenants enregistrés pour {me.societe?.raisonSociale}. Ils sont
           réutilisables sur toutes les promotions de la société.
         </p>
+        {tenir && <AjouterActeur />}
       </section>
 
       {[...parType.entries()].map(([type, liste]) => (
@@ -72,48 +78,7 @@ export default async function ActeursPage() {
           <h2>
             {lisible(type)} — {liste.length}
           </h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Société</th>
-                <th>Contact</th>
-                <th>Localité</th>
-                <th className="droite">Promotions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {liste.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <strong>{a.societeNom ?? '—'}</strong>
-                    {a.ide && (
-                      <>
-                        <br />
-                        <span className="meta">{a.ide}</span>
-                      </>
-                    )}
-                  </td>
-                  <td>
-                    {[a.prenom, a.nom].filter(Boolean).join(' ') || '—'}
-                    {a.email && (
-                      <>
-                        <br />
-                        <span className="meta">{a.email}</span>
-                      </>
-                    )}
-                    {a.telephone && (
-                      <>
-                        <br />
-                        <span className="meta">{a.telephone}</span>
-                      </>
-                    )}
-                  </td>
-                  <td>{a.localite ?? '—'}</td>
-                  <td className="droite">{a._count.operationActeurs}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TableauActeurs acteurs={liste} tenir={tenir} />
         </section>
       ))}
     </main>

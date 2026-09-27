@@ -4,6 +4,7 @@ import { apiGet, getToken, lirePayload } from '../../../lib/session';
 import { AppHeader, type Me } from '../../components/app-header';
 import { PageHeader } from '../../components/page-header';
 import { GROUPES_CFC, chf, date, lisible, montant, nombre, pourcentage } from '../../../lib/format';
+import { DetacherActeur, ModifierPromotion, RattacherActeur, SupprimerPromotion } from './saisie';
 
 interface Operation {
   id: number;
@@ -72,10 +73,18 @@ export default async function FicheOperation({
 
   // `null` distingue « refusé » de « vide » : une EG n'a pas de bilan
   // promoteur, et ce n'est pas une donnée manquante.
-  const [bilan, acteurs] = await Promise.all([
+  const [bilan, acteurs, droits, annuaire] = await Promise.all([
     apiGet<Bilan>(`/operations/${operationId}/bilan`),
     apiGet<Rattachement[]>(`/operations/${operationId}/acteurs`),
+    apiGet<{ operations: { id: number; accessLevel: string }[] }>('/acces/mes-droits'),
+    apiGet<{ id: number; type: string; societeNom: string | null; nom: string | null }[]>(
+      '/acteurs',
+    ),
   ]);
+
+  // Modifier la fiche relève du foncier : même niveau que l'écran Foncier.
+  const gererFiche =
+    droits?.operations.find((o) => o.id === operation.id)?.accessLevel === 'MANAGE';
 
   const margePositive = Number(bilan?.marge ?? 0) >= 0;
 
@@ -114,6 +123,23 @@ export default async function FicheOperation({
           </dl>
         </div>
         {operation.description && <p className="note">{operation.description}</p>}
+        {gererFiche && (
+          <div className="actions">
+            <ModifierPromotion
+              operationId={operation.id}
+              valeurs={{
+                nom: operation.nom,
+                commune: operation.commune,
+                canton: operation.canton,
+                statut: operation.statut,
+                description: operation.description,
+                dateDebut: operation.dateDebut,
+                dateLivraisonPrevue: operation.dateLivraisonPrevue,
+              }}
+            />
+            <SupprimerPromotion operationId={operation.id} nom={operation.nom} />
+          </div>
+        )}
         <p className="note">
           {operation._count.biens} biens · {operation._count.parcelles} parcelles ·{' '}
           {operation._count.cfcNodes} postes CFC ·{' '}
@@ -211,40 +237,52 @@ export default async function FicheOperation({
         </section>
       )}
 
-      {acteurs !== null && acteurs.length > 0 && (
+      {acteurs !== null && (acteurs.length > 0 || gererFiche) && (
         <section>
           <h2>Équipe du projet</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Rôle</th>
-                <th>Société</th>
-                <th>Contact</th>
-                <th className="droite">Mandat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {acteurs.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    {lisible(r.role)}
-                    {r.estMandataireGeneral && <span className="badge">mandataire général</span>}
-                  </td>
-                  <td>{r.acteur.societeNom ?? '—'}</td>
-                  <td>
-                    {[r.acteur.prenom, r.acteur.nom].filter(Boolean).join(' ') || '—'}
-                    {r.acteur.email && (
-                      <>
-                        <br />
-                        <span className="meta">{r.acteur.email}</span>
-                      </>
-                    )}
-                  </td>
-                  <td className="droite">{r.montantMandat ? montant(r.montantMandat) : '—'}</td>
+          {acteurs.length === 0 && (
+            <p className="meta">Aucun intervenant rattaché à cette promotion pour l’instant.</p>
+          )}
+          {acteurs.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Rôle</th>
+                  <th>Société</th>
+                  <th>Contact</th>
+                  <th className="droite">Mandat</th>
+                  {gererFiche && <th></th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {acteurs.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      {lisible(r.role)}
+                      {r.estMandataireGeneral && <span className="badge">mandataire général</span>}
+                    </td>
+                    <td>{r.acteur.societeNom ?? '—'}</td>
+                    <td>
+                      {[r.acteur.prenom, r.acteur.nom].filter(Boolean).join(' ') || '—'}
+                      {r.acteur.email && (
+                        <>
+                          <br />
+                          <span className="meta">{r.acteur.email}</span>
+                        </>
+                      )}
+                    </td>
+                    <td className="droite">{r.montantMandat ? montant(r.montantMandat) : '—'}</td>
+                    {gererFiche && (
+                      <td>
+                        <DetacherActeur operationId={operation.id} rattachementId={r.id} />
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {gererFiche && <RattacherActeur operationId={operation.id} acteurs={annuaire ?? []} />}
           <p className="note">
             Les surfaces et quotes-parts détaillées sont dans le{' '}
             <Link href={`/operations/${operation.id}/registre-ppe`}>registre PPE</Link>. Nombre de
