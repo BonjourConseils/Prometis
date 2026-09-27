@@ -28,7 +28,9 @@ export function normaliserIban(iban: string): string {
 export function estQrIban(iban: string | null | undefined): boolean {
   if (!iban) return false;
   const propre = normaliserIban(iban);
-  if (!/^CH\d{19}$/.test(propre)) return false;
+  // `CH` + 2 chiffres de contrôle + 5 chiffres d'IID + 12 caractères qui
+  // peuvent être des lettres (vu sur une facture Procéram : …0901K).
+  if (!/^CH\d{7}[A-Z0-9]{12}$/.test(propre)) return false;
   const iid = Number(propre.slice(4, 9));
   return iid >= 30000 && iid <= 31999;
 }

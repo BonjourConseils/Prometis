@@ -183,6 +183,10 @@ contrat, doublons, IBAN), circuit DT → promoteur → comptabilité. 698 tests.
 (PDF ou photo) et fait foi sur l'IA pour le créancier, l'IBAN, la référence et les informations
 Swico ; son montant est contrôlé contre le net à payer. 721 tests.
 
+**27 septembre 2026 — ordres de paiement** : compte par promotion, composition des factures
+validées, visa du promoteur, fichier pain.001 (ISO 20022) avec les références QR. Télécharger vaut
+transmettre : les factures passent à « payée ». 767 tests.
+
 **Reste** : Tesseract sur le serveur ; sous-domaine de réception, son MX et la boîte catch-all ;
 chiffrement applicatif des pièces par société (securite-saas §4, toute la GED) ; file de travail
 persistante si le volume le demande (aujourd'hui en processus, relance manuelle).

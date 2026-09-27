@@ -39,7 +39,9 @@ Une entreprise n'a pas de compte : elle ne voit que sa propre invitation.
 des travaux) par lien personnel ; la **direction des travaux** nommée sur une promotion vise chaque
 facture avant le promoteur. **Contrôle des factures** : dépôt, photo ou e-mail (une adresse par
 promotion, fermée aux inconnus) ; le **bulletin QR** est décodé et fait foi ; l'IA lit, **le code contrôle** (cumul sur contrat + avenants,
-budget, retenue, postes hors contrat, doublons, IBAN changé) ; rien n'est imputé sans visas.
+budget, retenue, postes hors contrat, doublons, IBAN changé) ; rien n'est imputé sans visas. Les
+factures validées se règlent par **ordre de paiement** : compte de la promotion, visa du promoteur,
+fichier **pain.001** pour la banque — le télécharger vaut transmission.
 
 Une EG ou un architecte se connecte **en tant que tel** et ne voit que la gestion de chantier —
 aucune « simulation » de promoteur.
@@ -126,7 +128,7 @@ Suivre `BACKLOG.md`. En résumé : socle multi-tenant (Compte/Membership + RLS) 
 ## 8 bis. Où en est le développement
 
 **Lots 0 à 9 livrés** (15 août 2026), plus les quatre changements Kolabimo du 2 septembre
-2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité, les modules commerciaux, le passeport et la facturation du 18, la consultation des entreprises, l'équipe et le contrôle des factures du 19, le bulletin QR du 22 — 721 tests verts —
+2026 et la connexion Kolabimo par société (10 septembre, complétée le 16), les barrières de sécurité, les modules commerciaux, le passeport et la facturation du 18, la consultation des entreprises, l'équipe et le contrôle des factures du 19, le bulletin QR du 22, les ordres de paiement du 27 — 767 tests verts —
 dépôt [BonjourConseils/Prometis](https://github.com/BonjourConseils/Prometis).
 Le périmètre MVP est complet ET les décisions d'hébergement sont branchées : MFA TOTP,
 stockage S3 Infomaniak, SMTP `noreply@prometis.ch`, QR-facture en PDF jointe aux appels de

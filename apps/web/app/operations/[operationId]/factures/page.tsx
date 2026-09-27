@@ -172,6 +172,12 @@ export default async function FacturesPage({
         <span aria-hidden="true">›</span> Factures
       </div>
 
+      <p>
+        <Link href={`/operations/${operationId}/paiements`}>
+          Ordres de paiement — régler les factures validées
+        </Link>
+      </p>
+
       <RafraichirPendantLecture actif={enLecture} />
 
       <section>

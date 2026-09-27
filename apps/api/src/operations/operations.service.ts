@@ -173,6 +173,10 @@ export class OperationsService {
           // ne clôt plus ses jalons depuis Prometis. L'écran doit le dire, pas
           // laisser l'utilisateur découvrir un 409.
           kolabimoPromotionId: true,
+          // Le compte d'où partent les paiements aux entreprises : l'écran des
+          // ordres de paiement le montre et permet de le corriger.
+          ibanPaiement: true,
+          bicPaiement: true,
           _count: { select: { biens: true, parcelles: true, cfcNodes: true } },
         },
       }),

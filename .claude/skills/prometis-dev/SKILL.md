@@ -798,6 +798,29 @@ Module commercial `APPELS_OFFRES`. Code : `apps/api/src/soumissions/` — `consu
   peut-être usurpée).
 - `scripts/verifier.sh` fixe un domaine `.test`, un secret jetable et **coupe la relève IMAP**.
 
+### Payer : l'ordre de paiement (`apps/api/src/paiements/`)
+Le geste du terrain — « Ordre de paiement n° 11 » chez CB Promotions — repris tel quel.
+- **Compte débiteur par promotion** (`operations.iban_paiement`, `bic_paiement`) : le crédit de
+  construction. Sans lui, aucun ordre ne se compose.
+- **Composer** (`ordres-paiement.service.ts#creer`) : factures **validées**, non soldées, pas déjà
+  dans un ordre vivant. L'ordre **fige** montant, créancier, IBAN et référence — une facture
+  corrigée ensuite ne réécrit pas un ordre visé. Numéro par promotion.
+- **Viser** : `@Roles('OWNER','ADMIN')`. Ce que la banque refuserait est refusé **au visa**, pas au
+  téléchargement (`verifier()`), pour que le promoteur vise un ordre exécutable.
+- **Fichier** (`pain001.ts`, pur) : pain.001.001.09, Swiss Payment Standards. Trois types de
+  versement — **QRR** (QR-IBAN + référence à 27 chiffres, clé vérifiée), **SCOR** (ISO 11649),
+  **libre**. Les incohérences fatales sont bloquées : référence QR sur IBAN ordinaire, QR-IBAN sans
+  référence, IBAN ou montant faux. `estQrIban` vit dans `appels-de-fonds/qr-facture.ts` (un
+  QR-IBAN peut contenir une lettre : vu chez Procéram) ; `ibanValide` dans `factures/lecture.ts`.
+- **Télécharger vaut transmettre** : `PaiementFournisseur` par ligne, factures `PAYEE`, statut
+  `TRANSMIS`, `message_id` conservé. Un second téléchargement rend le **même** fichier avec le même
+  `MsgId` — la banque y voit un doublon plutôt que de payer deux fois.
+- **RLS** : `ordres_paiement` (par `societe_id`), `lignes_ordre_paiement` (par
+  `app.is_tenant_ordre_paiement`). Inventaire : **58**.
+- Écran : `apps/web/app/operations/[operationId]/paiements/`, lié depuis Factures.
+- **Non éprouvé** : aucun fichier n'a encore été chargé dans un e-banking réel. Le BIC est
+  facultatif tant qu'une banque ne l'exige pas.
+
 ## 4 quindecies. Sécurité — les barrières du 18 septembre 2026
 
 Posées d'après le skill `securite-saas`, **avant** d'ajouter des modules : élargir un produit dont
