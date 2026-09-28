@@ -563,24 +563,49 @@ model Equipement {
 
 /// Chaque appel à l'IA : pour quoi, quel modèle **réellement envoyé**, combien.
 /// Sans ce journal, le coût d'un fournisseur ne se lit nulle part.
+/// Les trois étages de l'IA. La table de routage décide, jamais l'appelant.
+enum EtageIa {
+  /// Qwen 3.5 4B sur notre serveur : tri, classement, extraction courte. Coût nul.
+  LOCAL
+  /// Qwen 3.5-122B chez Infomaniak, en Suisse : lecture longue, rédaction.
+  PUISSANT
+  /// Perplexity : le seul étage hors de Suisse. Sujets publics uniquement.
+  RECHERCHE
+}
+
+/// Un appel à un modèle : des compteurs, jamais du contenu.
+///
+/// Ni le texte envoyé, ni la réponse, ni un nom de fichier n'entrent ici —
+/// c'est ce qui permet de garder la table longtemps et de la montrer.
 model AppelIa {
-  id            Int      @id @default(autoincrement())
-  societeId     Int      @map("societe_id")
-  /// « passeport.equipements »…
-  usage         String
-  modele        String
-  tokensEntree  Int?     @map("tokens_entree")
-  tokensSortie  Int?     @map("tokens_sortie")
-  /// Estimé depuis la table de prix, en millièmes de franc.
-  coutMilliemes Int?     @map("cout_milliemes")
-  dureeMs       Int      @map("duree_ms")
-  succes        Boolean
-  erreur        String?
-  createdAt     DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  societeId    Int      @map("societe_id")
+  /// « passeport.equipements », « factures.lecture »…
+  usage        String
+  etage        EtageIa  @default(PUISSANT)
+  /// « infomaniak », « ollama », « perplexity ».
+  fournisseur  String   @default("infomaniak")
+  /// Le modèle **réellement envoyé**, jamais celui demandé.
+  modele       String
+  tokensEntree Int?     @map("tokens_entree")
+  tokensSortie Int?     @map("tokens_sortie")
+  /// Requêtes facturées au forfait (Perplexity) — nul ailleurs.
+  requetes     Int      @default(0)
+  /// Coût estimé depuis la table de prix, dans sa devise d'origine.
+  cout         Decimal? @db.Decimal(12, 6)
+  /// « CHF » ou « USD » : jamais implicite, jamais additionnées entre elles.
+  devise       String   @default("CHF")
+  /// Débités, stockés : la valeur d'un crédit changera.
+  credits      Int      @default(0)
+  dureeMs      Int      @map("duree_ms")
+  succes       Boolean
+  erreur       String?
+  createdAt    DateTime @default(now()) @map("created_at")
 
   societe Societe @relation(fields: [societeId], references: [id], onDelete: Cascade)
 
   @@index([societeId, createdAt])
+  @@index([usage])
   @@map("appels_ia")
 }
 

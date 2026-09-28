@@ -198,6 +198,14 @@ const envSchema = z.object({
    * son site. Le seul appel de Prometis qui sorte de Suisse : seule une
    * adresse de site publique y part. Absente, la lecture du site suffit.
    */
+  /**
+   * L'étage local : Qwen 3.5 4B servi par Ollama sur notre serveur, pour ce
+   * qui est simple et ne doit pas en sortir. Absent, ces appels passent par
+   * l'étage suisse et le journal le dit.
+   */
+  OLLAMA_URL: z.string().optional(),
+  OLLAMA_MODELE: z.string().optional(),
+  OLLAMA_NUM_CTX: z.coerce.number().int().positive().optional(),
   PERPLEXITY_API_KEY: z.string().optional(),
   PERPLEXITY_MODEL: z.string().default('sonar'),
   // --- Facturation Stripe (skill plans-payants) -------------------------

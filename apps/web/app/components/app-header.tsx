@@ -194,6 +194,7 @@ export function AppHeader({
             {lien('passerelle', '/passerelle', 'Passerelle', IconePasserelle)}
             {lien('droits', '/droits-acces', "Droits d'accès", IconeDroits)}
             {lien('taux', '/taux-acquisition', "Frais d'acquisition", IconeBudget)}
+            {lien('usage-ia', '/usage-ia', "Usage de l'IA", IconeBudget)}
           </>
         )}
       </nav>

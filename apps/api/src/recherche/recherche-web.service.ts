@@ -211,6 +211,11 @@ export class RechercheWebService {
    * échoue ne fait pas échouer la fiche : le site reste la source principale.
    */
   private async rechercheWeb(url: URL): Promise<string> {
+    const societeId = RequestContext.requireSocieteId();
+    const debut = Date.now();
+    const modele = this.env.PERPLEXITY_MODEL;
+    let tokensEntree: number | undefined;
+    let tokensSortie: number | undefined;
     try {
       const reponse = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
@@ -220,7 +225,7 @@ export class RechercheWebService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: this.env.PERPLEXITY_MODEL,
+          model: modele,
           max_tokens: 700,
           messages: [
             {
@@ -241,14 +246,48 @@ export class RechercheWebService {
       });
       if (!reponse.ok) {
         this.logger.warn(`Recherche web refusée : ${reponse.status}`);
+        await this.ia.journaliser({
+          societeId,
+          usage: 'recherche.web',
+          etage: 'RECHERCHE',
+          modele,
+          debut,
+          succes: false,
+          erreur: `Perplexity a répondu ${reponse.status}`,
+        });
         return '';
       }
       const donnees = (await reponse.json()) as {
         choices?: { message?: { content?: string } }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
+      tokensEntree = donnees.usage?.prompt_tokens;
+      tokensSortie = donnees.usage?.completion_tokens;
+      // Perplexity facture des jetons ET un forfait par requête : sans lui,
+      // une recherche courte serait comptée cinq fois moins qu'elle ne coûte.
+      await this.ia.journaliser({
+        societeId,
+        usage: 'recherche.web',
+        etage: 'RECHERCHE',
+        modele,
+        debut,
+        succes: true,
+        tokensEntree,
+        tokensSortie,
+        requetes: 1,
+      });
       return donnees.choices?.[0]?.message?.content?.trim() ?? '';
     } catch (e) {
       this.logger.warn(`Recherche web indisponible : ${String(e)}`);
+      await this.ia.journaliser({
+        societeId,
+        usage: 'recherche.web',
+        etage: 'RECHERCHE',
+        modele,
+        debut,
+        succes: false,
+        erreur: String(e).slice(0, 200),
+      });
       return '';
     }
   }

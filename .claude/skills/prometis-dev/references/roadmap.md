@@ -187,6 +187,10 @@ Swico ; son montant est contrôlé contre le net à payer. 721 tests.
 validées, visa du promoteur, fichier pain.001 (ISO 20022) avec les références QR. Télécharger vaut
 transmettre : les factures passent à « payée ». 767 tests.
 
+**28 septembre 2026 — compteur de jetons et crédits** : trois étages (Ollama local, Infomaniak,
+Perplexity) routés par opération, prix par modèle avec devise et forfait par requête, crédits
+stockés, journal sans contenu, écran « Usage de l'IA ». 790 tests.
+
 **Reste** : Tesseract sur le serveur ; sous-domaine de réception, son MX et la boîte catch-all ;
 chiffrement applicatif des pièces par société (securite-saas §4, toute la GED) ; file de travail
 persistante si le volume le demande (aujourd'hui en processus, relance manuelle).

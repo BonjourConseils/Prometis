@@ -821,6 +821,29 @@ Le geste du terrain — « Ordre de paiement n° 11 » chez CB Promotions — re
 - **Non éprouvé** : aucun fichier n'a encore été chargé dans un e-banking réel. Le BIC est
   facultatif tant qu'une banque ne l'exige pas.
 
+### Compter ce que l'IA coûte (`apps/api/src/ia/`)
+Méthode commune du groupe (skill `appels-ia-credits`), appliquée le 28.09.2026.
+- **Trois étages, une table de routage** (`couts.ts#ROUTAGE`) : `LOCAL` (Qwen 3.5 4B par Ollama sur
+  notre serveur — tri d'e-mails), `PUISSANT` (Qwen 3.5-122B chez Infomaniak — factures, passeport,
+  offres, fiches), `RECHERCHE` (Perplexity — **le seul hors de Suisse**). **L'appelant ne choisit
+  pas** : ajouter une ligne `RECHERCHE`, c'est décider que ce sujet peut sortir. Une opération non
+  routée reste `PUISSANT`, jamais `RECHERCHE`.
+- **Prix par modèle avec devise** (`TARIFS`). Perplexity facture en **dollars** et ajoute un
+  **forfait par requête** (0.005 USD) qui pèse plus que les jetons d'une recherche courte : une
+  table sans forfait sous-facturerait d'un facteur cinq. Modèle absent = coût `null` et
+  avertissement bruyant, jamais le prix du voisin.
+- **Crédits** : `max(1, plafond(coût en CHF / CHF_PAR_CREDIT))`, `CHF_PAR_CREDIT` = 0.0005
+  (500 crédits ≈ CHF 0.25 de facture). Local = 0 crédit mais journalisé ; **un échec ne débite
+  jamais**. Les crédits sont **stockés** : leur valeur changera.
+- **Journal** (`appels_ia`) : une ligne par appel, réussi ou non, **jamais bloquante**, avec le
+  modèle **réellement envoyé**, l'étage, le fournisseur, jetons, requêtes, coût, devise, crédits,
+  durée. **Aucun contenu** — ni texte envoyé, ni réponse.
+- **Étage local** : `OLLAMA_URL` (+ `OLLAMA_MODELE`, `OLLAMA_NUM_CTX` — sans `num_ctx`, Ollama
+  tronque en silence et rend des champs nuls). Absent, l'appel retombe sur Infomaniak et le
+  journal dit l'étage réel.
+- Écran `/usage-ia` (OWNER/ADMIN) : par opération × modèle, moyennes **sur les succès seuls**,
+  totaux **par devise, jamais additionnés**. Tests : `tests/ia-couts.spec.ts`.
+
 ### Tenir l'annuaire et la fiche promotion (`apps/web/app/acteurs/`, `operations/[id]/saisie.tsx`)
 - **Fiche promotion** : « Modifier la fiche » (nom, commune, canton, statut, dates, description) —
   le nom d'une promotion change, et il ne se corrigeait qu'en base.
