@@ -145,20 +145,40 @@ describe('Les équipements', () => {
 });
 
 describe('Les propositions', () => {
-  it('sans IA configurée, la proposition le dit — et la saisie manuelle reste', async () => {
-    const res = await appel<{ message: string }>(
-      `/operations/${operationId}/passeport/propositions`,
-      {
-        methode: 'POST',
-        token: christophe,
-        corps: { documentId: documentNotice },
-      },
-    );
-    expect(res.status).toBe(503);
-    expect(res.body.message).toContain('saisie manuelle');
-    // Aucun nom de variable d'environnement ne fuit dans le message.
-    expect(res.body.message).not.toMatch(/INFOMANIAK|TOKEN/);
-  });
+  /**
+   * Le même parcours dit deux choses selon le serveur : sans IA, il l'annonce
+   * et renvoie à la saisie ; avec elle, il propose. Les deux sont testés ici —
+   * un test qui suppose l'absence d'IA casse le jour où on la configure.
+   */
+  const iaConfiguree = Boolean(
+    process.env.INFOMANIAK_AI_TOKEN && process.env.INFOMANIAK_AI_PRODUCT_ID,
+  );
+
+  it(
+    iaConfiguree
+      ? 'avec l’IA, la proposition existe — mais rien n’entre au passeport sans validation'
+      : 'sans IA configurée, la proposition le dit — et la saisie manuelle reste',
+    { timeout: 120_000 },
+    async () => {
+      const res = await appel<{ message: string; equipements?: { statut: string }[] }>(
+        `/operations/${operationId}/passeport/propositions`,
+        {
+          methode: 'POST',
+          token: christophe,
+          corps: { documentId: documentNotice },
+        },
+      );
+      if (!iaConfiguree) {
+        expect(res.status).toBe(503);
+        expect(res.body.message).toContain('saisie manuelle');
+        // Aucun nom de variable d'environnement ne fuit dans le message.
+        expect(res.body.message).not.toMatch(/INFOMANIAK|TOKEN/);
+        return;
+      }
+      expect(res.status).toBe(200);
+      for (const e of res.body.equipements ?? []) expect(e.statut).toBe('PROPOSE');
+    },
+  );
 
   it('une proposition n’existe pas dans le passeport tant qu’elle n’est pas validée', async () => {
     // Ce que l'IA aurait produit, posé directement : une ligne PROPOSE qui cite sa source.

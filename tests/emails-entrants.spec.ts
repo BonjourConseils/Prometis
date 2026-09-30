@@ -206,27 +206,33 @@ describe('la boîte d’une promotion', () => {
 describe('recevoir', () => {
   const idConnu = '<connu-1@entreprise-email-test.ch>';
 
-  it('expéditeur connu, pièce jointe : acceptée, et lue comme un dépôt', async () => {
-    const r = await envoyer(
-      message({
-        de: CONNU,
-        a: adresse,
-        piece: pdf,
-        auth: 'spf=pass; dkim=pass; dmarc=pass',
-        messageId: idConnu,
-      }),
-    );
-    expect(r.body.statut).toBe('ACCEPTE');
-    const f = await ownerDb.facture.findFirstOrThrow({ where: { operationId, source: 'EMAIL' } });
-    for (let i = 0; i < 30; i++) {
-      const x = await ownerDb.facture.findUniqueOrThrow({ where: { id: f.id } });
-      if (x.statut !== 'EN_LECTURE') break;
-      await new Promise((ok) => setTimeout(ok, 100));
-    }
-    const lue = await ownerDb.facture.findUniqueOrThrow({ where: { id: f.id } });
-    expect(lue.numero).toBe('EM-77');
-    expect(lue.entrepriseId).toBe(entrepriseId);
-  });
+  it(
+    'expéditeur connu, pièce jointe : acceptée, et lue comme un dépôt',
+    { timeout: 90_000 },
+    async () => {
+      const r = await envoyer(
+        message({
+          de: CONNU,
+          a: adresse,
+          piece: pdf,
+          auth: 'spf=pass; dkim=pass; dmarc=pass',
+          messageId: idConnu,
+        }),
+      );
+      expect(r.body.statut).toBe('ACCEPTE');
+      const f = await ownerDb.facture.findFirstOrThrow({ where: { operationId, source: 'EMAIL' } });
+      // Large : avec l'IA configurée, la lecture appelle Infomaniak et prend
+      // une dizaine de secondes. Sans elle, la boucle sort tout de suite.
+      for (let i = 0; i < 120; i++) {
+        const x = await ownerDb.facture.findUniqueOrThrow({ where: { id: f.id } });
+        if (x.statut !== 'EN_LECTURE') break;
+        await new Promise((ok) => setTimeout(ok, 500));
+      }
+      const lue = await ownerDb.facture.findUniqueOrThrow({ where: { id: f.id } });
+      expect(lue.numero).toBe('EM-77');
+      expect(lue.entrepriseId).toBe(entrepriseId);
+    },
+  );
 
   it('le même message relu : rien de plus', async () => {
     const r = await envoyer(message({ de: CONNU, a: adresse, piece: pdf, messageId: idConnu }));
