@@ -85,18 +85,18 @@ export default async function EstimatifPage({
   }
 
   /**
-   * La maille de l'estimatif : les deux premiers niveaux, plus tout poste
-   * plus profond qui porte déjà un montant.
+   * La maille de l'estimatif : **les grands postes CFC — 0 à 5 — et les
+   * frais de vente**. Rien d'autre.
    *
-   * Deux niveaux parce que c'est la forme d'un bilan de faisabilité — des
-   * grands postes, et sous « taxes » le détail des cédules et du permis.
-   * Descendre plus bas donnerait soixante-neuf champs de saisie pour un
-   * exercice qui en demande huit ; s'arrêter au premier niveau, comme le
-   * faisait cet écran, rendait invisible tout poste rattaché à un parent.
+   * C'est la forme d'un bilan de faisabilité : à ce stade, on ne connaît ni
+   * les entreprises ni le détail des travaux, mais on sait ce que coûte
+   * grossièrement un terrain, un bâtiment, des aménagements — et ce que la
+   * commercialisation prélèvera. Descendre plus bas donnerait soixante-neuf
+   * champs pour un exercice qui en demande huit.
    *
-   * L'exception — garder ce qui est chiffré, quelle que soit la profondeur —
-   * existe pour qu'un montant saisi ne disparaisse jamais de la vue où on
-   * l'a saisi.
+   * Deux exceptions, pour ne rien faire disparaître : un poste déjà chiffré
+   * reste visible quelle que soit sa profondeur, et un poste ajouté à la
+   * main aussi.
    *
    * Le montant proposé est celui du poste LUI-MÊME (`propre`), pas de ses
    * sous-postes : sinon la saisie écraserait un détail chiffré ailleurs, et
@@ -105,6 +105,11 @@ export default async function EstimatifPage({
   // Ce que le promoteur a ajouté lui-même reste visible même feuille repliée :
   // masquer un poste sur l'écran qui vient de le créer est le contraire d'une
   // aide. La trame, elle, se replie.
+  // La commercialisation ne vit pas au premier niveau du CFC, et c'est
+  // pourtant elle que le promoteur chiffre en même temps que le bâtiment :
+  // commission de courtage, publicité, notaire de vente.
+  const POSTES_ESTIMATIF = new Set(['58']);
+
   const ajoutesALaMain = new Set(
     (tousLesPostes ?? []).filter((n) => !n.issuDeLaTrame).map((n) => n.id),
   );
@@ -125,7 +130,8 @@ export default async function EstimatifPage({
   }[] =>
     noeuds.flatMap((n) => {
       const chiffre = Number(n.total.budgeteRevise) !== 0;
-      const visible = profondeur < 2 || chiffre;
+      const visible =
+        profondeur < 1 || chiffre || ajoutesALaMain.has(n.id) || POSTES_ESTIMATIF.has(n.code);
       const ligne = {
         id: n.id,
         parentId,
@@ -186,11 +192,12 @@ export default async function EstimatifPage({
           <section>
             <h2>{vue.versionAffichee.libelle}</h2>
             <p className="note">
-              Un montant par grand poste, <strong>hors taxe</strong>. Le total et le bénéfice se
-              recalculent à mesure que vous tapez ; rien n&apos;est enregistré avant le bouton. Les
-              deux premiers niveaux CFC sont proposés — pour descendre plus bas, passez par{' '}
-              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>. Le total des
-              ventes alimente le bilan promoteur{' '}
+              Un montant par grand poste, <strong>hors taxe</strong> : les groupes CFC 0 à 5, plus
+              les <strong>frais de vente</strong> — commission de courtage, publicité. Le total et
+              le bénéfice se recalculent à mesure que vous tapez ; rien n&apos;est enregistré avant
+              le bouton. Pour descendre dans le détail, ce sera l&apos;écran{' '}
+              <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>, plus tard. Le
+              total des ventes alimente le bilan promoteur{' '}
               <strong>tant qu&apos;aucun lot n&apos;est saisi</strong> ; dès le premier lot, ce sont
               les prix réels qui comptent.
             </p>

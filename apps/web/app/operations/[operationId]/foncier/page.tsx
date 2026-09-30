@@ -7,9 +7,7 @@ import { PageHeader } from '../../../components/page-header';
 import { chf, lisible, montant, nombre } from '../../../../lib/format';
 import {
   AjouterBien,
-  AjouterLot,
   AjouterParcelle,
-  AjouterParking,
   AjouterDecoupage,
   ModifierParcelle,
   SupprimerDecoupage,
@@ -131,14 +129,11 @@ const sbp = (p: Parcelle): number | null => {
   return p.ibus && p.surfaceM2 ? Number(p.surfaceM2) * Number(p.ibus) : null;
 };
 
-/** Prix total acte = prix du lot + Σ places de parc (CLAUDE.md §5). */
-function prixTotalActe(lot: Lot): number | null {
-  if (lot.prixVente === null) return null;
-  return lot.parkings.reduce((total, p) => total + Number(p.prix ?? 0), Number(lot.prixVente));
-}
-
 /**
- * Saisie du foncier : parcelles, biens, lots et places de parc.
+ * Saisie du foncier : le terrain, ses parcelles et le bien qui s'y bâtit.
+ *
+ * Les lots et leurs places de parc appartiennent au plan de vente, pas au
+ * foncier : ils se saisissent sous « Lots & acquéreurs ».
  *
  * C'est la première étape du parcours — sans lots, il n'y a ni recettes au
  * bilan, ni assiette pour les appels de fonds.
@@ -396,62 +391,17 @@ export default async function FoncierPage({
             {bien.lots.length} lot(s)
             {bien.description ? ` · ${bien.description}` : ''}
           </p>
-
-          {bien.lots.length > 0 && (
-            <table>
-              <thead>
-                <tr>
-                  <th>Lot</th>
-                  <th className="droite">Étage</th>
-                  <th className="droite">Pièces</th>
-                  <th className="droite">Surface</th>
-                  <th className="droite">Millièmes</th>
-                  <th className="droite">Prix lot</th>
-                  <th>Places de parc</th>
-                  <th className="droite">Prix total acte</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bien.lots.map((lot) => (
-                  <tr key={lot.id}>
-                    <td>
-                      <strong>{lot.reference}</strong>
-                    </td>
-                    <td className="droite">{lot.etage ?? '—'}</td>
-                    <td className="droite">{lot.nombrePieces ?? '—'}</td>
-                    <td className="droite">{lot.surfaceM2 ? nombre(lot.surfaceM2) : '—'}</td>
-                    <td className="droite">{lot.quotePartPPE ?? '—'}</td>
-                    <td className="droite">{montant(lot.prixVente)}</td>
-                    <td>
-                      {lot.parkings.length === 0 ? (
-                        <span className="meta">aucune</span>
-                      ) : (
-                        lot.parkings.map((p) => (
-                          <div key={p.id} className="meta">
-                            {p.reference ?? lisible(p.type)} · {montant(p.prix)}
-                          </div>
-                        ))
-                      )}
-                      <AjouterParking
-                        operationId={id}
-                        lotId={lot.id}
-                        referenceLot={lot.reference}
-                      />
-                    </td>
-                    <td className="droite">
-                      <strong>{montant(prixTotalActe(lot))}</strong>
-                    </td>
-                    <td>
-                      <span className="badge">{lisible(lot.statut)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          <AjouterLot operationId={id} bienId={bien.id} />
+          {/* Le foncier, c'est le terrain et ce qu'on y bâtit. Les lots et
+              leurs places de parc se saisissent là où ils se vendent :
+              « Lots & acquéreurs ». Les afficher deux fois laissait croire à
+              deux listes différentes. */}
+          <p>
+            <Link href={`/operations/${id}/lots`}>
+              {bien.lots.length === 0
+                ? 'Saisir les lots dans « Lots & acquéreurs »'
+                : 'Voir et saisir les lots dans « Lots & acquéreurs »'}
+            </Link>
+          </p>
         </section>
       ))}
 

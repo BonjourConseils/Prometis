@@ -3,6 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { AjouterAcquereur, AvancerReservation, ReserverLot } from './saisie';
+// Saisir un lot ou une place de parc appartient au plan de vente, pas au
+// foncier : les formulaires vivaient là-bas, ils servent ici.
+import { AjouterLot, AjouterParking } from '../foncier/saisie';
 import { PageHeader } from '../../../components/page-header';
 import { chf, lisible, montant, nomAcquereur, nombre } from '../../../../lib/format';
 
@@ -91,10 +94,11 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
   const operation = await apiGet<Operation>(`/operations/${operationId}`);
   if (!operation) notFound();
 
-  const [biens, reservations, acquereurs] = await Promise.all([
+  const [biens, reservations, acquereurs, droits] = await Promise.all([
     apiGet<Bien[]>(`/operations/${operationId}/biens`),
     apiGet<Reservation[]>(`/operations/${operationId}/reservations`),
     apiGet<Acquereur[]>('/acquereurs'),
+    apiGet<{ operations: { id: number; accessLevel: string }[] }>('/acces/mes-droits'),
   ]);
 
   if (biens === null) {
@@ -117,6 +121,7 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
   );
   const vendus = tousLots.filter((l) => parLot.has(l.id));
   const id = Number(operationId);
+  const gerer = droits?.operations.find((o) => o.id === id)?.accessLevel === 'MANAGE';
 
   return (
     <main className="large">
@@ -203,6 +208,13 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
                             </div>
                           ))
                         )}
+                        {gerer && (
+                          <AjouterParking
+                            operationId={id}
+                            lotId={lot.id}
+                            referenceLot={lot.reference}
+                          />
+                        )}
                       </td>
                       <td className="droite">
                         <strong>{montant(prixActe)}</strong>
@@ -271,6 +283,9 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
               </tbody>
             </table>
           </div>
+          {/* Un lot se saisit là où il se vend. Le foncier garde le terrain
+              et le bien qui le porte. */}
+          {gerer && <AjouterLot operationId={id} bienId={bien.id} />}
         </section>
       ))}
 
