@@ -3,7 +3,7 @@ import type { ZodType } from 'zod';
 import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { adapterRequete, configFournisseur } from './fournisseur';
 import { coutAppel, coutEnCredits, etagePour, type Etage } from './couts';
-import { configOllama } from './ollama';
+import { configOllama, fenetrePour } from './ollama';
 
 const DELAI_MS = 90_000;
 
@@ -47,10 +47,8 @@ export class IaService {
     // le serveur n'a pas d'Ollama — et c'est l'étage réellement appelé qui
     // est journalisé, jamais celui qui était prévu.
     const local = etagePour(usage) === 'LOCAL' ? configOllama() : null;
-    const config = local
-      ? { apiKey: 'ollama', baseURL: `${local.baseURL}/v1`, modele: local.modele }
-      : configFournisseur();
-    if (!config) {
+    const config = local ? null : configFournisseur();
+    if (!local && !config) {
       // Pas de nom de variable d'environnement dans le message : c'est de la
       // configuration serveur, elle n'aide en rien l'utilisateur.
       throw new ServiceUnavailableException(
@@ -58,50 +56,19 @@ export class IaService {
       );
     }
     const etage: Etage = local ? 'LOCAL' : 'PUISSANT';
-
-    const requete = {
-      messages: [
-        { role: 'system', content: options.systeme },
-        { role: 'user', content: options.utilisateur },
-      ],
-      max_tokens: options.maxTokens ?? 4000,
-      temperature: 0,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'reponse', strict: true, schema: options.schemaJson },
-      },
-    };
-    // Ollama parle le même dialecte, sans les adaptations d'Infomaniak ; il
-    // lui faut en revanche sa fenêtre de contexte, sans quoi il tronque le
-    // texte en silence et rend des champs nuls.
-    const corps = local
-      ? { ...requete, model: local.modele, options: { num_ctx: local.numCtx } }
-      : adapterRequete(requete, config.modele);
+    const modele = local ? local.modele : config!.modele;
 
     const debut = Date.now();
     let tokensEntree: number | undefined;
     let tokensSortie: number | undefined;
     try {
-      const reponse = await fetch(`${config.baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(corps),
-        signal: AbortSignal.timeout(DELAI_MS),
-      });
-      const texte = await reponse.text();
-      if (!reponse.ok) {
-        throw new Error(
-          `${local ? 'Le modèle local' : 'Infomaniak'} a répondu ${reponse.status} : ${texte.slice(0, 200)}`,
-        );
-      }
-      const json = JSON.parse(texte) as {
-        choices?: { message?: { content?: string } }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-      };
-      tokensEntree = json.usage?.prompt_tokens;
-      tokensSortie = json.usage?.completion_tokens;
+      const appel = local
+        ? await this.appelerOllama(local, usage, options)
+        : await this.appelerInfomaniak(config!, options);
+      tokensEntree = appel.tokensEntree;
+      tokensSortie = appel.tokensSortie;
 
-      const contenu = json.choices?.[0]?.message?.content ?? '';
+      const contenu = appel.contenu;
       const analyse = options.schema.safeParse(JSON.parse(contenu));
       if (!analyse.success) {
         throw new Error(
@@ -116,7 +83,7 @@ export class IaService {
         societeId,
         usage,
         etage,
-        modele: config.modele,
+        modele,
         debut,
         succes: true,
         tokensEntree,
@@ -130,7 +97,7 @@ export class IaService {
         societeId,
         usage,
         etage,
-        modele: config.modele,
+        modele,
         debut,
         succes: false,
         tokensEntree,
@@ -141,6 +108,115 @@ export class IaService {
         'La proposition automatique a échoué. Réessayez, ou saisissez les équipements à la main.',
       );
     }
+  }
+
+  /**
+   * Infomaniak — API compatible OpenAI, avec les cinq adaptations maison.
+   */
+  private async appelerInfomaniak(
+    config: { apiKey: string; baseURL: string; modele: string },
+    options: {
+      systeme: string;
+      utilisateur: string;
+      schemaJson: Record<string, unknown>;
+      maxTokens?: number;
+    },
+  ): Promise<{ contenu: string; tokensEntree?: number; tokensSortie?: number }> {
+    const corps = adapterRequete(
+      {
+        messages: [
+          { role: 'system', content: options.systeme },
+          { role: 'user', content: options.utilisateur },
+        ],
+        max_tokens: options.maxTokens ?? 4000,
+        temperature: 0,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'reponse', strict: true, schema: options.schemaJson },
+        },
+      },
+      config.modele,
+    );
+    const reponse = await fetch(`${config.baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(corps),
+      signal: AbortSignal.timeout(DELAI_MS),
+    });
+    const texte = await reponse.text();
+    if (!reponse.ok) {
+      throw new Error(`Infomaniak a répondu ${reponse.status} : ${texte.slice(0, 200)}`);
+    }
+    const json = JSON.parse(texte) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      contenu: json.choices?.[0]?.message?.content ?? '',
+      tokensEntree: json.usage?.prompt_tokens,
+      tokensSortie: json.usage?.completion_tokens,
+    };
+  }
+
+  /**
+   * Ollama — **pas** la route compatible OpenAI : elle ignore `options`, donc
+   * `num_ctx`, et le serveur commun n'a ni GPU ni mémoire à perdre. Sans cette
+   * fenêtre, Ollama alloue la fenêtre native du modèle (des dizaines de
+   * milliers de jetons), la machine pagine au lieu de calculer et l'appel
+   * expire — piège payé sur le serveur le 22.09.2026.
+   *
+   * Trois réglages qui viennent du client éprouvé de Kourtagimo :
+   *   · `think: false` — sinon il raisonne à voix haute : lent, et du texte
+   *     hors JSON ;
+   *   · `format` — le schéma, bien plus fiable que « réponds en JSON » ;
+   *   · `keep_alive` — sinon chaque appel recharge le modèle, plusieurs
+   *     secondes à chaque fois.
+   */
+  private async appelerOllama(
+    config: { baseURL: string; modele: string; numCtx: number },
+    usage: string,
+    options: {
+      systeme: string;
+      utilisateur: string;
+      schemaJson: Record<string, unknown>;
+      maxTokens?: number;
+    },
+  ): Promise<{ contenu: string; tokensEntree?: number; tokensSortie?: number }> {
+    const reponse = await fetch(`${config.baseURL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(DELAI_MS),
+      body: JSON.stringify({
+        model: config.modele,
+        stream: false,
+        think: false,
+        keep_alive: '30m',
+        prompt: `${options.systeme}\n\n${options.utilisateur}`,
+        format: options.schemaJson,
+        options: {
+          temperature: 0,
+          num_predict: options.maxTokens ?? 1000,
+          // Par usage : un texte plus long que la fenêtre est tronqué **en
+          // silence**, et le modèle rend des champs nuls comme s'il n'y avait
+          // rien à trouver.
+          num_ctx: fenetrePour(usage, config.numCtx),
+        },
+      }),
+    });
+    const texte = await reponse.text();
+    if (!reponse.ok) {
+      throw new Error(`Le modèle local a répondu ${reponse.status} : ${texte.slice(0, 200)}`);
+    }
+    const json = JSON.parse(texte) as {
+      response?: string;
+      prompt_eval_count?: number;
+      eval_count?: number;
+    };
+    return {
+      contenu: json.response ?? '',
+      tokensEntree: json.prompt_eval_count,
+      tokensSortie: json.eval_count,
+    };
   }
 
   /**

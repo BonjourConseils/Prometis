@@ -838,9 +838,15 @@ Méthode commune du groupe (skill `appels-ia-credits`), appliquée le 28.09.2026
 - **Journal** (`appels_ia`) : une ligne par appel, réussi ou non, **jamais bloquante**, avec le
   modèle **réellement envoyé**, l'étage, le fournisseur, jetons, requêtes, coût, devise, crédits,
   durée. **Aucun contenu** — ni texte envoyé, ni réponse.
-- **Étage local** : `OLLAMA_URL` (+ `OLLAMA_MODELE`, `OLLAMA_NUM_CTX` — sans `num_ctx`, Ollama
-  tronque en silence et rend des champs nuls). Absent, l'appel retombe sur Infomaniak et le
-  journal dit l'étage réel.
+- **Étage local** : `OLLAMA_URL=http://ollama:11434` sur le serveur commun — aucun port publié,
+  aucune authentification, joignable **seulement depuis le réseau Docker `webproxy`**, que le
+  conteneur de Prometis doit rejoindre. Absent, l'appel retombe sur Infomaniak et le journal dit
+  l'étage réel.
+  **On n'appelle pas Ollama par sa route compatible OpenAI** : elle ignore `options`, donc
+  `num_ctx`, et le serveur (4 vCPU, pas de GPU, mémoire serrée) part alors en swap jusqu'à
+  l'expiration. `POST /api/generate` avec `think: false`, `keep_alive: '30m'`, `format` = le
+  schéma, `num_ctx` **par usage** (`FENETRES`) — trop petite, la fenêtre tronque le texte sans un
+  mot et les champs reviennent vides.
 - Écran `/usage-ia` (OWNER/ADMIN) : par opération × modèle, moyennes **sur les succès seuls**,
   totaux **par devise, jamais additionnés**. Tests : `tests/ia-couts.spec.ts`.
 

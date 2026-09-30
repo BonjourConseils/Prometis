@@ -15,6 +15,7 @@ import {
   enFrancs,
   etagePour,
 } from '../apps/api/src/ia/couts';
+import { MODELE_LOCAL, configOllama, fenetrePour } from '../apps/api/src/ia/ollama';
 
 describe('routage : l’appelant ne choisit pas son étage', () => {
   it('lire une facture ou un site va au grand modèle suisse', () => {
@@ -99,5 +100,28 @@ describe('des francs aux crédits', () => {
 
   it('500 crédits valent bien CHF 0.25 de facture', () => {
     expect(500 * CHF_PAR_CREDIT).toBeCloseTo(0.25, 10);
+  });
+});
+
+describe('l’étage local : les réglages qui ont coûté cher sur le serveur', () => {
+  it('la configuration n’existe que si l’adresse est donnée', () => {
+    expect(configOllama({})).toBeNull();
+    expect(configOllama({ OLLAMA_URL: 'http://ollama:11434' })).toMatchObject({
+      baseURL: 'http://ollama:11434',
+      modele: MODELE_LOCAL,
+      numCtx: 2048,
+    });
+  });
+
+  it('la barre oblique finale ne double pas le chemin', () => {
+    expect(configOllama({ OLLAMA_URL: 'http://ollama:11434/' })?.baseURL).toBe(
+      'http://ollama:11434',
+    );
+  });
+
+  /** Trop grande, la machine pagine ; trop petite, le texte est tronqué en silence. */
+  it('la fenêtre se fixe par usage, avec un défaut', () => {
+    expect(fenetrePour('emails.tri', 8192)).toBe(2048);
+    expect(fenetrePour('usage.sans.reglage', 4096)).toBe(4096);
   });
 });

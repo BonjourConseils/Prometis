@@ -25,12 +25,29 @@ export interface ConfigOllama {
   numCtx: number;
 }
 
+/**
+ * La fenêtre de contexte, **par usage**. Trop grande, la machine pagine ;
+ * trop petite, le texte est tronqué sans un mot et les champs reviennent
+ * vides. Les valeurs viennent du serveur commun : 2048 pour un e-mail court,
+ * 8192 pour une facture ou un site.
+ */
+export const FENETRES: Record<string, number> = {
+  'emails.tri': 2048,
+};
+
+export function fenetrePour(usage: string, defaut: number): number {
+  return FENETRES[usage] ?? defaut;
+}
+
 export function configOllama(env: Env = process.env): ConfigOllama | null {
+  // Sur le serveur commun : `http://ollama:11434`, joignable seulement depuis
+  // le réseau Docker `webproxy` — aucun port publié, aucune authentification.
+  // Absente, la variable laisse l'appel partir en Suisse, et le journal le dit.
   const base = env.OLLAMA_URL?.trim();
   if (!base) return null;
   return {
     baseURL: base.replace(/\/+$/, ''),
     modele: env.OLLAMA_MODELE?.trim() || MODELE_LOCAL,
-    numCtx: Number(env.OLLAMA_NUM_CTX ?? 8192) || 8192,
+    numCtx: Number(env.OLLAMA_NUM_CTX ?? 2048) || 2048,
   };
 }
