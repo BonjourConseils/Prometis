@@ -5,7 +5,7 @@ import { AppHeader, type Me } from '../../../components/app-header';
 import { AjouterAcquereur, AvancerReservation, ReserverLot } from './saisie';
 // Saisir un lot ou une place de parc appartient au plan de vente, pas au
 // foncier : les formulaires vivaient là-bas, ils servent ici.
-import { AjouterLot, AjouterParking } from '../foncier/saisie';
+import { AjouterBien, AjouterLot, AjouterParking } from '../foncier/saisie';
 import { PageHeader } from '../../../components/page-header';
 import { chf, lisible, montant, nomAcquereur, nombre } from '../../../../lib/format';
 
@@ -288,6 +288,19 @@ export default async function LotsPage({ params }: { params: Promise<{ operation
           {gerer && <AjouterLot operationId={id} bienId={bien.id} />}
         </section>
       ))}
+
+      {gerer && (
+        <section>
+          <h2>{biens.length === 0 ? 'Aucun bien' : 'Ajouter un bien'}</h2>
+          {biens.length === 0 && (
+            <p className="note">
+              Un bien porte les lots : immeuble, villa, chalet ou lotissement. Le terrain, lui, se
+              décrit sous <Link href={`/operations/${id}/foncier`}>Foncier</Link>.
+            </p>
+          )}
+          <AjouterBien operationId={id} />
+        </section>
+      )}
 
       <section>
         <h2>Répertoire des acquéreurs</h2>

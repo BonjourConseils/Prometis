@@ -4,14 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
-import { chf, lisible, montant, nombre } from '../../../../lib/format';
-import {
-  AjouterBien,
-  AjouterParcelle,
-  AjouterDecoupage,
-  ModifierParcelle,
-  SupprimerDecoupage,
-} from './saisie';
+import { chf, montant, nombre } from '../../../../lib/format';
+import { AjouterParcelle, AjouterDecoupage, ModifierParcelle, SupprimerDecoupage } from './saisie';
 
 interface Parcelle {
   id: number;
@@ -381,38 +375,17 @@ export default async function FoncierPage({
         <AjouterParcelle operationId={id} />
       </section>
 
-      {biens.map((bien) => (
-        <section key={bien.id}>
-          <h2>
-            {bien.nom} — {lisible(bien.nature)}
-          </h2>
-          <p className="note">
-            {bien.nbEtages !== null ? `${bien.nbEtages} étages · ` : ''}
-            {bien.lots.length} lot(s)
-            {bien.description ? ` · ${bien.description}` : ''}
-          </p>
-          {/* Le foncier, c'est le terrain et ce qu'on y bâtit. Les lots et
-              leurs places de parc se saisissent là où ils se vendent :
-              « Lots & acquéreurs ». Les afficher deux fois laissait croire à
-              deux listes différentes. */}
-          <p>
-            <Link href={`/operations/${id}/lots`}>
-              {bien.lots.length === 0
-                ? 'Saisir les lots dans « Lots & acquéreurs »'
-                : 'Voir et saisir les lots dans « Lots & acquéreurs »'}
-            </Link>
-          </p>
-        </section>
-      ))}
-
+      {/* Le foncier s'arrête au terrain. L'immeuble qu'on y bâtira, ses lots
+          et leurs places de parc appartiennent au plan de vente. */}
       <section>
-        <h2>{biens.length === 0 ? 'Biens' : 'Ajouter un bien'}</h2>
-        {biens.length === 0 && (
-          <p className="note">
-            Aucun bien. Un bien porte les lots : immeuble, villa, chalet ou lotissement.
-          </p>
-        )}
-        <AjouterBien operationId={id} />
+        <h2>Ce qui se bâtira dessus</h2>
+        <p className="note">
+          {biens.length === 0
+            ? 'Aucun bien enregistré.'
+            : `${biens.map((b) => b.nom).join(', ')} — ${biens.reduce((t, b) => t + b.lots.length, 0)} lot(s).`}{' '}
+          Les biens, leurs lots et leurs places de parc se saisissent sous{' '}
+          <Link href={`/operations/${id}/lots`}>Lots &amp; acquéreurs</Link>.
+        </p>
       </section>
     </main>
   );
