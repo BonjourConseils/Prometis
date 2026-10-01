@@ -3,8 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
-import { AjouterPosteEstimatif, SaisieEstimatif } from './saisie';
-import { AdopterVersion, ImporterTrame } from '../budget/saisie';
+import { AjouterPosteEstimatif, DemarrerEstimatif, SaisieEstimatif } from './saisie';
+import { AdopterVersion } from '../budget/saisie';
 
 interface Noeud {
   id: number;
@@ -168,24 +168,17 @@ export default async function EstimatifPage({
         <span aria-hidden="true">›</span> Budget estimatif
       </div>
 
-      {postes.length === 0 ? (
+      {postes.length === 0 || vue.versionAffichee === null ? (
         <section>
-          <h2>Aucun poste</h2>
+          <h2>Commencer l&apos;estimatif</h2>
           <p className="note">
-            L&apos;estimatif se saisit sur les grands postes CFC. Importez la trame de départ : elle
-            pose les groupes 0 à 5, largement suffisants pour une faisabilité.
+            Un montant par grand poste, et le bénéfice prévisionnel s&apos;affiche. Nous posons la
+            trame CFC et ouvrons un budget nommé « Estimatif » — c&apos;est le{' '}
+            <strong>même budget</strong> que vous affinerez ensuite, poste par poste, sous{' '}
+            <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>. Rien ne sera
+            ressaisi.
           </p>
-          <ImporterTrame operationId={id} />
-        </section>
-      ) : vue.versionAffichee === null ? (
-        <section>
-          <h2>Aucune version de budget</h2>
-          <p className="note">
-            Créez d&apos;abord une version — nommez-la « Estimatif » — depuis l&apos;écran{' '}
-            <Link href={`/operations/${operationId}/budget`}>Budget CFC</Link>. L&apos;estimatif est
-            une version de budget comme une autre : c&apos;est ce qui permettra de le comparer aux
-            chiffres réels, plus tard, sans rien resaisir.
-          </p>
+          <DemarrerEstimatif operationId={id} trameManquante={postes.length === 0} />
         </section>
       ) : (
         <>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { appelApi, champ } from '../../../../lib/api-client';
 import { chf } from '../../../../lib/format';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
@@ -323,5 +324,60 @@ function FormulairePoste({
         {enCours ? 'Enregistrement…' : 'Créer le poste'}
       </button>
     </form>
+  );
+}
+
+/**
+ * Démarrer l'estimatif — en un geste.
+ *
+ * Le premier acte d'un promoteur est de chiffrer, pas de créer une « version
+ * de budget » sur un autre écran : c'était du vocabulaire d'informaticien
+ * imposé au métier. Ce bouton pose la trame CFC si elle manque, crée la
+ * version « Estimatif », et rend la main sur le tableau à remplir.
+ */
+export function DemarrerEstimatif({
+  operationId,
+  trameManquante,
+}: {
+  operationId: number;
+  trameManquante: boolean;
+}) {
+  const router = useRouter();
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function demarrer() {
+    setEnCours(true);
+    setErreur(null);
+    if (trameManquante) {
+      const trame = await appelApi(`/operations/${operationId}/cfc/importer-trame`, {
+        methode: 'POST',
+        corps: {},
+      });
+      if (!trame.ok) {
+        setEnCours(false);
+        setErreur(trame.erreur ?? 'La trame CFC n’a pas pu être posée.');
+        return;
+      }
+    }
+    const version = await appelApi(`/operations/${operationId}/budget/versions`, {
+      methode: 'POST',
+      corps: { libelle: 'Estimatif', commentaire: 'Chiffrage de faisabilité' },
+    });
+    setEnCours(false);
+    if (!version.ok) {
+      setErreur(version.erreur ?? 'Le budget n’a pas pu être créé.');
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <>
+      {erreur && <p className="ko">{erreur}</p>}
+      <button type="button" className="principal" disabled={enCours} onClick={demarrer}>
+        {enCours ? 'Préparation…' : 'Commencer l’estimatif'}
+      </button>
+    </>
   );
 }

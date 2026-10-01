@@ -157,7 +157,9 @@ export default async function SoumissionsPage({
                         <code>{s.cfcNode.code}</code> {s.cfcNode.libelle}
                       </>
                     ) : (
-                      <span className="meta">non rattachée</span>
+                      // Sans poste, l'adjudication ne remplira aucune colonne
+                      // « adjugé » : c'est un oubli, pas un choix.
+                      <span className="ko">à classer</span>
                     )}
                   </td>
                   <td>{LIBELLE_STATUT[s.statut] ?? lisible(s.statut)}</td>

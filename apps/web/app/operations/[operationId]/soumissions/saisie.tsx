@@ -1,6 +1,7 @@
 'use client';
 
-import { type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
+import { proposerPosteCfc, type PosteCfc } from '../../../../lib/cfc-metier';
 import { champ } from '../../../../lib/api-client';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
 
@@ -60,15 +61,26 @@ function FormulaireSoumission({
   fermer: () => void;
 }) {
   const { envoyer, erreur, enCours } = useEnvoi();
+  // Le poste se propose d'après l'intitulé et le corps de métier, et reste
+  // modifiable : personne ne connaît les codes CFC par cœur, et une
+  // soumission mal classée fausse l'écart, l'adjudication et la facture.
+  const [poste, setPoste] = useState('');
+  const [propose, setPropose] = useState<PosteCfc | null>(null);
+
+  function proposer(texte: string) {
+    if (poste) return; // un choix humain ne se réécrit pas
+    const trouve = proposerPosteCfc(texte, postes);
+    setPropose(trouve);
+    if (trouve) setPoste(String(trouve.id));
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const d = new FormData(event.currentTarget);
-    const poste = champ(d.get('cfcNodeId'));
     const ok = await envoyer(`/operations/${operationId}/soumissions`, {
       intitule: champ(d.get('intitule')),
       corpsMetier: champ(d.get('corpsMetier')),
-      cfcNodeId: poste === undefined ? undefined : Number(poste),
+      cfcNodeId: poste === '' ? undefined : Number(poste),
       dateLimite: champ(d.get('dateLimite')),
     });
     if (ok) fermer();
@@ -84,11 +96,21 @@ function FormulaireSoumission({
       <div className="grille-3">
         <label>
           Intitulé
-          <input name="intitule" required autoFocus placeholder="Maçonnerie et béton armé" />
+          <input
+            name="intitule"
+            required
+            autoFocus
+            placeholder="Maçonnerie et béton armé"
+            onBlur={(e) => proposer(e.target.value)}
+          />
         </label>
         <label>
           Corps de métier
-          <input name="corpsMetier" placeholder="Maçonnerie" />
+          <input
+            name="corpsMetier"
+            placeholder="Maçonnerie"
+            onBlur={(e) => proposer(e.target.value)}
+          />
         </label>
         <label>
           Délai de remise
@@ -97,11 +119,17 @@ function FormulaireSoumission({
       </div>
       <label>
         Poste CFC
-        <select name="cfcNodeId" defaultValue="">
-          <option value="">— non rattachée —</option>
+        <select name="cfcNodeId" value={poste} onChange={(e) => setPoste(e.target.value)}>
+          <option value="">— à classer —</option>
           <OptionsPostes postes={postes} />
         </select>
       </label>
+      {propose && String(propose.id) === poste && (
+        <p className="note">
+          Poste proposé d&apos;après le métier : <code>{propose.code}</code> {propose.libelle}.
+          Vérifiez-le — c&apos;est lui qui décidera de l&apos;écart budgété / adjugé.
+        </p>
+      )}
       {postes.length === 0 && (
         <p className="note">
           Aucun poste CFC sur cette promotion. Chiffrez le budget d&apos;abord : les offres se
