@@ -417,7 +417,7 @@ de la société. Ne jamais réintroduire de clé d'instance : la société B lir
   `GET /api/v1/reservations/:id/dossier` (Kolabimo 1.3.21). Appelée par la synchronisation pour
   les seuls dossiers au palier. Sans elle, une promotion raccordée en cours de commercialisation
   gardait des acquéreurs anonymes.
-- **Le contrat se relève dans le code de Kolabimo** (`~/Documents/Projets/ImmoCollab`,
+- **Le contrat se relève dans le code de Kolabimo** (`~/kDrive - Digital Systems/3. Projets/Kolabimo/code`,
   `src/routes/api/v1/`, `src/services/passerelle.service.js`), pas dans sa documentation Notion,
   qui décrivait encore l'API de juillet. `kolabimo-api.ts` porte les schémas zod correspondants.
 - Les tests jouent contre un **faux Kolabimo local** (`tests/kolabimo-connexion.spec.ts`) qui rend
