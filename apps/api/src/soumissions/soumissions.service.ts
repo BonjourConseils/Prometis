@@ -14,6 +14,12 @@ export interface DonneesEntreprise {
   email?: string | null;
   telephone?: string | null;
   ide?: string | null;
+  /** Site internet : c'est lui qui remplit la fiche. */
+  siteWeb?: string | null;
+  adresse?: string | null;
+  codePostal?: string | null;
+  localite?: string | null;
+  note?: string | null;
 }
 
 export interface DonneesSoumission {
@@ -61,10 +67,72 @@ export class SoumissionsService {
     return this.db.run((tx) =>
       tx.entreprise.findMany({
         where: corpsMetier ? { corpsMetier: { contains: corpsMetier, mode: 'insensitive' } } : {},
-        include: { _count: { select: { offres: true, contrats: true } } },
+        include: {
+          _count: { select: { offres: true, contrats: true } },
+          employes: { orderBy: [{ nom: 'asc' }] },
+        },
         orderBy: [{ corpsMetier: 'asc' }, { nom: 'asc' }],
       }),
     );
+  }
+
+  // --- Les interlocuteurs ----------------------------------------------
+
+  /**
+   * L'entreprise appartient-elle bien au tenant courant ?
+   *
+   * La RLS le garantit déjà en base, mais une erreur 404 explicite vaut
+   * mieux qu'un échec de contrainte : on saura que l'identifiant est faux,
+   * pas que la base refuse.
+   */
+  private async entrepriseDuTenant(entrepriseId: number) {
+    const entreprise = await this.db.run((tx) =>
+      tx.entreprise.findUnique({ where: { id: entrepriseId }, select: { id: true } }),
+    );
+    if (!entreprise) throw new NotFoundException(`Entreprise ${entrepriseId} introuvable.`);
+    return entreprise;
+  }
+
+  async ajouterEmploye(
+    entrepriseId: number,
+    donnees: {
+      nom: string;
+      prenom?: string | null;
+      fonction?: string | null;
+      email?: string | null;
+      telephone?: string | null;
+    },
+  ) {
+    await this.entrepriseDuTenant(entrepriseId);
+    return this.db.run((tx) => tx.entrepriseEmploye.create({ data: { entrepriseId, ...donnees } }));
+  }
+
+  async modifierEmploye(
+    employeId: number,
+    donnees: Partial<{
+      nom: string;
+      prenom: string | null;
+      fonction: string | null;
+      email: string | null;
+      telephone: string | null;
+    }>,
+  ) {
+    return this.db.run(async (tx) => {
+      const { count } = await tx.entrepriseEmploye.updateMany({
+        where: { id: employeId },
+        data: donnees,
+      });
+      if (count === 0) throw new NotFoundException(`Interlocuteur ${employeId} introuvable.`);
+      return tx.entrepriseEmploye.findUniqueOrThrow({ where: { id: employeId } });
+    });
+  }
+
+  async retirerEmploye(employeId: number) {
+    return this.db.run(async (tx) => {
+      const { count } = await tx.entrepriseEmploye.deleteMany({ where: { id: employeId } });
+      if (count === 0) throw new NotFoundException(`Interlocuteur ${employeId} introuvable.`);
+      return { supprime: true };
+    });
   }
 
   async creerEntreprise(donnees: DonneesEntreprise) {

@@ -4,17 +4,7 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { date, lisible, montant } from '../../../../lib/format';
-import { AjouterEntreprise, AjouterSoumission } from './saisie';
-
-interface Entreprise {
-  id: number;
-  nom: string;
-  corpsMetier: string | null;
-  contactNom: string | null;
-  email: string | null;
-  telephone: string | null;
-  _count: { offres: number; contrats: number };
-}
+import { AjouterSoumission } from './saisie';
 
 /** Vue budget, réduite à ce dont la liste déroulante des postes a besoin. */
 interface NoeudBudget {
@@ -85,9 +75,8 @@ export default async function SoumissionsPage({
 
   // Le budget n'est lu que pour la liste des postes CFC ; s'il est refusé
   // (module absent, accès partiel), la soumission reste créable sans poste.
-  const [soumissions, entreprises, budget] = await Promise.all([
+  const [soumissions, budget] = await Promise.all([
     apiGet<Soumission[]>(`/operations/${operationId}/soumissions`),
-    apiGet<Entreprise[]>('/entreprises'),
     apiGet<{ arbre: NoeudBudget[] }>(`/operations/${operationId}/budget`),
   ]);
 
@@ -193,54 +182,12 @@ export default async function SoumissionsPage({
         />
       </section>
 
-      <section>
-        <h2>Répertoire des entreprises</h2>
-        <p className="note">
-          Le répertoire appartient à la société, pas à la promotion : une entreprise consultée ici
-          le reste sur les chantiers suivants, avec son historique d&apos;offres.
-        </p>
-        {entreprises === null ? (
-          <p className="note">Le module Soumissions n&apos;est pas activé sur cette société.</p>
-        ) : (
-          <>
-            {entreprises.length > 0 && (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Entreprise</th>
-                    <th>Corps de métier</th>
-                    <th>Contact</th>
-                    <th className="droite">Offres</th>
-                    <th className="droite">Contrats</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entreprises.map((e) => (
-                    <tr key={e.id}>
-                      <td>
-                        <strong>{e.nom}</strong>
-                      </td>
-                      <td>{e.corpsMetier ?? '—'}</td>
-                      <td>
-                        {e.contactNom ?? '—'}
-                        {e.email && (
-                          <>
-                            <br />
-                            <span className="meta">{e.email}</span>
-                          </>
-                        )}
-                      </td>
-                      <td className="droite">{e._count.offres}</td>
-                      <td className="droite">{e._count.contrats}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <AjouterEntreprise />
-          </>
-        )}
-      </section>
+      {/* Le répertoire des entreprises a quitté cet écran.
+          Il appartient à la SOCIÉTÉ, pas à la promotion : on y voyait sept
+          entreprises sans avoir envoyé le moindre appel d'offres, ce qui
+          laissait croire qu'elles avaient répondu. Il vit désormais sous
+          « Entreprises », dans le menu. Ici ne restent que les appels
+          d'offres de CETTE promotion et ce qu'ils ont rapporté. */}
     </main>
   );
 }

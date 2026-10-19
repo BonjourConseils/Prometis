@@ -157,6 +157,12 @@ export async function AppHeader({
       <nav>
         {lien('operations', '/', 'Promotions', IconeOperations)}
         {moduleActif('ACTEURS') && lien('acteurs', '/acteurs', 'Acteurs & courtage', IconeActeurs)}
+        {/* Le répertoire des entreprises appartient à la SOCIÉTÉ, pas à
+            une promotion : il vivait sous l'écran Soumissions, où l'on
+            voyait sept entreprises sans avoir envoyé un seul appel
+            d'offres. Sa place est ici, à côté des acteurs. */}
+        {moduleActif('SOUMISSIONS') &&
+          lien('entreprises', '/entreprises', 'Entreprises', IconeSoumissions)}
 
         {operationId !== undefined && (
           <>

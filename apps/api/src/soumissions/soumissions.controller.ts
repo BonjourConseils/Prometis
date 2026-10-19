@@ -28,6 +28,27 @@ const entrepriseSchema = z.object({
   email: z.string().email('Adresse e-mail invalide.').nullish(),
   telephone: texteOptionnel,
   ide: texteOptionnel,
+  /// Validé comme URL http(s) : un champ libre finirait par recevoir des
+  /// `javascript:` que l'écran rendrait cliquables.
+  siteWeb: z
+    .string()
+    .trim()
+    .url('Adresse invalide : elle doit commencer par http:// ou https://.')
+    .max(500)
+    .nullish(),
+  adresse: texteOptionnel,
+  codePostal: texteOptionnel,
+  localite: texteOptionnel,
+  note: texteOptionnel,
+});
+
+const employeSchema = z.object({
+  nom: z.string().trim().min(1, 'Nom requis.').max(120),
+  prenom: texteOptionnel,
+  /// Ce qu'il fait chez elle : chiffrage, chef de chantier, comptabilité…
+  fonction: texteOptionnel,
+  email: z.string().email('Adresse e-mail invalide.').nullish(),
+  telephone: texteOptionnel,
 });
 
 const soumissionSchema = z.object({
@@ -172,6 +193,36 @@ export class EntreprisesController {
     @Body(new ZodBody(entrepriseSchema.partial())) body: Partial<z.infer<typeof entrepriseSchema>>,
   ) {
     return this.soumissions.modifierEntreprise(entrepriseId, body);
+  }
+
+  // --- Les interlocuteurs ----------------------------------------------
+  //
+  // On parle au chiffreur pour l'offre, au chef de chantier pendant les
+  // travaux, à la comptabilité pour les factures. Un seul `contactNom` se
+  // faisait réécrire à chaque fois.
+
+  @Roles('OWNER', 'ADMIN', 'CHEF_PROJET', 'ECONOMISTE')
+  @Post(':entrepriseId/employes')
+  ajouterEmploye(
+    @Param('entrepriseId', ParseIntPipe) entrepriseId: number,
+    @Body(new ZodBody(employeSchema)) body: z.infer<typeof employeSchema>,
+  ) {
+    return this.soumissions.ajouterEmploye(entrepriseId, body);
+  }
+
+  @Roles('OWNER', 'ADMIN', 'CHEF_PROJET', 'ECONOMISTE')
+  @Patch('employes/:employeId')
+  modifierEmploye(
+    @Param('employeId', ParseIntPipe) employeId: number,
+    @Body(new ZodBody(employeSchema.partial())) body: Partial<z.infer<typeof employeSchema>>,
+  ) {
+    return this.soumissions.modifierEmploye(employeId, body);
+  }
+
+  @Roles('OWNER', 'ADMIN', 'CHEF_PROJET', 'ECONOMISTE')
+  @Delete('employes/:employeId')
+  retirerEmploye(@Param('employeId', ParseIntPipe) employeId: number) {
+    return this.soumissions.retirerEmploye(employeId);
   }
 }
 

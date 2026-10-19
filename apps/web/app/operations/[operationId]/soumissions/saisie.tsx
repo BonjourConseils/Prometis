@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { proposerPosteCfc, type PosteCfc } from '../../../../lib/cfc-metier';
 import { champ } from '../../../../lib/api-client';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
 
@@ -61,17 +60,29 @@ function FormulaireSoumission({
   fermer: () => void;
 }) {
   const { envoyer, erreur, enCours } = useEnvoi();
-  // Le poste se propose d'après l'intitulé et le corps de métier, et reste
-  // modifiable : personne ne connaît les codes CFC par cœur, et une
-  // soumission mal classée fausse l'écart, l'adjudication et la facture.
+  /**
+   * **Le poste CFC d'abord.** C'est l'inversion qui cadre tout le reste.
+   *
+   * Avant, l'intitulé, le corps de métier et le poste se saisissaient
+   * librement : on pouvait demander « Maçonnerie » en « Peinture » sur le
+   * poste « Ferblanterie ». Trois champs qui se contredisent, et c'est
+   * l'écart budgété / adjugé qui en paie le prix.
+   *
+   * Maintenant on choisit le poste, l'intitulé en hérite, et le corps de
+   * métier **se déduit** du libellé CFC : l'app le connaît, elle ne le
+   * demande pas.
+   */
   const [poste, setPoste] = useState('');
-  const [propose, setPropose] = useState<PosteCfc | null>(null);
+  const [intitule, setIntitule] = useState('');
+  const choisi = postes.find((p) => String(p.id) === poste) ?? null;
 
-  function proposer(texte: string) {
-    if (poste) return; // un choix humain ne se réécrit pas
-    const trouve = proposerPosteCfc(texte, postes);
-    setPropose(trouve);
-    if (trouve) setPoste(String(trouve.id));
+  function choisirPoste(valeur: string) {
+    setPoste(valeur);
+    const p = postes.find((x) => String(x.id) === valeur);
+    // L'intitulé commence par le libellé du poste, et reste complétable :
+    // « Plâtrerie — étages 1 à 4 ». On ne réécrit pas ce que l'utilisateur
+    // a déjà tapé au-delà du libellé précédent.
+    if (p) setIntitule((avant) => (avant.trim() === '' ? p.libelle : avant));
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -79,7 +90,9 @@ function FormulaireSoumission({
     const d = new FormData(event.currentTarget);
     const ok = await envoyer(`/operations/${operationId}/soumissions`, {
       intitule: champ(d.get('intitule')),
-      corpsMetier: champ(d.get('corpsMetier')),
+      // Déduit du poste, jamais saisi : deux champs qui doivent s'accorder
+      // finissent toujours par diverger.
+      corpsMetier: choisi?.libelle ?? null,
       cfcNodeId: poste === '' ? undefined : Number(poste),
       dateLimite: champ(d.get('dateLimite')),
     });
@@ -93,41 +106,48 @@ function FormulaireSoumission({
         sans lui, la comparaison ne saura pas à quel montant budgété confronter les offres, et
         l&apos;adjudication ne remplira aucune colonne « adjugé ».
       </p>
-      <div className="grille-3">
-        <label>
-          Intitulé
-          <input
-            name="intitule"
-            required
-            autoFocus
-            placeholder="Maçonnerie et béton armé"
-            onBlur={(e) => proposer(e.target.value)}
-          />
-        </label>
-        <label>
-          Corps de métier
-          <input
-            name="corpsMetier"
-            placeholder="Maçonnerie"
-            onBlur={(e) => proposer(e.target.value)}
-          />
-        </label>
-        <label>
-          Délai de remise
-          <input name="dateLimite" type="date" />
-        </label>
-      </div>
       <label>
-        Poste CFC
-        <select name="cfcNodeId" value={poste} onChange={(e) => setPoste(e.target.value)}>
-          <option value="">— à classer —</option>
+        Poste CFC du budget
+        <select
+          name="cfcNodeId"
+          required
+          value={poste}
+          onChange={(e) => choisirPoste(e.target.value)}
+          autoFocus
+        >
+          <option value="">— choisir le poste —</option>
           <OptionsPostes postes={postes} />
         </select>
       </label>
-      {propose && String(propose.id) === poste && (
+
+      {choisi && (
+        <div className="grille-3">
+          <label>
+            Intitulé
+            <input
+              name="intitule"
+              required
+              value={intitule}
+              onChange={(e) => setIntitule(e.target.value)}
+            />
+          </label>
+          <label>
+            Corps de métier
+            {/* Déduit du poste : l'app le connaît. En faire un champ libre,
+                c'était inviter « Peinture » sur un poste de ferblanterie. */}
+            <input value={choisi.libelle} readOnly tabIndex={-1} />
+          </label>
+          <label>
+            Délai de remise
+            <input name="dateLimite" type="date" />
+          </label>
+        </div>
+      )}
+
+      {choisi && (
         <p className="note">
-          Poste proposé d&apos;après le métier : <code>{propose.code}</code> {propose.libelle}.
-          Vérifiez-le — c&apos;est lui qui décidera de l&apos;écart budgété / adjugé.
+          L&apos;intitulé reprend le libellé du poste <code>{choisi.code}</code> — complétez-le si
+          l&apos;appel ne porte que sur une partie : « {choisi.libelle} — étages 1 à 4 ».
         </p>
       )}
       {postes.length === 0 && (

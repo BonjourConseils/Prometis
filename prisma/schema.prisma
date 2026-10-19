@@ -971,6 +971,11 @@ model LigneBudget {
 // =====================================================================
 
 /// Répertoire des entreprises (soumissionnaires / adjudicataires) et intervenants.
+/// Le répertoire des entreprises — **de la société, pas d'une promotion**.
+///
+/// Une entreprise consultée sur un chantier reste disponible pour les
+/// suivants, avec son historique d'offres. C'est l'annuaire du promoteur :
+/// il se tient une fois, il sert partout.
 model Entreprise {
   id          Int      @id @default(autoincrement())
   societeId   Int      @map("societe_id")
@@ -980,7 +985,16 @@ model Entreprise {
   email       String?
   telephone   String?
   ide         String?
+  /// Site internet : c'est lui qui remplit la fiche. Premier champ du
+  /// formulaire, comme pour un acteur — on colle l'adresse, l'app lit la
+  /// page et propose le reste.
+  siteWeb     String?  @map("site_web")
+  adresse     String?
+  codePostal  String?  @map("code_postal")
+  localite    String?
+  note        String?
   createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   societe     Societe                @relation(fields: [societeId], references: [id], onDelete: Cascade)
   invitations SoumissionInvitation[]
@@ -989,9 +1003,34 @@ model Entreprise {
   factures    Facture[]
 
   equipements Equipement[]
+  employes    EntrepriseEmploye[]
 
   @@index([societeId])
   @@map("entreprises")
+}
+
+/// Une personne chez l'entreprise.
+///
+/// Le champ `contactNom` de l'entreprise ne tenait qu'un nom : or on parle
+/// au chiffreur pour l'offre, au chef de chantier pendant les travaux, à la
+/// comptabilité pour les factures. Les garder séparément évite de réécrire
+/// le même champ à chaque interlocuteur.
+model EntrepriseEmploye {
+  id           Int      @id @default(autoincrement())
+  entrepriseId Int      @map("entreprise_id")
+  nom          String
+  prenom       String?
+  /// Ce qu'il fait chez elle : chiffrage, chef de chantier, comptabilité…
+  fonction     String?
+  email        String?
+  telephone    String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  entreprise Entreprise @relation(fields: [entrepriseId], references: [id], onDelete: Cascade)
+
+  @@index([entrepriseId])
+  @@map("entreprise_employes")
 }
 
 enum SoumissionStatut {
