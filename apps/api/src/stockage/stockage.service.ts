@@ -63,6 +63,8 @@ export class StockageService {
     operationId?: number | null;
     nomFichier: string;
     contenu: Buffer;
+    /** Clé imposée — pour un objet de référence, hors arborescence tenant. */
+    cle?: string;
   }): Promise<ObjetDepose> {
     if (options.contenu.length === 0) {
       throw new BadRequestException('Fichier vide.');
@@ -74,11 +76,14 @@ export class StockageService {
       );
     }
 
-    const cle = construireCleObjet({
-      societeId: options.societeId,
-      operationId: options.operationId,
-      nomFichier: options.nomFichier,
-    });
+    const cle =
+      options.cle ??
+      construireCleObjet({
+        societeId: options.societeId,
+        operationId: options.operationId,
+        nomFichier: options.nomFichier,
+      });
+    if (!cleObjetSure(cle)) throw new BadRequestException('Clé de stockage invalide.');
 
     if (this.env.STOCKAGE_TRANSPORT === 's3') {
       await this.client().send(

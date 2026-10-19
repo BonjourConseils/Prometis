@@ -2038,6 +2038,124 @@ enum ParcelleDecoupageType {
 }
 
 /// Une part de parcelle : « Zone d'habitat collectif B (3) — 1706 m² — 100 % ».
+// =====================================================================
+//  Le règlement communal — ce que la commune autorise à bâtir
+// =====================================================================
+//
+// Un RCCZ est un document PUBLIC : le même pour tous les promoteurs qui
+// bâtissent dans la commune. Ces trois tables sont donc une référence
+// PARTAGÉE — sans `societeId`, sans policy RLS, comme `tarifs_modules`.
+// Les cloisonner obligerait chaque client à redéposer le même PDF et à
+// repayer son interprétation par l'IA, pour un résultat identique.
+//
+// Ce qu'on en tire ne vaut JAMAIS décision : l'IA propose, en citant son
+// extrait, et un humain valide. Un indice d'utilisation est presque
+// toujours conditionnel (« sur 20 m dès l'alignement, si les rez sont
+// affectés au commerce ») et une SBP fausse se paie à l'achat du terrain.
+
+/// Une commune suisse, et les règlements qui s'y appliquent.
+model Commune {
+  id        Int      @id @default(autoincrement())
+  nom       String
+  /// Sigle du canton : VS, VD, GE…
+  canton    String   @db.VarChar(2)
+  /// Numéro OFS quand on le connaît : c'est la seule clé stable, un nom de
+  /// commune changeant au gré des fusions.
+  numeroOfs Int?     @unique @map("numero_ofs")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reglements ReglementCommunal[]
+
+  @@unique([nom, canton])
+  @@map("communes")
+}
+
+/// Le règlement des constructions et des zones (RCCZ, RCC) d'une commune.
+///
+/// Deux portes d'entrée, et on garde les deux : le lien public quand la
+/// commune publie, le fichier déposé sinon — ou les deux, un lien pouvant
+/// mourir alors que le projet dure trois ans.
+model ReglementCommunal {
+  id         Int     @id @default(autoincrement())
+  communeId  Int     @map("commune_id")
+  titre      String
+  /// Millésime du règlement : deux versions coexistent souvent, et c'est
+  /// celle en vigueur à la mise à l'enquête qui fait foi.
+  version    String?
+  url        String?
+  /// Clé de l'objet déposé. Préfixe `reference/`, hors de l'arborescence des
+  /// sociétés : le document n'appartient à aucune.
+  cleObjet   String? @map("cle_objet")
+  nomFichier String? @map("nom_fichier")
+
+  /// Le texte extrait, gardé tel quel : c'est la pièce que l'IA a lue, et
+  /// celle qu'on relit pour vérifier une citation.
+  texte          String?
+  /// `texte-pdf` quand la couche texte suffisait, `ocr` quand il a fallu
+  /// Tesseract. Un RCCZ scanné par un photocopieur porte souvent déjà son
+  /// OCR — il faut savoir lequel on a lu pour juger des fautes.
+  methodeLecture String?   @map("methode_lecture")
+  nbPages        Int?      @map("nb_pages")
+  luLe           DateTime? @map("lu_le")
+  erreur         String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  commune Commune         @relation(fields: [communeId], references: [id], onDelete: Cascade)
+  zones   ZoneReglement[]
+
+  @@index([communeId])
+  @@map("reglements_communaux")
+}
+
+/// Une zone du règlement, et ce qu'elle autorise.
+///
+/// Chaque valeur porte son extrait : sans la phrase d'où elle sort, un
+/// chiffre proposé par un modèle ne se vérifie pas — et ne devrait donc pas
+/// être repris.
+model ZoneReglement {
+  id          Int     @id @default(autoincrement())
+  reglementId Int     @map("reglement_id")
+  /// Le code tel que le règlement l'écrit : R3, CC, VH…
+  code        String
+  /// Son libellé : « habitat collectif B ».
+  libelle     String?
+
+  /// Indice d'utilisation / densité. Le chiffre qui commande la SBP.
+  indice            Decimal? @db.Decimal(6, 3)
+  hauteurMaxM       Decimal? @map("hauteur_max_m") @db.Decimal(6, 2)
+  niveauxMax        Int?     @map("niveaux_max")
+  distanceLimiteM   Decimal? @map("distance_limite_m") @db.Decimal(6, 2)
+  /// Degré de sensibilité au bruit (OPB) : I à IV.
+  degreSensibilite  String?  @map("degre_sensibilite")
+  /// Places de stationnement exigées, par logement.
+  placesParLogement Decimal? @map("places_par_logement") @db.Decimal(6, 2)
+
+  /// Ce qui limite ces valeurs — presque toujours non vide, et c'est le
+  /// champ qui empêche de prendre un indice pour un acquis.
+  conditions String?
+  /// La citation : le passage du règlement d'où viennent ces valeurs.
+  extrait    String?
+
+  /// `texte` : la valeur figure telle quelle dans le règlement.
+  /// `propose` : le modèle l'a déduite, le texte ne la porte pas mot pour mot.
+  ancrage     String    @default("propose")
+  /// Tant que personne n'a validé, rien n'est repris sur une parcelle.
+  valideLe    DateTime? @map("valide_le")
+  valideParId Int?      @map("valide_par_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reglement ReglementCommunal @relation(fields: [reglementId], references: [id], onDelete: Cascade)
+
+  @@unique([reglementId, code])
+  @@index([reglementId])
+  @@map("zones_reglement")
+}
+
 model ParcelleDecoupage {
   id          Int                   @id @default(autoincrement())
   parcelleId  Int                   @map("parcelle_id")

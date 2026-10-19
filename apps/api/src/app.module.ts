@@ -14,6 +14,8 @@ import { SoumissionsModule } from './soumissions/soumissions.module';
 import { FacturesModule } from './factures/factures.module';
 import { PaiementsModule } from './paiements/paiements.module';
 import { RechercheModule } from './recherche/recherche.module';
+import { ReglementsModule } from './reglements/reglements.module';
+import { ReglementsController } from './reglements/reglements.controller';
 import { IaModule } from './ia/ia.module';
 import { UsageIaController } from './ia/usage-ia.controller';
 import { RechercheController } from './recherche/recherche.controller';
@@ -83,6 +85,7 @@ import { CourtageController, TresorerieController } from './courtage/courtage.co
     FacturesModule,
     PaiementsModule,
     RechercheModule,
+    ReglementsModule,
     IaModule,
     VentesModule,
     PasserelleModule,
@@ -123,6 +126,7 @@ export class AppModule implements NestModule {
       FacturesController,
       OrdresPaiementController,
       RechercheController,
+      ReglementsController,
       UsageIaController,
       AcquereursController,
       VentesController,

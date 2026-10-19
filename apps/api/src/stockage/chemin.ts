@@ -62,6 +62,26 @@ export function construireCleObjet(options: {
 }
 
 /**
+ * Clé d'un objet de **référence** — partagé, hors de toute société.
+ *
+ * Un règlement communal n'appartient à aucun tenant : le ranger sous
+ * `societes/<id>` dirait le contraire, et le premier préfixe venu décide de
+ * qui peut le lire le jour où le bucket aura une politique par préfixe.
+ */
+export function construireCleReference(options: {
+  domaine: string;
+  id: number;
+  nomFichier: string;
+}): string {
+  return [
+    'reference',
+    assainirNomFichier(options.domaine),
+    String(options.id),
+    `${randomUUID()}-${assainirNomFichier(options.nomFichier)}`,
+  ].join('/');
+}
+
+/**
  * Une clé d'objet est-elle sûre à concaténer à une racine locale ?
  *
  * Rien de ce que produit `construireCleObjet` ne peut échouer ici. Le contrôle
