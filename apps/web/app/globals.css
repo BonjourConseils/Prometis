@@ -558,6 +558,14 @@ tr.depassement td {
   background: var(--danger-bg);
 }
 
+/* Le vu d'une étape franchie, dans la barre latérale. Discret : il
+   confirme, il ne réclame pas l'attention comme le ferait une pastille. */
+.app-sidebar nav .vu {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--petrol-300);
+}
+
 /* La ligne qu'on est en train de modifier : le formulaire s'ouvre SOUS le
    tableau, donc il faut pouvoir relier l'un à l'autre d'un coup d'œil. */
 tr.en-edition td {

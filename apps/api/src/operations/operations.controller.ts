@@ -78,6 +78,13 @@ export class OperationsController {
     return this.operations.supprimer(operationId);
   }
 
+  /** Les étapes franchies, pour les vus du menu. */
+  @RequireOperationAccess({ level: 'READ_ONLY' })
+  @Get(':operationId/etapes')
+  async etapes(@Param('operationId', ParseIntPipe) operationId: number) {
+    return this.operations.etapes(operationId);
+  }
+
   @RequireOperationAccess({ level: 'READ_ONLY' })
   @Get(':operationId')
   async findOne(@Param('operationId', ParseIntPipe) operationId: number) {

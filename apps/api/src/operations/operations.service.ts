@@ -221,6 +221,45 @@ export class OperationsService {
   }
 
   /** Le droit d'accès est vérifié par le guard sur la route. */
+  /**
+   * Où en est la promotion — une étape par étape franchie.
+   *
+   * « Terminé » ne veut pas dire « le promoteur n'y reviendra plus » : il
+   * ajoutera une parcelle, corrigera un poste. Ce qu'on peut dire sans
+   * mentir, c'est si **l'étape a produit ce que la suivante attend** :
+   *
+   *  · le FONCIER a produit une assiette chiffrable dès qu'une parcelle
+   *    porte une surface ET un prix. Sans l'une des deux, ni surface à
+   *    bâtir ni prix de revient — l'estimatif n'a rien à reprendre ;
+   *  · l'ESTIMATIF a produit son verdict dès qu'un grand poste est chiffré
+   *    ET que le total des ventes attendu est saisi. Sans les ventes, pas
+   *    de bénéfice prévisionnel, donc pas de décision.
+   *
+   * C'est volontairement étroit. Un vu qui s'allume trop tôt vaut moins que
+   * pas de vu : on cesse de le lire.
+   */
+  async etapes(operationId: number) {
+    return this.db.run(async (tx) => {
+      const operation = await tx.operation.findUniqueOrThrow({
+        where: { id: operationId },
+        select: { recettesPrevisionnelles: true },
+      });
+      const parcellesChiffrees = await tx.parcelle.count({
+        where: { operationId, surfaceM2: { not: null }, prixAchat: { not: null } },
+      });
+      const postesChiffres = await tx.ligneBudget.count({
+        where: { budgetVersion: { operationId } },
+      });
+      return {
+        foncier: parcellesChiffrees > 0,
+        estimatif:
+          postesChiffres > 0 &&
+          operation.recettesPrevisionnelles !== null &&
+          Number(operation.recettesPrevisionnelles) > 0,
+      };
+    });
+  }
+
   async findOne(operationId: number) {
     const operation = await this.db.run((tx) =>
       tx.operation.findUnique({

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { apiGet } from '../../lib/session';
 import type { JSX } from 'react';
 import { LogoutButton } from './logout-button';
 import {
@@ -61,7 +62,7 @@ export interface Me {
  * l'API refuse de toute façon — mais un promoteur et une entreprise générale
  * ne doivent pas voir la même application.
  */
-export function AppHeader({
+export async function AppHeader({
   me,
   actif,
   operationId,
@@ -70,6 +71,27 @@ export function AppHeader({
   actif: string;
   operationId?: number;
 }) {
+  /**
+   * Les étapes franchies, pour les vus.
+   *
+   * Le vu ne dit pas « le promoteur n'y reviendra plus » — il y reviendra,
+   * pour ajouter une parcelle ou corriger un poste. Il dit que l'étape a
+   * **produit ce que la suivante attend**. Le titre au survol l'écrit, pour
+   * qu'un vu ne puisse pas se faire lire comme autre chose.
+   */
+  const etapes = operationId
+    ? await apiGet<{ foncier: boolean; estimatif: boolean }>(`/operations/${operationId}/etapes`)
+    : null;
+  const VU: Record<string, { fait: boolean; pourquoi: string }> = {
+    foncier: {
+      fait: etapes?.foncier ?? false,
+      pourquoi: 'Une parcelle au moins porte sa surface et son prix.',
+    },
+    estimatif: {
+      fait: etapes?.estimatif ?? false,
+      pourquoi: 'Des postes sont chiffrés et le total des ventes attendu est saisi.',
+    },
+  };
   const estAdmin = me.membership?.role === 'OWNER' || me.membership?.role === 'ADMIN';
   // Un module résilié reste dans la navigation : ses données sont toujours
   // là, et les faire disparaître laisserait croire qu'elles ont été effacées.
@@ -87,6 +109,11 @@ export function AppHeader({
     <Link key={cle} href={href} className={actif === cle ? 'actif' : ''}>
       <Icone />
       <span>{libelle}</span>
+      {VU[cle]?.fait && (
+        <span className="vu" title={VU[cle]!.pourquoi} aria-label="étape franchie">
+          ✓
+        </span>
+      )}
       {module && enLecture(module) && (
         <span className="lecture-seule" title="Module résilié : consultation seule">
           lecture
