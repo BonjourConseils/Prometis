@@ -96,6 +96,7 @@ export const ROUTAGE: Record<string, Etage> = {
   // renvois : le petit modèle s'y perdrait, et un indice faux se paie à
   // l'achat du terrain.
   'reglements.zones': 'PUISSANT',
+  'foncier.rdppf': 'PUISSANT',
   'recherche.web': 'RECHERCHE',
   // Trier un e-mail entrant, deviner un corps de métier : le petit modèle
   // suffit, et rien ne quitte le serveur.

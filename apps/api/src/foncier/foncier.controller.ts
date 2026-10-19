@@ -1,9 +1,23 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { ZodBody } from '../common/zod-body.pipe';
 import { montantPositif, nombreDecimal } from '../common/zod-decimal';
 import { RequireModule, RequireOperationAccess } from '../auth/decorators';
 import { FoncierService } from './foncier.service';
+import { RdppfService } from './rdppf.service';
 
 const texteOptionnel = z.string().trim().min(1).max(500).nullish();
 
@@ -96,7 +110,10 @@ const ppeSchema = z.object({
  */
 @Controller('operations/:operationId')
 export class FoncierController {
-  constructor(private readonly foncier: FoncierService) {}
+  constructor(
+    private readonly foncier: FoncierService,
+    private readonly rdppf: RdppfService,
+  ) {}
 
   // --- Parcelles ------------------------------------------------------
 
@@ -152,6 +169,29 @@ export class FoncierController {
 
   @RequireModule('FONCIER')
   @RequireOperationAccess({ level: 'MANAGE', module: 'FONCIER' })
+  /**
+   * Lire l'extrait RDPPF d'une parcelle et **proposer** ce qu'il contient.
+   *
+   * Le fichier déposé passe avant le lien : le service cantonal fabrique
+   * l'extrait à la demande et met parfois plusieurs minutes — quand il ne
+   * rend pas un 502. Le promoteur a souvent déjà le PDF sur son disque.
+   *
+   * Rien n'est écrit sur la parcelle : l'écran montre les propositions à
+   * côté de ce qui est saisi, et c'est l'utilisateur qui reprend.
+   */
+  @RequireModule('FONCIER')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FONCIER' })
+  @Post('parcelles/:parcelleId/rdppf')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('fichier'))
+  lireRdppf(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('parcelleId', ParseIntPipe) parcelleId: number,
+    @UploadedFile() fichier: { buffer: Buffer; originalname?: string } | undefined,
+  ) {
+    return this.rdppf.lire(operationId, parcelleId, fichier?.buffer, fichier?.originalname);
+  }
+
   @Delete('parcelles/:parcelleId')
   supprimerParcelle(
     @Param('operationId', ParseIntPipe) operationId: number,

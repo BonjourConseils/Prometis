@@ -2177,33 +2177,42 @@ model ParcelleDecoupage {
 }
 
 model Parcelle {
-  id              Int      @id @default(autoincrement())
-  operationId     Int      @map("operation_id")
+  id              Int       @id @default(autoincrement())
+  operationId     Int       @map("operation_id")
   numero          String // n° de parcelle
   egrid           String? // identifiant fédéral E-GRID
   commune         String?
-  surfaceM2       Decimal? @map("surface_m2") @db.Decimal(12, 2)
-  affectationZone String?  @map("affectation_zone") // zone d'affectation
-  registreFoncier String?  @map("registre_foncier") // référence RF
+  surfaceM2       Decimal?  @map("surface_m2") @db.Decimal(12, 2)
+  affectationZone String?   @map("affectation_zone") // zone d'affectation
+  registreFoncier String?   @map("registre_foncier") // référence RF
   /// Lien vers le géoportail cantonal, centré sur la parcelle.
   ///
   /// Ces URL portent les coordonnées et les couches choisies : les recopier
   /// évite de rechercher la parcelle à chaque fois. Rien n'est appelé depuis
   /// le serveur — c'est un signet, pas une intégration.
-  lienGeoportail  String?  @map("lien_geoportail")
+  lienGeoportail  String?   @map("lien_geoportail")
   /// Lien vers l'extrait RDPPF — cadastre des restrictions de droit public à
   /// la propriété foncière. C'est la pièce qui dit ce qui grève la parcelle.
-  lienRdppf       String?  @map("lien_rdppf")
+  lienRdppf       String?   @map("lien_rdppf")
+  /// L'extrait RDPPF **déposé**, et non plus seulement lié.
+  ///
+  /// Le service cantonal fabrique l'extrait à la demande et met plusieurs
+  /// minutes — quand il ne rend pas un 502 (relevé le 19.10.2026 sur
+  /// `rdppf.apps.vs.ch`). Le promoteur l'a souvent déjà téléchargé : on le
+  /// garde, et le lien devient un secours plutôt qu'un passage obligé.
+  rdppfCleObjet   String?   @map("rdppf_cle_objet")
+  rdppfNomFichier String?   @map("rdppf_nom_fichier")
+  rdppfDeposeLe   DateTime? @map("rdppf_depose_le")
   /// Prix d'achat de CETTE parcelle. Le prix au m² s'en déduit — il ne se
   /// stocke pas : deux champs qui doivent s'accorder finissent par diverger.
-  prixAchat       Decimal? @map("prix_achat") @db.Decimal(12, 2)
+  prixAchat       Decimal?  @map("prix_achat") @db.Decimal(12, 2)
   /// Indice brut d'utilisation du sol. Multiplié par la surface, il donne la
   /// surface brute de plancher constructible — le premier chiffre qui dit si
   /// une opération tient sur un terrain.
-  ibus            Decimal? @db.Decimal(6, 3)
+  ibus            Decimal?  @db.Decimal(6, 3)
   note            String?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   operation  Operation           @relation(fields: [operationId], references: [id], onDelete: Cascade)
   documents  Document[]

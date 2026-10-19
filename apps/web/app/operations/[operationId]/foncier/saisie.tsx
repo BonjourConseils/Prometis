@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { champ } from '../../../../lib/api-client';
+import { useRouter } from 'next/navigation';
+import { appelApi, champ } from '../../../../lib/api-client';
 import { montant, nombre } from '../../../../lib/format';
 import {
   LIBELLE_DECOUPAGE,
@@ -43,6 +44,159 @@ function LienExterne({ href, children }: { href: string; children: ReactNode }) 
       <span aria-hidden="true"> ↗</span>
       <span className="hors-ecran"> (nouvel onglet)</span>
     </a>
+  );
+}
+
+interface LectureRdppf {
+  commune: string | null;
+  numeroParcelle: string | null;
+  egrid: string | null;
+  surfaceM2: number | null;
+  affectationZone: string | null;
+  degreSensibiliteBruit: string | null;
+  restrictions: string[];
+  ancrage: Record<string, string>;
+}
+
+/**
+ * Lire l'extrait RDPPF d'une parcelle.
+ *
+ * Le cadastre des restrictions de droit public est la source **officielle**
+ * de l'affectation et du degré de sensibilité au bruit. Le promoteur le
+ * consulte de toute façon : autant que l'app le lise.
+ *
+ * Le **fichier déposé passe avant le lien**, et c'est une leçon payée : le
+ * service cantonal fabrique l'extrait à la demande et met plusieurs minutes
+ * — quand il ne rend pas un 502 (mesuré le 19.10.2026). Le PDF est gardé,
+ * donc relisible dans trois ans sans dépendre d'une URL encore vivante.
+ *
+ * Rien n'est écrit d'autorité : les valeurs s'affichent avec leur ancrage,
+ * et c'est vous qui reprenez.
+ */
+function LireRdppf({
+  operationId,
+  parcelleId,
+  aUnLien,
+  aUnFichier,
+}: {
+  operationId: number;
+  parcelleId: number;
+  aUnLien: boolean;
+  aUnFichier: boolean;
+}) {
+  const router = useRouter();
+  const [lu, setLu] = useState<LectureRdppf | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState(false);
+  const [repris, setRepris] = useState(false);
+
+  async function lire(fichier?: File) {
+    setErreur(null);
+    setLu(null);
+    setEnCours(true);
+    const corps = new FormData();
+    if (fichier) corps.append('fichier', fichier);
+    const res = await fetch(
+      `/api/prometis/operations/${operationId}/parcelles/${parcelleId}/rdppf`,
+      { method: 'POST', body: corps },
+    );
+    setEnCours(false);
+    const donnees = (await res.json().catch(() => null)) as
+      | (LectureRdppf & { message?: string })
+      | null;
+    if (!res.ok) {
+      setErreur(donnees?.message ?? 'Lecture impossible.');
+      return;
+    }
+    setLu(donnees);
+  }
+
+  async function reprendre() {
+    if (!lu) return;
+    setEnCours(true);
+    const r = await appelApi(`/operations/${operationId}/parcelles/${parcelleId}`, {
+      methode: 'PATCH',
+      corps: {
+        ...(lu.commune ? { commune: lu.commune } : {}),
+        ...(lu.egrid ? { egrid: lu.egrid } : {}),
+        ...(lu.surfaceM2 ? { surfaceM2: String(lu.surfaceM2) } : {}),
+        ...(lu.affectationZone ? { affectationZone: lu.affectationZone } : {}),
+      },
+    });
+    setEnCours(false);
+    if (!r.ok) {
+      setErreur(r.erreur ?? 'Enregistrement impossible.');
+      return;
+    }
+    setRepris(true);
+    router.refresh();
+  }
+
+  const ligne = (etiquette: string, valeur: string | null, cle: string) => (
+    <div>
+      <dt>{etiquette}</dt>
+      <dd>
+        {valeur ?? <span className="meta">—</span>}{' '}
+        {valeur && lu?.ancrage[cle] === 'proposee' && (
+          <span className="meta" title="Le modèle l’a déduite : elle ne figure pas telle quelle dans l’extrait.">
+            déduite
+          </span>
+        )}
+      </dd>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="actions-cellule">
+        <label className="lien" style={{ cursor: 'pointer' }}>
+          {enCours ? 'Lecture…' : 'Lire l’extrait RDPPF'}
+          <input
+            type="file"
+            accept="application/pdf"
+            style={{ display: 'none' }}
+            disabled={enCours}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void lire(f);
+              e.target.value = '';
+            }}
+          />
+        </label>
+        {(aUnLien || aUnFichier) && (
+          <button type="button" className="lien" disabled={enCours} onClick={() => void lire()}>
+            {aUnFichier ? 'relire le fichier gardé' : 'télécharger depuis le lien'}
+          </button>
+        )}
+      </div>
+
+      {erreur && <p className="ko">{erreur}</p>}
+
+      {lu && (
+        <div>
+          <dl className="recapitulatif">
+            {ligne('Commune', lu.commune, 'commune')}
+            {ligne('Parcelle', lu.numeroParcelle, 'numeroParcelle')}
+            {ligne('E-GRID', lu.egrid, 'egrid')}
+            {ligne('Surface', lu.surfaceM2 ? `${lu.surfaceM2} m²` : null, 'surfaceM2')}
+            {ligne('Affectation', lu.affectationZone, 'affectationZone')}
+            {ligne('Sensibilité au bruit', lu.degreSensibiliteBruit, 'degreSensibiliteBruit')}
+          </dl>
+          {lu.restrictions.length > 0 && (
+            <p className="note">
+              <strong>Ce qui grève la parcelle :</strong> {lu.restrictions.join(' · ')}
+            </p>
+          )}
+          {repris ? (
+            <p className="ok">Valeurs reprises sur la parcelle.</p>
+          ) : (
+            <button type="button" disabled={enCours} onClick={() => void reprendre()}>
+              Reprendre commune, E-GRID, surface et affectation
+            </button>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -194,6 +348,12 @@ export function TableauParcelles({
                   >
                     {modifie === p.id ? 'Fermer' : 'Modifier'}
                   </button>
+                  <LireRdppf
+                    operationId={operationId}
+                    parcelleId={p.id}
+                    aUnLien={!!p.lienRdppf}
+                    aUnFichier={!!p.rdppfCleObjet}
+                  />
                   <div className="actions-cellule">
                     <SupprimerParcelle
                       operationId={operationId}

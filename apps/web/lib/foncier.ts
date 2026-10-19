@@ -27,6 +27,8 @@ export interface Parcelle {
   lienRdppf: string | null;
   prixAchat: string | null;
   ibus: string | null;
+  /// L'extrait RDPPF gardé : relisible sans redemander au cantonal.
+  rdppfCleObjet?: string | null;
   decoupages: Decoupage[];
 }
 
