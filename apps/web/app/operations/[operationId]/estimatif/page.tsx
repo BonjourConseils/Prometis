@@ -4,6 +4,7 @@ import { apiGet, getToken, lirePayload } from '../../../../lib/session';
 import { AppHeader, type Me } from '../../../components/app-header';
 import { PageHeader } from '../../../components/page-header';
 import { AjouterPosteEstimatif, DemarrerEstimatif, SaisieEstimatif } from './saisie';
+import { assiette, type Parcelle, type TauxAcquisition } from '../../../../lib/foncier';
 import { AdopterVersion } from '../budget/saisie';
 
 interface Noeud {
@@ -32,6 +33,9 @@ interface Operation {
   id: number;
   nom: string;
   recettesPrevisionnelles: string | null;
+  canton: string | null;
+  fraisNotaireTerrain: string | null;
+  droitsMutation: string | null;
 }
 
 /**
@@ -63,12 +67,16 @@ export default async function EstimatifPage({
   const me = await apiGet<Me>('/auth/me');
   if (!me) redirect('/login');
 
-  const [operation, vue, tousLesPostes] = await Promise.all([
+  const [operation, vue, tousLesPostes, parcelles, taux] = await Promise.all([
     apiGet<Operation>(`/operations/${operationId}`),
     apiGet<VueBudget>(`/operations/${operationId}/budget`),
     // L'arbre consolidé n'expose pas l'origine des postes : on la lit sur la
     // liste plate, qui rend les colonnes brutes.
     apiGet<{ id: number; issuDeLaTrame: boolean }[]>(`/operations/${operationId}/cfc`),
+    // Le terrain est le seul poste déjà connu à ce stade : il vient d'être
+    // saisi sur le Foncier. On le propose plutôt que de le faire retaper.
+    apiGet<Parcelle[]>(`/operations/${operationId}/parcelles`),
+    apiGet<TauxAcquisition[]>('/taux-acquisition'),
   ]);
 
   if (!operation) notFound();
@@ -108,6 +116,17 @@ export default async function EstimatifPage({
   // La commercialisation ne vit pas au premier niveau du CFC, et c'est
   // pourtant elle que le promoteur chiffre en même temps que le bâtiment :
   // commission de courtage, publicité, notaire de vente.
+  // Ce que le Foncier sait déjà du terrain : même source que l'écran
+  // Foncier, pour que les deux ne puissent pas diverger.
+  const vuFoncier = parcelles ? assiette(parcelles, operation, taux ?? []) : null;
+  const foncier = vuFoncier
+    ? {
+        prix: vuFoncier.prixTotal,
+        frais: vuFoncier.fraisAcquisition,
+        fraisEstimes: vuFoncier.fraisEstimes,
+      }
+    : null;
+
   const POSTES_ESTIMATIF = new Set(['58']);
 
   const ajoutesALaMain = new Set(
@@ -200,7 +219,22 @@ export default async function EstimatifPage({
               versionId={vue.versionAffichee.id}
               postes={postes}
               recettesInitiales={operation.recettesPrevisionnelles ?? '0'}
+              foncier={foncier}
             />
+
+            {/* Le PDF reprend ce qui est ENREGISTRÉ, pas ce qui est tapé à
+                l'écran : un document qu'on montre à sa banque ne doit pas
+                refléter une saisie en cours. */}
+            <p className="note">
+              <a
+                href={`/api/prometis/operations/${id}/budget/versions/${vue.versionAffichee.id}/estimatif.pdf`}
+                download
+              >
+                Télécharger le budget estimatif (PDF)
+              </a>{' '}
+              — reprend l&apos;estimatif enregistré : le terrain, les grands postes, le total des
+              ventes attendu et le bénéfice prévisionnel.
+            </p>
           </section>
 
           {/* Un estimatif en brouillon ne compte nulle part ailleurs : la

@@ -614,6 +614,105 @@ export class BudgetService {
   }
 
   /**
+   * Les données du **PDF d'estimatif** : le terrain, les grands postes, le
+   * verdict.
+   *
+   * Assemblé ici et non dans le contrôleur parce que le terrain se relit en
+   * base : le PDF doit porter les mêmes chiffres que l'écran Foncier, pas
+   * une copie que le navigateur aurait transportée.
+   */
+  async donneesEstimatif(operationId: number, versionId?: number) {
+    const vue = await this.vueConsolidee(operationId, versionId);
+    if (!vue.versionAffichee) {
+      throw new NotFoundException("Cette opération n'a aucune version de budget.");
+    }
+
+    const contexte = await this.db.run(async (tx) => {
+      const operation = await tx.operation.findUniqueOrThrow({
+        where: { id: operationId },
+        select: {
+          nom: true,
+          canton: true,
+          recettesPrevisionnelles: true,
+          fraisNotaireTerrain: true,
+          droitsMutation: true,
+          societe: { select: { raisonSociale: true } },
+        },
+      });
+      const parcelles = await tx.parcelle.findMany({
+        where: { operationId },
+        select: {
+          commune: true,
+          surfaceM2: true,
+          prixAchat: true,
+          ibus: true,
+          decoupages: { select: { surfaceM2: true, ibus: true } },
+        },
+      });
+      const taux = operation.canton
+        ? await tx.tauxFraisAcquisition.findFirst({
+            where: { canton: operation.canton },
+            select: { pourcentage: true },
+          })
+        : null;
+      return { operation, parcelles, taux };
+    });
+
+    const { operation, parcelles, taux } = contexte;
+
+    // Le terrain, agrégé comme sur l'écran Foncier. Une parcelle à cheval
+    // sur deux zones a deux indices : c'est zone par zone que la SBP se
+    // calcule, sinon on retombe sur l'indice de la parcelle.
+    const nombre = (v: Prisma.Decimal | null) => Number(v ?? 0);
+    const surfaceM2 = parcelles.reduce((t, p) => t + nombre(p.surfaceM2), 0);
+    const prix = parcelles.reduce((t, p) => t + nombre(p.prixAchat), 0);
+    const sbpM2 = parcelles.reduce((t, p) => {
+      const indicees = p.decoupages.filter((d) => d.ibus && d.surfaceM2);
+      if (indicees.length > 0) {
+        return t + indicees.reduce((s, d) => s + nombre(d.surfaceM2) * nombre(d.ibus), 0);
+      }
+      return t + nombre(p.surfaceM2) * nombre(p.ibus);
+    }, 0);
+
+    const fraisSaisis = nombre(operation.fraisNotaireTerrain) + nombre(operation.droitsMutation);
+    const estimation =
+      fraisSaisis === 0 && taux && prix > 0 ? (prix * Number(taux.pourcentage)) / 100 : null;
+
+    return {
+      societe: operation.societe.raisonSociale,
+      operation: operation.nom,
+      version: vue.versionAffichee.libelle,
+      dateEdition: new Date(),
+      foncier:
+        parcelles.length > 0
+          ? {
+              nbParcelles: parcelles.length,
+              communes: [...new Set(parcelles.map((p) => p.commune).filter(Boolean))] as string[],
+              surfaceM2,
+              sbpM2,
+              prix,
+              fraisAcquisition: fraisSaisis > 0 ? fraisSaisis : (estimation ?? 0),
+              fraisEstimes: estimation !== null,
+            }
+          : null,
+      // Les grands postes seulement : c'est la maille de l'estimatif, et
+      // chaque total porte déjà ses sous-postes.
+      postes: vue.arbre
+        .map((n) => ({
+          code: n.code,
+          libelle: n.libelle,
+          montant: Number(n.total.budgeteRevise),
+        }))
+        .filter((p) => p.montant !== 0),
+      totalCouts: Number(vue.total.budgeteRevise),
+      recettes:
+        operation.recettesPrevisionnelles === null
+          ? null
+          : Number(operation.recettesPrevisionnelles),
+    };
+  }
+
+  /**
    * Ventile le budget courant sur les lots de l'opération.
    *
    * Sert au promoteur à répondre à « combien coûte le lot A02 ? » — une

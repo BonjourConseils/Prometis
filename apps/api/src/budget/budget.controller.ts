@@ -9,13 +9,16 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import { ZodBody } from '../common/zod-body.pipe';
 import { montant, nombreDecimal } from '../common/zod-decimal';
 import { RequireModule, RequireOperationAccess } from '../auth/decorators';
 import { CfcService } from './cfc.service';
 import { BudgetService } from './budget.service';
+import { EstimatifPdfService } from './estimatif.pdf';
 import type { CleVentilation } from './cfc-arbre';
 
 const texteOptionnel = z.string().trim().min(1).max(500).nullish();
@@ -103,6 +106,7 @@ export class BudgetController {
   constructor(
     private readonly cfc: CfcService,
     private readonly budget: BudgetService,
+    private readonly estimatifPdf: EstimatifPdfService,
   ) {}
 
   // --- Arborescence CFC ------------------------------------------------
@@ -206,6 +210,32 @@ export class BudgetController {
     @Body(new ZodBody(ligneSchema)) body: z.infer<typeof ligneSchema>,
   ) {
     return this.budget.creerLigne(operationId, versionId, body);
+  }
+
+  /**
+   * Le budget estimatif en PDF — le document de la décision.
+   *
+   * Lecture seule : sortir le chiffrage ne le modifie pas. Les en-têtes
+   * sont ceux des autres téléchargements de l'app : rien en cache, aucun
+   * reniflage de type, et un bac à sable sur l'aperçu.
+   */
+  @RequireOperationAccess({ level: 'READ_ONLY', module: 'BUDGET_CFC' })
+  @Get('budget/versions/:versionId/estimatif.pdf')
+  async estimatifPdfFichier(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('versionId', ParseIntPipe) versionId: number,
+    @Res() reponse: Response,
+  ): Promise<void> {
+    const donnees = await this.budget.donneesEstimatif(operationId, versionId);
+    const contenu = await this.estimatifPdf.generer(donnees);
+    const nom = `estimatif-${donnees.operation.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}.pdf`;
+    reponse.setHeader('Content-Type', 'application/pdf');
+    reponse.setHeader('Content-Length', contenu.length);
+    reponse.setHeader('Content-Disposition', `attachment; filename="${nom}"`);
+    reponse.setHeader('Cache-Control', 'private, no-store');
+    reponse.setHeader('X-Content-Type-Options', 'nosniff');
+    reponse.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    reponse.send(contenu);
   }
 
   // Saisie d'un estimatif : remplace d'un coup les lignes des postes fournis.

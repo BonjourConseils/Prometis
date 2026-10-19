@@ -36,16 +36,33 @@ export interface PosteEstimatif {
  * encore celui de la base, et c'est assumé — on cherche un ordre de grandeur,
  * pas une écriture comptable. L'enregistrement, lui, est atomique.
  */
+/**
+ * Ce que le foncier a déjà coûté : connu, donc à ne pas resaisir.
+ *
+ * Au moment de l'estimatif, le terrain est le seul poste dont le promoteur
+ * connaît le montant exact — il vient de saisir ses parcelles. Le lui faire
+ * retaper, c'est inviter l'écart entre deux écrans qui parlent du même
+ * achat.
+ */
+export interface FoncierConnu {
+  prix: number;
+  frais: number;
+  /** Les frais sont ESTIMÉS au taux du canton, pas saisis. */
+  fraisEstimes: boolean;
+}
+
 export function SaisieEstimatif({
   operationId,
   versionId,
   postes,
   recettesInitiales,
+  foncier,
 }: {
   operationId: number;
   versionId: number;
   postes: PosteEstimatif[];
   recettesInitiales: string;
+  foncier?: FoncierConnu | null;
 }) {
   const [montants, setMontants] = useState<Record<number, string>>(
     Object.fromEntries(postes.map((p) => [p.id, p.montant === '0' ? '' : p.montant])),
@@ -173,6 +190,15 @@ export function SaisieEstimatif({
             <tr key={p.id} className={p.profondeur === 0 ? 'groupe' : ''}>
               <td style={{ paddingLeft: `${p.profondeur * 1.25}rem` }}>
                 <code>{p.code}</code> {p.libelle}
+                {/* Sous le libellé, pas dans la colonne du montant : celle-ci
+                    est étroite, et la note y partait sur quatre lignes. */}
+                {p.code === '0' && foncier && (
+                  <RepriseFoncier
+                    foncier={foncier}
+                    saisi={nombre(montants[p.id] ?? '')}
+                    reprendre={(v) => setMontants({ ...montants, [p.id]: v })}
+                  />
+                )}
               </td>
               <td className="droite">
                 <input
@@ -259,6 +285,53 @@ export function SaisieEstimatif({
  * découvre qu'il manque « contribution de remplacement » ou « cédules », et
  * on n'a pas envie d'aller le créer sur un autre écran pour revenir.
  */
+/**
+ * « Le foncier donne X — reprendre ? »
+ *
+ * Proposé, jamais écrit d'autorité : le promoteur peut avoir une raison de
+ * porter autre chose en CFC 0 — une promesse de vente à un prix différent,
+ * un terrain partiellement en nature. On montre l'écart et on laisse
+ * décider.
+ */
+function RepriseFoncier({
+  foncier,
+  saisi,
+  reprendre,
+}: {
+  foncier: FoncierConnu;
+  saisi: number;
+  reprendre: (valeur: string) => void;
+}) {
+  const total = foncier.prix + foncier.frais;
+  if (total <= 0) return null;
+  // Au franc près : un écart d'arrondi ne vaut pas une alerte.
+  if (Math.abs(saisi - total) < 1) {
+    return <div className="meta">repris du foncier</div>;
+  }
+
+  // Quand il n'y a pas de frais, le détail répéterait le total : on se tait.
+  const detail =
+    foncier.frais > 0
+      ? `achat ${chf(String(foncier.prix))} + frais ${
+          foncier.fraisEstimes ? '≈ ' : ''
+        }${chf(String(foncier.frais))}`
+      : '';
+
+  return (
+    <div className="meta">
+      Le foncier donne <strong>{chf(String(total))}</strong>
+      {detail && <> — {detail}</>}{' '}
+      <button
+        type="button"
+        className="lien"
+        onClick={() => reprendre(total.toLocaleString('de-CH', { maximumFractionDigits: 2 }))}
+      >
+        Reprendre
+      </button>
+    </div>
+  );
+}
+
 export function AjouterPosteEstimatif({
   operationId,
   parents,
