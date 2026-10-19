@@ -904,8 +904,35 @@ fieldset.cadre > .note:first-of-type {
   margin-top: 0;
 }
 
-fieldset.cadre label {
-  display: block;
+/* ⚠️ Ne PAS redéfinir `label` ici : `.form label` est un `flex` en colonne
+   — libellé au-dessus, champ dessous. Un `display: block` le cassait et
+   remettait le libellé à gauche du champ, seul de tout le formulaire.
+
+   Sur un écran large, le champ et ses actions tiennent sur une ligne : le
+   lien prend la place qu'il mérite — une URL d'extrait est longue — et les
+   boutons se rangent à sa droite, alignés sur le bas du champ. En dessous
+   de 720 px, tout s'empile. */
+fieldset.cadre .champ-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-5) var(--space-6);
+  align-items: end;
+}
+
+fieldset.cadre .champ-actions > .actions {
+  margin-top: 0;
+}
+
+/* Ce que la lecture produit — la note d'attente, les valeurs trouvées, une
+   erreur — n'appartient à aucune des deux colonnes : ça court sous elles. */
+fieldset.cadre .champ-actions > :not(label):not(.actions) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  fieldset.cadre .champ-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Bloc de saisie déplié sous une liste : creusé, pour qu'on voie d'un coup

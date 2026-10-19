@@ -235,16 +235,24 @@ export class RdppfService {
       reponse = await fetch(url, {
         signal: AbortSignal.timeout(DELAI_MS),
         redirect: 'follow',
-        headers: { 'User-Agent': 'Prometis/1.0 (+lecture d’extrait RDPPF)' },
+        // ⚠️ ASCII seulement : un en-tête HTTP est du Latin-1, et une
+        // apostrophe typographique (U+2019) fait échouer `fetch` AVANT tout
+        // appel réseau — « Cannot convert argument to a ByteString ».
+        headers: { 'User-Agent': 'Prometis/1.0 (+lecture extrait RDPPF)' },
       });
     } catch (e) {
-      // Un dépassement de délai n'est pas une erreur de l'utilisateur : le
-      // service cantonal fabrique l'extrait à la demande et prend parfois
-      // plusieurs minutes. On le dit, et on invite à réessayer.
+      const message = e instanceof Error ? e.message : String(e);
+      // Ne pas accuser le canton d'un échec qui est le nôtre. Un délai
+      // dépassé se raconte et invite à réessayer ; tout le reste est un
+      // défaut de l'app, et le dire ainsi évite de chercher au mauvais
+      // endroit (vécu : une apostrophe typographique dans un en-tête).
+      const estDelai = e instanceof Error && /timeout|abort/i.test(e.name + message);
       throw new BadGatewayException(
-        'Le service cantonal n’a pas répondu dans les trois minutes. Il fabrique l’extrait à la ' +
-          'demande et il est parfois lent : réessayez dans quelques minutes. ' +
-          `(${e instanceof Error ? e.message : String(e)})`,
+        estDelai
+          ? 'Le service cantonal n’a pas répondu dans les trois minutes. Il fabrique l’extrait ' +
+            'à la demande et il est parfois lent : réessayez, ou déposez le PDF que vous avez ' +
+            'déjà téléchargé.'
+          : `L’appel a échoué avant d’atteindre le service cantonal : ${message}`,
       );
     }
     if (!reponse.ok) {
