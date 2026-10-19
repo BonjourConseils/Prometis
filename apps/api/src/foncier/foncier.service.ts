@@ -8,6 +8,8 @@ import {
 } from '@prisma/client';
 import { TenantPrismaService, type TenantDb } from '../prisma/tenant-prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StockageService } from '../stockage/stockage.service';
+import { RequestContext } from '../context/request-context';
 
 export interface DonneesParcelle {
   numero: string;
@@ -61,6 +63,7 @@ export class FoncierService {
   constructor(
     private readonly db: TenantPrismaService,
     private readonly audit: AuditService,
+    private readonly stockage: StockageService,
   ) {}
 
   // ===================================================================
@@ -203,6 +206,54 @@ export class FoncierService {
         donnees: { operationId },
       });
       return { supprime: true };
+    });
+  }
+
+  /**
+   * Déposer l'acte de vente d'une parcelle.
+   *
+   * C'est la pièce qui prouve le prix et la date — celle qu'on ressort
+   * trois ans plus tard quand la comptabilité demande d'où vient le
+   * montant porté en CFC 01. Elle porte des noms et des montants : elle
+   * vit donc dans le stockage cloisonné de la société, pas dans la
+   * référence partagée des règlements communaux.
+   */
+  async deposerActe(
+    operationId: number,
+    parcelleId: number,
+    fichier?: { buffer: Buffer; originalname?: string },
+  ) {
+    if (!fichier?.buffer?.length) {
+      throw new BadRequestException('Aucun fichier reçu.');
+    }
+    const parcelle = await this.db.run((tx) =>
+      tx.parcelle.findFirst({
+        where: { id: parcelleId, operationId },
+        select: { id: true, numero: true },
+      }),
+    );
+    if (!parcelle) throw new NotFoundException(`Parcelle ${parcelleId} introuvable.`);
+
+    const nom = fichier.originalname ?? `acte-parcelle-${parcelle.numero}.pdf`;
+    const depose = await this.stockage.deposer({
+      societeId: RequestContext.requireSocieteId(),
+      operationId,
+      nomFichier: nom,
+      contenu: fichier.buffer,
+    });
+
+    return this.db.run(async (tx) => {
+      const miseAJour = await tx.parcelle.update({
+        where: { id: parcelleId },
+        data: { acteCleObjet: depose.cle, acteNomFichier: nom },
+      });
+      await this.audit.enregistrer(tx, {
+        action: 'parcelle.acte-depose',
+        entite: 'Parcelle',
+        entiteId: parcelleId,
+        donnees: { operationId, nomFichier: nom },
+      });
+      return miseAJour;
     });
   }
 

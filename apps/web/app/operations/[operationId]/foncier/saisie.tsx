@@ -47,6 +47,68 @@ function LienExterne({ href, children }: { href: string; children: ReactNode }) 
   );
 }
 
+/**
+ * Déposer l'acte de vente.
+ *
+ * C'est la pièce qui prouve le prix et la date — celle qu'on ressort trois
+ * ans plus tard quand la comptabilité demande d'où vient le montant porté
+ * en CFC 01.
+ */
+function DeposerActe({
+  operationId,
+  parcelleId,
+  nomFichier,
+}: {
+  operationId: number;
+  parcelleId: number;
+  nomFichier: string | null;
+}) {
+  const router = useRouter();
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState(false);
+
+  async function deposer(fichier: File) {
+    setErreur(null);
+    setEnCours(true);
+    const corps = new FormData();
+    corps.append('fichier', fichier);
+    const res = await fetch(
+      `/api/prometis/operations/${operationId}/parcelles/${parcelleId}/acte`,
+      { method: 'POST', body: corps },
+    );
+    setEnCours(false);
+    if (!res.ok) {
+      const d = (await res.json().catch(() => null)) as { message?: string } | null;
+      setErreur(d?.message ?? 'Dépôt impossible.');
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <>
+      <div className="actions">
+        <label className="lien-fichier">
+          {enCours ? 'Dépôt…' : nomFichier ? 'Remplacer l’acte' : 'Déposer l’acte de vente'}
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            hidden
+            disabled={enCours}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void deposer(f);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+      {nomFichier && <p className="note">Acte déposé : {nomFichier}</p>}
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}
+
 interface LectureRdppf {
   commune: string | null;
   numeroParcelle: string | null;
@@ -148,13 +210,13 @@ function LireRdppf({
 
   return (
     <>
-      <div className="actions-cellule">
-        <label className="lien" style={{ cursor: 'pointer' }}>
-          {enCours ? 'Lecture…' : 'Lire l’extrait RDPPF'}
+      <div className="actions">
+        <label className="lien-fichier">
+          {enCours ? 'Lecture…' : 'Déposer le PDF et le lire'}
           <input
             type="file"
             accept="application/pdf"
-            style={{ display: 'none' }}
+            hidden
             disabled={enCours}
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -164,11 +226,17 @@ function LireRdppf({
           />
         </label>
         {(aUnLien || aUnFichier) && (
-          <button type="button" className="lien" disabled={enCours} onClick={() => void lire()}>
-            {aUnFichier ? 'relire le fichier gardé' : 'télécharger depuis le lien'}
+          <button type="button" disabled={enCours} onClick={() => void lire()}>
+            {aUnFichier ? 'Relire le fichier gardé' : 'Télécharger depuis le lien'}
           </button>
         )}
       </div>
+      {aUnLien && !aUnFichier && (
+        <p className="note">
+          Le service cantonal fabrique l’extrait à la demande et met souvent plusieurs minutes.
+          Si vous l’avez déjà téléchargé, déposez-le : il sera gardé et relisible sans lui.
+        </p>
+      )}
 
       {erreur && <p className="ko">{erreur}</p>}
 
@@ -190,9 +258,11 @@ function LireRdppf({
           {repris ? (
             <p className="ok">Valeurs reprises sur la parcelle.</p>
           ) : (
-            <button type="button" disabled={enCours} onClick={() => void reprendre()}>
-              Reprendre commune, E-GRID, surface et affectation
-            </button>
+            <div className="actions">
+              <button type="button" disabled={enCours} onClick={() => void reprendre()}>
+                Reprendre commune, E-GRID, surface et affectation
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -348,12 +418,6 @@ export function TableauParcelles({
                   >
                     {modifie === p.id ? 'Fermer' : 'Modifier'}
                   </button>
-                  <LireRdppf
-                    operationId={operationId}
-                    parcelleId={p.id}
-                    aUnLien={!!p.lienRdppf}
-                    aUnFichier={!!p.rdppfCleObjet}
-                  />
                   <div className="actions-cellule">
                     <SupprimerParcelle
                       operationId={operationId}
@@ -429,6 +493,12 @@ export interface ParcelleExistante {
   lienRdppf: string | null;
   prixAchat: string | null;
   ibus: string | null;
+  /** L'extrait RDPPF gardé : relisible sans redemander au cantonal. */
+  rdppfCleObjet?: string | null;
+  statut?: 'ENVISAGEE' | 'ACHETEE';
+  fraisAcquisition?: string | null;
+  dateAchat?: string | null;
+  acteNomFichier?: string | null;
 }
 
 function FormulaireParcelle({
@@ -446,6 +516,14 @@ function FormulaireParcelle({
   const [surface, setSurface] = useState(parcelle?.surfaceM2 ?? '');
   const [prix, setPrix] = useState(parcelle?.prixAchat ?? '');
   const [ibus, setIbus] = useState(parcelle?.ibus ?? '');
+  /**
+   * Envisagée ou achetée — et c'est le MÊME champ de prix des deux côtés.
+   *
+   * Tant qu'on négocie, `prixAchat` porte le prix négocié ; une fois l'acte
+   * signé, le prix payé. Deux champs qui doivent s'accorder finissent
+   * toujours par diverger, et c'est l'acte déposé qui fait foi.
+   */
+  const [statut, setStatut] = useState<string>(parcelle?.statut ?? 'ENVISAGEE');
 
   const nb = (v: string) => {
     const n = Number(v.replace(/[\s'\u2019]/g, '').replace(',', '.'));
@@ -468,6 +546,9 @@ function FormulaireParcelle({
       lienRdppf: champ(d.get('lienRdppf')),
       prixAchat: champ(d.get('prixAchat')),
       ibus: champ(d.get('ibus')),
+      statut: champ(d.get('statut')),
+      fraisAcquisition: champ(d.get('fraisAcquisition')),
+      dateAchat: champ(d.get('dateAchat')),
     };
     const ok = parcelle
       ? await envoyer(`/operations/${operationId}/parcelles/${parcelle.id}`, corps, 'PATCH')
@@ -537,6 +618,13 @@ function FormulaireParcelle({
           />
         </label>
         <label>
+          Où en est l&apos;acquisition
+          <select name="statut" value={statut} onChange={(e) => setStatut(e.target.value)}>
+            <option value="ENVISAGEE">Envisagée — le prix est négocié</option>
+            <option value="ACHETEE">Achetée — le prix est payé</option>
+          </select>
+        </label>
+        <label>
           IBUS
           <input
             name="ibus"
@@ -547,6 +635,42 @@ function FormulaireParcelle({
           />
         </label>
       </div>
+      {/* L'extrait RDPPF dans son propre cadre : le lien, le dépôt et la
+          lecture sont une seule et même chose. Dispersés dans la grille du
+          formulaire, les boutons tombaient dans la colonne suivante et ne
+          se rattachaient plus à rien. */}
+      <fieldset className="cadre">
+        <legend>Extrait RDPPF</legend>
+        <p className="note">
+          Le cadastre des restrictions de droit public : il donne l&apos;affectation, la surface
+          et le degré de sensibilité au bruit — et l&apos;app sait les en tirer.
+        </p>
+        <div className="champ-actions">
+          <label>
+            Lien vers l&apos;extrait
+            <input
+              name="lienRdppf"
+              type="url"
+              defaultValue={parcelle?.lienRdppf ?? ''}
+              placeholder="https://rdppf.apps.vs.ch/extract/pdf?EGRID=…"
+            />
+          </label>
+          {parcelle && (
+            <LireRdppf
+              operationId={operationId}
+              parcelleId={parcelle.id}
+              aUnLien={!!parcelle.lienRdppf}
+              aUnFichier={!!parcelle.rdppfCleObjet}
+            />
+          )}
+        </div>
+        {!parcelle && (
+          <p className="note">
+            Enregistrez d&apos;abord la parcelle : le fichier déposé se range sur elle.
+          </p>
+        )}
+      </fieldset>
+
       <div className="grille-2">
         <label>
           Lien géoportail
@@ -557,15 +681,39 @@ function FormulaireParcelle({
             placeholder="https://maps.mongeometre.ch/?…"
           />
         </label>
-        <label>
-          Extrait RDPPF
-          <input
-            name="lienRdppf"
-            type="url"
-            defaultValue={parcelle?.lienRdppf ?? ''}
-            placeholder="https://rdppf.apps.vs.ch/extract/pdf?…"
+        {/* Ce qui n'existe qu'une fois l'acte signé. Montrer ces champs sur
+            une parcelle encore en négociation inviterait à les remplir, et
+            un frais « réel » inventé vaut moins qu'une estimation annoncée
+            comme telle. */}
+        {statut === 'ACHETEE' && (
+          <div className="grille-2">
+            <label>
+              Frais d&apos;acquisition réellement payés
+              <input
+                name="fraisAcquisition"
+                inputMode="decimal"
+                defaultValue={parcelle?.fraisAcquisition ?? ''}
+                placeholder="33900"
+              />
+            </label>
+            <label>
+              Date de l&apos;acte
+              <input
+                name="dateAchat"
+                type="date"
+                defaultValue={parcelle?.dateAchat ? parcelle.dateAchat.slice(0, 10) : ''}
+              />
+            </label>
+          </div>
+        )}
+        {statut === 'ACHETEE' && parcelle && (
+          <DeposerActe
+            operationId={operationId}
+            parcelleId={parcelle.id}
+            nomFichier={parcelle.acteNomFichier ?? null}
           />
-        </label>
+        )}
+
       </div>
 
       {(prixM2 > 0 || sbp > 0) && (

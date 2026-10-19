@@ -29,6 +29,13 @@ export interface Parcelle {
   ibus: string | null;
   /// L'extrait RDPPF gardé : relisible sans redemander au cantonal.
   rdppfCleObjet?: string | null;
+  /// Envisagée tant qu'on négocie, achetée une fois l'acte signé. Le prix
+  /// ne change pas de champ : `prixAchat` porte les deux.
+  statut?: 'ENVISAGEE' | 'ACHETEE';
+  /// Frais RÉELLEMENT payés sur cette parcelle, connus par l'acte.
+  fraisAcquisition?: string | null;
+  dateAchat?: string | null;
+  acteNomFichier?: string | null;
   decoupages: Decoupage[];
 }
 
@@ -108,6 +115,10 @@ export interface AssietteFonciere {
    *  comme un chiffre connu est la façon la plus sûre de faire signer un
    *  bilan faux : l'affichage le précède d'un « ≈ ». */
   fraisEstimes: boolean;
+  /** Les frais déjà connus par un acte — jamais estimés. */
+  fraisReels: number;
+  /** Parcelles achetées, sur le total. */
+  achetees: number;
   /** Le taux utilisé pour l'estimation, pour pouvoir le dire. */
   tauxUtilise: TauxAcquisition | null;
   /** Ce que coûte le terrain par m² que l'on pourra bâtir, frais compris.
@@ -136,18 +147,40 @@ export function assiette(
   const prixTotal = parcelles.reduce((t, p) => t + Number(p.prixAchat ?? 0), 0);
   const sbpTotale = parcelles.reduce((t, p) => t + (sbp(p) ?? 0), 0);
 
+  /**
+   * Les frais : le RÉEL là où il est connu, l'estimation ailleurs.
+   *
+   * Une parcelle achetée porte ses frais exacts, lus sur l'acte. Celles
+   * qu'on négocie encore n'ont qu'un taux cantonal. Additionner les deux et
+   * présenter le total comme un chiffre connu serait la façon la plus sûre
+   * de faire signer un bilan faux : le « ≈ » reste tant qu'une seule
+   * parcelle est estimée.
+   */
+  const reels = parcelles
+    .filter((p) => p.statut === 'ACHETEE' && p.fraisAcquisition)
+    .reduce((t, p) => t + Number(p.fraisAcquisition), 0);
+  const prixSansFraisConnus = parcelles
+    .filter((p) => !(p.statut === 'ACHETEE' && p.fraisAcquisition))
+    .reduce((t, p) => t + Number(p.prixAchat ?? 0), 0);
+
+  // Les frais saisis au niveau de l'OPÉRATION priment : c'est une reprise
+  // manuelle, et elle porte sur l'ensemble.
   const saisis = Number(operation.fraisNotaireTerrain ?? 0) + Number(operation.droitsMutation ?? 0);
   const tauxDuCanton = taux.find((t) => t.canton === operation.canton) ?? null;
   const estimation =
-    saisis === 0 && tauxDuCanton && prixTotal > 0
-      ? (prixTotal * Number(tauxDuCanton.pourcentage)) / 100
+    saisis === 0 && tauxDuCanton && prixSansFraisConnus > 0
+      ? (prixSansFraisConnus * Number(tauxDuCanton.pourcentage)) / 100
       : null;
-  const fraisAcquisition = saisis > 0 ? saisis : (estimation ?? 0);
+  const fraisAcquisition = saisis > 0 ? saisis : reels + (estimation ?? 0);
 
   return {
     surfaceTotale,
     prixTotal,
     sbpTotale,
+    /** Les frais déjà connus par un acte — jamais estimés. */
+    fraisReels: reels,
+    /** Parcelles achetées, sur le total. */
+    achetees: parcelles.filter((p) => p.statut === 'ACHETEE').length,
     fraisAcquisition,
     fraisEstimes: estimation !== null,
     tauxUtilise: estimation !== null ? tauxDuCanton : null,

@@ -54,6 +54,12 @@ const parcelleSchema = z.object({
     .max(2000)
     .nullish(),
   prixAchat: montantPositif.nullish(),
+  /// Envisagée tant qu'on négocie, achetée une fois l'acte signé. Le PRIX
+  /// ne change pas de champ au passage : `prixAchat` porte les deux.
+  statut: z.enum(['ENVISAGEE', 'ACHETEE']).nullish(),
+  /// Frais réellement payés sur CETTE parcelle, connus par l'acte.
+  fraisAcquisition: montantPositif.nullish(),
+  dateAchat: z.coerce.date().nullish(),
   /** Indice brut d'utilisation du sol : 0,6 ou 1,2, pas 60. */
   ibus: nombreDecimal.nullish(),
   note: texteOptionnel,
@@ -169,6 +175,26 @@ export class FoncierController {
 
   @RequireModule('FONCIER')
   @RequireOperationAccess({ level: 'MANAGE', module: 'FONCIER' })
+  /**
+   * Déposer l'acte de vente d'une parcelle.
+   *
+   * C'est la pièce qui prouve le prix et la date. On la garde avec la
+   * promotion — elle porte des noms et des montants, donc elle vit dans le
+   * stockage cloisonné de la société, pas dans la référence partagée.
+   */
+  @RequireModule('FONCIER')
+  @RequireOperationAccess({ level: 'OPERATE', module: 'FONCIER' })
+  @Post('parcelles/:parcelleId/acte')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('fichier'))
+  deposerActe(
+    @Param('operationId', ParseIntPipe) operationId: number,
+    @Param('parcelleId', ParseIntPipe) parcelleId: number,
+    @UploadedFile() fichier: { buffer: Buffer; originalname?: string } | undefined,
+  ) {
+    return this.foncier.deposerActe(operationId, parcelleId, fichier);
+  }
+
   /**
    * Lire l'extrait RDPPF d'une parcelle et **proposer** ce qu'il contient.
    *
