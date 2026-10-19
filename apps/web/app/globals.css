@@ -558,6 +558,12 @@ tr.depassement td {
   background: var(--danger-bg);
 }
 
+/* La ligne qu'on est en train de modifier : le formulaire s'ouvre SOUS le
+   tableau, donc il faut pouvoir relier l'un à l'autre d'un coup d'œil. */
+tr.en-edition td {
+  background: var(--surface-brand-subtle);
+}
+
 .tableau-large {
   overflow-x: auto;
   margin: 0 calc(-1 * var(--space-7));

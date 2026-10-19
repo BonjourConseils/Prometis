@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { champ } from '../../../../lib/api-client';
-import { nombre } from '../../../../lib/format';
+import { montant, nombre } from '../../../../lib/format';
+import {
+  LIBELLE_DECOUPAGE,
+  prixAuM2,
+  sbp as sbpParcelle,
+  type Parcelle,
+} from '../../../../lib/foncier';
 import { Repliable, useEnvoi } from '../../../components/formulaire';
 
 /**
@@ -30,25 +36,224 @@ export function AjouterParcelle({ operationId }: { operationId: number }) {
   );
 }
 
+function LienExterne({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+      <span aria-hidden="true"> ↗</span>
+      <span className="hors-ecran"> (nouvel onglet)</span>
+    </a>
+  );
+}
+
 /**
- * Modifier une parcelle déjà saisie.
+ * Retirer une parcelle — en deux temps.
  *
- * Le même formulaire que la création, pré-rempli : une surface corrigée ou un
- * prix négocié à la baisse ne doit pas obliger à tout resaisir.
+ * Elle porte son prix, sa surface et ses découpages de zone, qui partent
+ * avec elle. Un seul clic suffirait à effacer la moitié d'une assiette
+ * foncière sans que personne s'en aperçoive avant le prochain calcul de
+ * SBP.
  */
-export function ModifierParcelle({
+function SupprimerParcelle({
   operationId,
-  parcelle,
+  parcelleId,
+  numero,
+  zones,
 }: {
   operationId: number;
-  parcelle: ParcelleExistante;
+  parcelleId: number;
+  numero: string;
+  zones: number;
 }) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+  const [confirme, setConfirme] = useState(false);
+
+  if (!confirme) {
+    return (
+      <button type="button" className="lien" onClick={() => setConfirme(true)}>
+        Supprimer
+      </button>
+    );
+  }
+
   return (
-    <Repliable libelle="Modifier">
-      {(fermer) => (
-        <FormulaireParcelle operationId={operationId} parcelle={parcelle} fermer={fermer} />
+    <>
+      <div className="meta">
+        Supprimer la parcelle {numero}
+        {zones > 0 && ` et ses ${zones} zone${zones > 1 ? 's' : ''}`} ?
+      </div>
+      <button
+        type="button"
+        className="lien ko"
+        disabled={enCours}
+        onClick={() =>
+          void envoyer(`/operations/${operationId}/parcelles/${parcelleId}`, undefined, 'DELETE')
+        }
+      >
+        {enCours ? 'Suppression…' : 'Oui, supprimer'}
+      </button>{' '}
+      <button type="button" className="lien" onClick={() => setConfirme(false)}>
+        Annuler
+      </button>
+      {erreur && <p className="ko">{erreur}</p>}
+    </>
+  );
+}
+
+/**
+ * Les parcelles : leur tableau, et le formulaire **sous** le tableau.
+ *
+ * Ouvrir la modification dans la dernière cellule la rendait inatteignable.
+ * Neuf colonnes débordent de la carte : il fallait faire défiler le tableau
+ * sur le côté pour seulement voir « Modifier », et le formulaire s'ouvrait
+ * alors en bande étroite collée au bord, ses champs coupés. Le tableau
+ * défile seul dans sa carte ; la saisie se fait en pleine largeur, où on la
+ * voit.
+ */
+export function TableauParcelles({
+  operationId,
+  parcelles,
+}: {
+  operationId: number;
+  parcelles: Parcelle[];
+}) {
+  const [modifie, setModifie] = useState<number | null>(null);
+  const parcelle = parcelles.find((p) => p.id === modifie);
+
+  return (
+    <>
+      <div className="tableau-large">
+        <table>
+          <thead>
+            <tr>
+              <th>Numéro</th>
+              <th>Commune</th>
+              <th>E-GRID</th>
+              <th>Affectation</th>
+              <th className="droite">Surface</th>
+              <th className="droite">Prix</th>
+              <th className="droite">IBUS · SBP</th>
+              <th>Références</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {parcelles.flatMap((p) => [
+              <tr key={p.id} className={modifie === p.id ? 'en-edition' : undefined}>
+                <td>
+                  <strong>{p.numero}</strong>
+                </td>
+                <td>{p.commune ?? '—'}</td>
+                <td>{p.egrid ? <code>{p.egrid}</code> : '—'}</td>
+                <td>{p.affectationZone ?? '—'}</td>
+                <td className="droite">{p.surfaceM2 ? nombre(p.surfaceM2, 'm²') : '—'}</td>
+                <td className="droite">
+                  {montant(p.prixAchat)}
+                  {prixAuM2(p) !== null && (
+                    <>
+                      <br />
+                      <span className="meta">{nombre(prixAuM2(p)!.toFixed(2), 'CHF/m²')}</span>
+                    </>
+                  )}
+                </td>
+                <td className="droite">
+                  {p.ibus ? (
+                    <>
+                      {nombre(p.ibus)}
+                      <br />
+                      {/* Surface brute de plancher : le premier chiffre qui
+                          dit si une opération tient sur un terrain. */}
+                      <span className="meta">
+                        {sbpParcelle(p) !== null
+                          ? `${nombre(sbpParcelle(p)!.toFixed(0), 'm²')} SBP`
+                          : '—'}
+                      </span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  {p.lienGeoportail && (
+                    <div>
+                      <LienExterne href={p.lienGeoportail}>géoportail</LienExterne>
+                    </div>
+                  )}
+                  {p.lienRdppf && (
+                    <div>
+                      <LienExterne href={p.lienRdppf}>extrait RDPPF</LienExterne>
+                    </div>
+                  )}
+                  {!p.lienGeoportail && !p.lienRdppf && <span className="meta">—</span>}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="lien"
+                    onClick={() => setModifie(modifie === p.id ? null : p.id)}
+                  >
+                    {modifie === p.id ? 'Fermer' : 'Modifier'}
+                  </button>
+                  <div className="actions-cellule">
+                    <SupprimerParcelle
+                      operationId={operationId}
+                      parcelleId={p.id}
+                      numero={p.numero}
+                      zones={p.decoupages.length}
+                    />
+                  </div>
+                </td>
+              </tr>,
+              <tr key={`${p.id}-zones`}>
+                <td colSpan={9}>
+                  {p.decoupages.length > 0 && (
+                    <table className="imbrique">
+                      <tbody>
+                        {p.decoupages.map((d) => (
+                          <tr key={d.id}>
+                            <td>
+                              <span className="meta">{LIBELLE_DECOUPAGE[d.type] ?? d.type}</span>
+                              <br />
+                              {d.libelle}
+                            </td>
+                            <td className="droite">
+                              {d.surfaceM2 ? nombre(d.surfaceM2, 'm²') : '—'}
+                            </td>
+                            <td className="droite">
+                              {d.pourcentage ? `${nombre(d.pourcentage)} %` : '—'}
+                            </td>
+                            <td className="droite">{d.ibus ? `IBUS ${nombre(d.ibus)}` : ''}</td>
+                            <td>
+                              <SupprimerDecoupage operationId={operationId} decoupageId={d.id} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <AjouterDecoupage
+                    operationId={operationId}
+                    parcelleId={p.id}
+                    numero={p.numero}
+                  />
+                </td>
+              </tr>,
+            ])}
+          </tbody>
+        </table>
+      </div>
+      {/* `key` : sans elle, passer d'une parcelle à l'autre garderait la
+          surface et le prix de la précédente — l'état local du formulaire
+          ne se réinitialise qu'au changement de clé. */}
+      {parcelle && (
+        <FormulaireParcelle
+          key={parcelle.id}
+          operationId={operationId}
+          parcelle={parcelle}
+          fermer={() => setModifie(null)}
+        />
       )}
-    </Repliable>
+    </>
   );
 }
 
