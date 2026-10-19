@@ -15,7 +15,9 @@ import {
   SupprimerPoste,
   VentilerPoste,
   SupprimerVersion,
+  FoncierReel,
 } from './saisie';
+import type { Parcelle } from '../../../../lib/foncier';
 import { chf, montant } from '../../../../lib/format';
 
 interface Colonnes {
@@ -156,6 +158,26 @@ export default async function BudgetPage({
   const lignes = aplatir(vue.arbre);
   const ecart = Number(vue.total.ecartRevisionInitial);
 
+  /**
+   * Le foncier RÉEL : ce que les actes signés disent, au franc près.
+   *
+   * On ne compte que les parcelles achetées. Une parcelle en négociation
+   * n'a qu'un prix espéré, et le porter au budget du chantier comme un
+   * montant réel serait écrire une certitude qu'on n'a pas.
+   */
+  const parcelles = (await apiGet<Parcelle[]>(`/operations/${operationId}/parcelles`)) ?? [];
+  const achetees = parcelles.filter((p) => p.statut === 'ACHETEE');
+  const foncierReel = {
+    achat: achetees.reduce((t, p) => t + Number(p.prixAchat ?? 0), 0),
+    frais: achetees.reduce((t, p) => t + Number(p.fraisAcquisition ?? 0), 0),
+    achetees: achetees.length,
+    total: parcelles.length,
+  };
+  // Les postes 01 et 02 de la trame, et ce que le budget y porte déjà.
+  const posteDeCode = (code: string) => lignes.find(({ noeud }) => noeud.code === code)?.noeud;
+  const posteAchat = posteDeCode('01');
+  const posteFrais = posteDeCode('02');
+
   // Liste plate des postes, pour les listes déroulantes de saisie : on ne
   // choisit pas un poste CFC dans un arbre replié.
   const postes = lignes.map(({ noeud }) => ({
@@ -252,6 +274,24 @@ export default async function BudgetPage({
           )}
         </div>
       </section>
+
+      {vue.versionAffichee && foncierReel.achetees > 0 && (
+        <section>
+          <h2>Le terrain, au réel</h2>
+          <FoncierReel
+            operationId={Number(operationId)}
+            versionId={vue.versionAffichee.id}
+            achat={foncierReel.achat}
+            frais={foncierReel.frais}
+            posteAchatId={posteAchat?.id ?? null}
+            posteFraisId={posteFrais?.id ?? null}
+            montantAchatActuel={Number(posteAchat?.propre.budgeteRevise ?? 0)}
+            montantFraisActuel={Number(posteFrais?.propre.budgeteRevise ?? 0)}
+            achetees={foncierReel.achetees}
+            total={foncierReel.total}
+          />
+        </section>
+      )}
 
       <section>
         <h2>Synthèse</h2>

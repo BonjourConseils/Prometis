@@ -177,9 +177,14 @@ export async function AppHeader({
               </>
             )}
 
+            {/* L'ordre du chantier est celui du fil rouge financier :
+                budgété → adjugé → facturé → écart. Les écarts venaient
+                avant les soumissions, c'est-à-dire qu'on proposait de lire
+                un résultat avant que rien ne l'alimente. Séances et
+                documents ferment la liste : ils accompagnent tout le
+                chantier au lieu d'en être une étape. */}
             <div className="rubrique">Chantier</div>
             {moduleActif('BUDGET_CFC') && lien('budget', op('/budget'), 'Budget CFC', IconeBudget)}
-            {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SOUMISSIONS') &&
               lien(
                 'soumissions',
@@ -190,6 +195,7 @@ export async function AppHeader({
               )}
             {moduleActif('FACTURES') &&
               lien('factures', op('/factures'), 'Factures', IconeFactures, 'FACTURES')}
+            {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SEANCES') &&
               lien('seances', op('/seances'), 'Séances & PV', IconeSeances)}
             {moduleActif('GED') && lien('documents', op('/documents'), 'Documents', IconeGed)}

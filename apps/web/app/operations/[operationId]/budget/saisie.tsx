@@ -713,3 +713,108 @@ function FormulaireVentilation({
     </form>
   );
 }
+
+/**
+ * Le foncier acheté, porté au budget réel.
+ *
+ * L'estimatif portait un terrain estimé ; une fois les actes signés, les
+ * montants sont connus au franc près. Le budget CFC les reprend en 01
+ * (achat) et 02 (frais) — mais **on les propose, on ne les écrit pas**.
+ *
+ * Un budget qu'on tient face aux soumissions ne doit pas se réécrire tout
+ * seul : le promoteur peut avoir porté le terrain autrement — une parcelle
+ * apportée, un échange, un prix réparti sur deux versions. Le bouton le
+ * laisse décider, et l'écart s'affiche pour qu'il décide en connaissance.
+ */
+export function FoncierReel({
+  operationId,
+  versionId,
+  achat,
+  frais,
+  posteAchatId,
+  posteFraisId,
+  montantAchatActuel,
+  montantFraisActuel,
+  achetees,
+  total,
+}: {
+  operationId: number;
+  versionId: number;
+  achat: number;
+  frais: number;
+  posteAchatId: number | null;
+  posteFraisId: number | null;
+  montantAchatActuel: number;
+  montantFraisActuel: number;
+  achetees: number;
+  total: number;
+}) {
+  const { envoyer, erreur, enCours } = useEnvoi();
+  const [fait, setFait] = useState(false);
+
+  if (achetees === 0) return null;
+  if (!posteAchatId && !posteFraisId) {
+    return (
+      <p className="note">
+        {achetees} parcelle(s) achetée(s) pour <strong>{chf(String(achat))}</strong>, mais la
+        trame CFC de cette promotion n’a ni poste 01 ni poste 02 : impossible d’y porter le
+        terrain.
+      </p>
+    );
+  }
+
+  // Au franc près : un écart d'arrondi ne vaut pas une proposition.
+  const dejaJuste =
+    Math.abs(montantAchatActuel - achat) < 1 && Math.abs(montantFraisActuel - frais) < 1;
+
+  const lignes = [
+    ...(posteAchatId ? [{ cfcNodeId: posteAchatId, montant: String(achat) }] : []),
+    ...(posteFraisId ? [{ cfcNodeId: posteFraisId, montant: String(frais) }] : []),
+  ];
+
+  return (
+    <div className="note">
+      <p>
+        <strong>Le foncier est acheté.</strong> {achetees} parcelle(s) sur {total} —{' '}
+        {chf(String(achat))} d’achat
+        {frais > 0 && <> et {chf(String(frais))} de frais</>}, montants réels, prouvés par les
+        actes.
+        {achetees < total && (
+          <>
+            {' '}
+            Les {total - achetees} autre(s) sont encore en négociation : ce qui suit ne les
+            couvre pas.
+          </>
+        )}
+      </p>
+      {dejaJuste ? (
+        <p className="ok">Le budget porte déjà ces montants.</p>
+      ) : fait ? (
+        <p className="ok">Montants repris en CFC 01 et 02.</p>
+      ) : (
+        <>
+          <p>
+            Le budget porte aujourd’hui {chf(String(montantAchatActuel))} en 01 et{' '}
+            {chf(String(montantFraisActuel))} en 02.
+          </p>
+          <div className="actions">
+            <button
+              type="button"
+              disabled={enCours}
+              onClick={() =>
+                void envoyer(
+                  `/operations/${operationId}/budget/versions/${versionId}/estimatif`,
+                  { lignes },
+                  'POST',
+                ).then(() => setFait(true))
+              }
+            >
+              {enCours ? 'Reprise…' : 'Porter le foncier réel en CFC 01 et 02'}
+            </button>
+          </div>
+        </>
+      )}
+      {erreur && <p className="ko">{erreur}</p>}
+    </div>
+  );
+}
