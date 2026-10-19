@@ -879,6 +879,35 @@ button {
   margin-top: 0;
 }
 
+/* Un groupe de champs qui vont ensemble, dans son cadre.
+   Un lien, un dépôt de fichier et le résultat de leur lecture forment une
+   seule chose : éparpillés dans la grille du formulaire, les boutons
+   tombent dans la colonne suivante et ne se rattachent plus à rien. */
+fieldset.cadre {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-7) var(--space-7);
+  margin: var(--space-6) 0 0;
+  min-width: 0;
+}
+
+fieldset.cadre legend {
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+fieldset.cadre > .note:first-of-type {
+  margin-top: 0;
+}
+
+fieldset.cadre label {
+  display: block;
+}
+
 /* Bloc de saisie déplié sous une liste : creusé, pour qu'on voie d'un coup
    qu'on est en train d'ajouter et non de consulter. */
 .saisie {
@@ -897,6 +926,53 @@ section > table + button,
 section > .tableau-large + button,
 section > p + button {
   margin-top: var(--space-6);
+}
+
+/* =====================================================================
+ *  Deux règles qui tiennent tous les boutons de l'app
+ * =====================================================================
+ *
+ * 1. MÊME HAUTEUR. Un bouton principal écrit en `--text-base` et un
+ *    secondaire en `--text-sm` ne faisaient pas la même hauteur : côte à
+ *    côte ou l'un sous l'autre, ça se voit immédiatement. La taille du
+ *    texte reste la hiérarchie ; la hauteur, elle, est commune.
+ *
+ * 2. ILS NE SE TOUCHENT JAMAIS. Deux boutons collés se lisent comme un
+ *    groupe segmenté — on croit à un choix unique entre deux options. Un
+ *    espace suffit à dire que ce sont deux gestes distincts. */
+.form button[type='submit'],
+button.principal,
+section > button:not(.principal),
+.actions > button:not(.principal),
+td button:not(.principal):not(.lien),
+label.lien-fichier,
+a.bouton,
+.form button[type='button']:not(.lien) {
+  /* 42px : la hauteur naturelle du bouton principal, texte en --text-base
+     et rembourrage --space-5. Les secondaires s'y alignent plutôt que
+     l'inverse — rétrécir le geste principal l'aurait affadi. */
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Deux actions qui se suivent HORS d'un conteneur à `gap`.
+   ⚠️ Pas dans `.actions` : il est déjà en `flex` avec un `gap`, et une
+   marge s'y ajoute au lieu de s'y substituer — les boutons partaient en
+   escalier dès qu'ils passaient à la ligne. */
+:not(.actions) > button + button:not(.lien),
+:not(.actions) > button:not(.lien) + a.bouton,
+:not(.actions) > a.bouton + button:not(.lien) {
+  margin-left: var(--space-5);
+}
+
+/* Empilés plutôt qu'alignés : c'est la marge du haut qui doit les séparer. */
+section > button + button,
+section > .saisie + button,
+section > form + button {
+  margin-top: var(--space-6);
+  margin-left: 0;
 }
 
 /* Action principale d'un écran, hors formulaire : contour, à droite du titre. */
