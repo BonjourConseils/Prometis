@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { apiGet, getToken, lirePayload } from '../../lib/session';
 import { AppHeader, type Me } from '../components/app-header';
@@ -109,7 +110,7 @@ export default async function CommunesPage() {
                           </td>
                         )}
                         <td>
-                          {r.titre}
+                          <Link href={`/communes/reglements/${r.id}`}>{r.titre}</Link>
                           {r.version && (
                             <>
                               <br />
