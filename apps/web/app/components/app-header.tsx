@@ -133,12 +133,24 @@ export function AppHeader({
 
         {operationId !== undefined && (
           <>
+            {/* Deux phases, parce que le promoteur n'y travaille pas au même
+                moment. BUDGET, c'est décider d'y aller : on trouve un terrain,
+                on chiffre les grands postes, le bénéfice prévisionnel dit oui
+                ou non. CHANTIER, c'est tenir ce qu'on a décidé.
+
+                Le budget CFC tombe donc du côté chantier : c'est le même
+                budget que l'estimatif, à une maille plus fine, mais on le
+                tient pendant les travaux — soumissions, factures, écarts. */}
+            {(moduleActif('FONCIER') || moduleActif('BUDGET_CFC')) && (
+              <>
+                <div className="rubrique">Budget</div>
+                {moduleActif('FONCIER') && lien('foncier', op('/foncier'), 'Foncier', IconePpe)}
+                {moduleActif('BUDGET_CFC') &&
+                  lien('estimatif', op('/estimatif'), 'Budget estimatif', IconeBudget)}
+              </>
+            )}
+
             <div className="rubrique">Chantier</div>
-            {moduleActif('FONCIER') && lien('foncier', op('/foncier'), 'Foncier', IconePpe)}
-            {/* L'estimatif précède le budget : c'est l'ordre dans lequel une
-                promotion se monte — on chiffre grossièrement avant de détailler. */}
-            {moduleActif('BUDGET_CFC') &&
-              lien('estimatif', op('/estimatif'), 'Budget estimatif', IconeBudget)}
             {moduleActif('BUDGET_CFC') && lien('budget', op('/budget'), 'Budget CFC', IconeBudget)}
             {moduleActif('ECARTS') && lien('ecarts', op('/ecarts'), 'Écarts', IconeEcarts)}
             {moduleActif('SOUMISSIONS') &&
@@ -193,7 +205,12 @@ export function AppHeader({
             {lien('modules', '/modules', 'Modules', IconeBudget)}
             {lien('passerelle', '/passerelle', 'Passerelle', IconePasserelle)}
             {lien('droits', '/droits-acces', "Droits d'accès", IconeDroits)}
-            {lien('taux', '/taux-acquisition', "Frais d'acquisition", IconeBudget)}
+            {/* Référence partagée, pas un paramétrage de société : un règlement
+            communal est public et vaut pour tout le monde. Sa place est
+            néanmoins ici, avec les réglages — on l'enregistre une fois, on
+            n'y revient qu'à la publication d'une nouvelle version. */}
+        {lien('communes', '/communes', 'Communes & règlements', IconePpe)}
+        {lien('taux', '/taux-acquisition', "Frais d'acquisition", IconeBudget)}
             {lien('usage-ia', '/usage-ia', "Usage de l'IA", IconeBudget)}
           </>
         )}
